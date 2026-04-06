@@ -15,7 +15,7 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
 )
 
-func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string, jwks *auth.JWKSFetcher, audit auth.AuditLogger) *http.Server {
+func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string, jwks *auth.JWKSFetcher, audit auth.AuditLogger, registrars ...RouteRegistrar) *http.Server {
 	router := chi.NewRouter()
 	router.Use(chimiddleware.RequestID)
 	router.Use(logging.Middleware(logger))
@@ -25,7 +25,7 @@ func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string, jwks 
 	authMiddleware := auth.NewMiddleware(jwks, cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, logger, audit)
 	router.Use(authMiddleware.Authenticate)
 
-	RegisterRoutes(router, version)
+	RegisterRoutes(router, version, registrars...)
 
 	return &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.ServerPort),

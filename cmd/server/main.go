@@ -14,7 +14,9 @@ import (
 
 	"github.com/vaultkeeper/vaultkeeper/internal/audit"
 	"github.com/vaultkeeper/vaultkeeper/internal/auth"
+	"github.com/vaultkeeper/vaultkeeper/internal/cases"
 	"github.com/vaultkeeper/vaultkeeper/internal/config"
+	"github.com/vaultkeeper/vaultkeeper/internal/custody"
 	"github.com/vaultkeeper/vaultkeeper/internal/database"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
 	"github.com/vaultkeeper/vaultkeeper/internal/server"
@@ -70,7 +72,21 @@ func run() error {
 	}
 
 	auditLogger := audit.NewLogger(pool)
-	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger)
+
+	custodyRepo := custody.NewRepository(pool)
+	custodyLogger := custody.NewLogger(custodyRepo)
+
+	caseRepo := cases.NewRepository(pool)
+	caseSvc, err := cases.NewService(caseRepo, custodyLogger, cfg.CaseReferenceRegex)
+	if err != nil {
+		return fmt.Errorf("create case service: %w", err)
+	}
+	caseHandler := cases.NewHandler(caseSvc, auditLogger)
+
+	roleRepo := cases.NewRoleRepository(pool)
+	roleHandler := cases.NewRoleHandler(roleRepo, custodyLogger, auditLogger)
+
+	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, caseHandler, roleHandler)
 
 	serverErr := make(chan error, 1)
 	go func() {

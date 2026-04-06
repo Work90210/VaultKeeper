@@ -7,7 +7,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func RegisterRoutes(r chi.Router, version string) {
+type RouteRegistrar interface {
+	RegisterRoutes(r chi.Router)
+}
+
+func RegisterRoutes(r chi.Router, version string, registrars ...RouteRegistrar) {
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -16,4 +20,10 @@ func RegisterRoutes(r chi.Router, version string) {
 			"version": version,
 		})
 	})
+
+	for _, reg := range registrars {
+		if reg != nil {
+			reg.RegisterRoutes(r)
+		}
+	}
 }

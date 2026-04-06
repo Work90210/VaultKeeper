@@ -1,0 +1,1 @@
+ALTER TABLE cases DROP COLUMN IF EXISTS legal_hold;
