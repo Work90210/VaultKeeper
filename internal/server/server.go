@@ -10,16 +10,20 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/vaultkeeper/vaultkeeper/internal/auth"
 	"github.com/vaultkeeper/vaultkeeper/internal/config"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
 )
 
-func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string) *http.Server {
+func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string, jwks *auth.JWKSFetcher, audit auth.AuditLogger) *http.Server {
 	router := chi.NewRouter()
 	router.Use(chimiddleware.RequestID)
 	router.Use(logging.Middleware(logger))
 	router.Use(corsMiddleware(cfg.CORSOrigins, cfg.AppURL))
 	router.Use(chimiddleware.Recoverer)
+
+	authMiddleware := auth.NewMiddleware(jwks, cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, logger, audit)
+	router.Use(authMiddleware.Authenticate)
 
 	RegisterRoutes(router, version)
 

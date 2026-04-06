@@ -12,6 +12,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/vaultkeeper/vaultkeeper/internal/audit"
+	"github.com/vaultkeeper/vaultkeeper/internal/auth"
 	"github.com/vaultkeeper/vaultkeeper/internal/config"
 	"github.com/vaultkeeper/vaultkeeper/internal/database"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
@@ -58,7 +60,17 @@ func run() error {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
-	httpServer := server.NewHTTPServer(cfg, logger, version)
+	jwks := auth.NewJWKSFetcher(cfg.KeycloakURL, cfg.KeycloakRealm)
+	jwksCtx, jwksCancel := context.WithTimeout(ctx, 15*time.Second)
+	defer jwksCancel()
+	if err := jwks.Prefetch(jwksCtx); err != nil {
+		logger.Warn("JWKS prefetch failed; continuing without warm cache", "error", err)
+	} else {
+		logger.Info("JWKS keys prefetched successfully")
+	}
+
+	auditLogger := audit.NewLogger(pool)
+	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger)
 
 	serverErr := make(chan error, 1)
 	go func() {

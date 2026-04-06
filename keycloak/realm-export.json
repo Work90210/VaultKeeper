@@ -77,10 +77,12 @@
       "clientId": "vaultkeeper-web",
       "name": "VaultKeeper Web",
       "enabled": true,
-      "publicClient": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "vaultkeeper-web-dev-secret",
+      "publicClient": false,
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "implicitFlowEnabled": false,
       "fullScopeAllowed": true,
       "redirectUris": ["*"],
@@ -101,6 +103,17 @@
             "access.token.claim": "true",
             "claim.name": "system_role",
             "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "vaultkeeper-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "vaultkeeper-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
           }
         }
       ]

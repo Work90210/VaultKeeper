@@ -1,3 +1,7 @@
+import { getServerSession } from 'next-auth';
+import { redirect } from 'next/navigation';
+import { authOptions } from '@/lib/auth';
+
 export interface ApiResponse<T> {
   data: T | null;
   error: string | null;
@@ -31,4 +35,23 @@ export async function api<T>(
   }
 
   return response.json();
+}
+
+export async function authenticatedFetch<T>(
+  path: string,
+  options?: RequestInit
+): Promise<ApiResponse<T>> {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.accessToken || session.error === 'RefreshAccessTokenError') {
+    redirect('/en/login');
+  }
+
+  return api<T>(path, {
+    ...options,
+    headers: {
+      ...options?.headers,
+      Authorization: `Bearer ${session.accessToken}`,
+    },
+  });
 }
