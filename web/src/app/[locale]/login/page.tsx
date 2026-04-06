@@ -98,7 +98,7 @@ export default function LoginPage() {
             className="mt-[var(--space-xs)] text-[var(--text-sm)]"
             style={{ color: 'var(--text-secondary)' }}
           >
-            Authenticate via your organization's identity provider.
+            Authenticate via your organization's credentials.
           </p>
 
           {errorMessage && (
@@ -129,7 +129,7 @@ export default function LoginPage() {
             }}
             type="button"
           >
-            Continue with Keycloak
+            Sign in with SSO
           </button>
 
           <p
