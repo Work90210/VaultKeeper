@@ -1,0 +1,29 @@
+{
+	email admin@vaultkeeper.eu
+}
+
+vaultkeeper.eu {
+	reverse_proxy api:8080
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; frame-src 'none'"
+		-Server
+	}
+
+	@health path /health
+	handle @health {
+		reverse_proxy api:8080
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50mb
+			roll_keep 30
+		}
+		format json
+	}
+}

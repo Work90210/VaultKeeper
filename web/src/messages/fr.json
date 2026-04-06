@@ -1,0 +1,44 @@
+{
+  "common": {
+    "appName": "VaultKeeper",
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "search": "Rechercher",
+    "noResults": "Aucun résultat trouvé"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter",
+    "loginTitle": "Connexion à VaultKeeper",
+    "loginDescription": "Plateforme souveraine de gestion des preuves"
+  },
+  "cases": {
+    "title": "Affaires",
+    "newCase": "Nouvelle affaire",
+    "referenceCode": "Code de référence",
+    "status": "Statut",
+    "jurisdiction": "Juridiction",
+    "active": "Active",
+    "closed": "Clôturée",
+    "archived": "Archivée"
+  },
+  "evidence": {
+    "title": "Preuves",
+    "upload": "Télécharger des preuves",
+    "classification": "Classification",
+    "public": "Public",
+    "restricted": "Restreint",
+    "confidential": "Confidentiel",
+    "exParte": "Ex Parte"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "profile": "Profil",
+    "security": "Sécurité",
+    "notifications": "Notifications"
+  }
+}

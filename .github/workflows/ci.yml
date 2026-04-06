@@ -1,0 +1,182 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint
+        working-directory: web
+        run: pnpm lint
+
+      - name: Prettier
+        working-directory: web
+        run: pnpm prettier --check .
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Run tests
+        run: go test ./... -race -count=1 -coverprofile=coverage.out
+
+      - name: Check coverage
+        run: |
+          total=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${total}%"
+          if (( $(echo "$total < 80" | bc -l) )); then
+            echo "::error::Coverage ${total}% is below 80% threshold"
+            exit 1
+          fi
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: vaultkeeper_test
+          POSTGRES_USER: vaultkeeper
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vaultkeeper -d vaultkeeper_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      meilisearch:
+        image: getmeili/meilisearch:v1.7
+        env:
+          MEILI_MASTER_KEY: test-master-key
+        ports:
+          - 7700:7700
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:7700/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgres://vaultkeeper:testpassword@localhost:5432/vaultkeeper_test?sslmode=disable
+          MINIO_ENDPOINT: localhost:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MEILISEARCH_URL: http://localhost:7700
+          MEILISEARCH_API_KEY: test-master-key
+        run: go test ./... -tags=integration -race -count=1
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: vaultkeeper:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: gosec
+        uses: securego/gosec@master
+        with:
+          args: ./...
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: npm audit
+        working-directory: web
+        run: pnpm audit --audit-level=high
+        continue-on-error: true

@@ -1,0 +1,40 @@
+services:
+  api:
+    build:
+      target: go-builder
+    volumes:
+      - .:/app
+    command: ["go", "run", "./cmd/server"]
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: debug
+    ports:
+      - "8080:8080"
+
+  caddy:
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  keycloak:
+    command: start-dev --import-realm
+    environment:
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+
+  meilisearch:
+    environment:
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"

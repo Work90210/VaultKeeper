@@ -1,0 +1,13 @@
+BEGIN;
+
+DROP TABLE IF EXISTS backup_log;
+DROP TABLE IF EXISTS api_keys;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS disclosures;
+DROP TABLE IF EXISTS witnesses;
+DROP TABLE IF EXISTS custody_log;
+DROP TABLE IF EXISTS evidence_items;
+DROP TABLE IF EXISTS case_roles;
+DROP TABLE IF EXISTS cases;
+
+COMMIT;

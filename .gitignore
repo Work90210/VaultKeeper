@@ -1,0 +1,63 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/server
+
+# Go
+/vendor/
+*.test
+coverage.out
+coverage.html
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Next.js
+web/node_modules/
+web/.next/
+web/out/
+web/.env*.local
+
+# Playwright
+web/test-results/
+web/playwright-report/
+
+# Build artifacts
+/dist/
+/tmp/
+/build/
+
+# Log files
+*.log
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# Secrets & credentials
+*.pem
+*.key
+credentials.json
+vectors.db
+vectors.db-shm
+vectors.db-wal
+logs_llm/

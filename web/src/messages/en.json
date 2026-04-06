@@ -1,0 +1,44 @@
+{
+  "common": {
+    "appName": "VaultKeeper",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "noResults": "No results found"
+  },
+  "auth": {
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "loginTitle": "Sign in to VaultKeeper",
+    "loginDescription": "Sovereign evidence management platform"
+  },
+  "cases": {
+    "title": "Cases",
+    "newCase": "New Case",
+    "referenceCode": "Reference Code",
+    "status": "Status",
+    "jurisdiction": "Jurisdiction",
+    "active": "Active",
+    "closed": "Closed",
+    "archived": "Archived"
+  },
+  "evidence": {
+    "title": "Evidence",
+    "upload": "Upload Evidence",
+    "classification": "Classification",
+    "public": "Public",
+    "restricted": "Restricted",
+    "confidential": "Confidential",
+    "exParte": "Ex Parte"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "security": "Security",
+    "notifications": "Notifications"
+  }
+}
