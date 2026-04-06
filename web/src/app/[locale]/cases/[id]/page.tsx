@@ -33,16 +33,7 @@ export default async function CaseDetailPage({
     return (
       <Shell>
         <div className="max-w-4xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
-          <div
-            className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
-            style={{
-              backgroundColor: 'var(--status-hold-bg)',
-              color: 'var(--status-hold)',
-              borderLeft: '3px solid var(--status-hold)',
-            }}
-          >
-            {res.error}
-          </div>
+          <div className="banner-error">{res.error}</div>
         </div>
       </Shell>
     );
@@ -55,8 +46,7 @@ export default async function CaseDetailPage({
       <div className="max-w-4xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
         <a
           href="/en/cases"
-          className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
-          style={{ color: 'var(--text-tertiary)' }}
+          className="link-subtle text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
         >
           &larr; All cases
         </a>

@@ -71,36 +71,21 @@ export default async function CasesPage({
             >
               Cases
             </h1>
-            <p className="text-[var(--text-sm)]" style={{ color: 'var(--text-tertiary)' }}>
+            <p
+              className="text-[var(--text-sm)] mt-[var(--space-xs)]"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
               {total} {total === 1 ? 'case' : 'cases'}
             </p>
           </div>
           {canCreate && (
-            <a
-              href="/en/cases/new"
-              className="px-[var(--space-md)] py-[var(--space-xs)] text-[var(--text-sm)] font-medium"
-              style={{
-                backgroundColor: 'var(--amber-accent)',
-                color: 'var(--stone-950)',
-              }}
-            >
+            <a href="/en/cases/new" className="btn-primary">
               New case
             </a>
           )}
         </div>
 
-        {error && (
-          <div
-            className="mb-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
-            style={{
-              backgroundColor: 'var(--status-hold-bg)',
-              color: 'var(--status-hold)',
-              borderLeft: '3px solid var(--status-hold)',
-            }}
-          >
-            {error}
-          </div>
-        )}
+        {error && <div className="banner-error mb-[var(--space-md)]">{error}</div>}
 
         <CaseList
           cases={cases}

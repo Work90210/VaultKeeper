@@ -1,0 +1,535 @@
+/* ============================================================
+   VaultKeeper Keycloak Theme — "The Archive"
+   Mirrors the Next.js app design system.
+   ============================================================ */
+
+/* — Design Tokens — */
+:root {
+  /* Stone palette */
+  --stone-50: oklch(0.985 0.004 75);
+  --stone-100: oklch(0.965 0.007 75);
+  --stone-200: oklch(0.925 0.010 75);
+  --stone-300: oklch(0.870 0.012 75);
+  --stone-400: oklch(0.710 0.014 70);
+  --stone-500: oklch(0.560 0.014 65);
+  --stone-600: oklch(0.440 0.014 60);
+  --stone-700: oklch(0.370 0.012 55);
+  --stone-800: oklch(0.290 0.012 50);
+  --stone-900: oklch(0.220 0.014 45);
+  --stone-950: oklch(0.160 0.016 40);
+
+  /* Accent */
+  --amber-accent: oklch(0.680 0.130 70);
+  --amber-hover: oklch(0.620 0.130 68);
+  --amber-subtle: oklch(0.920 0.040 80);
+
+  /* Semantic */
+  --status-hold: oklch(0.560 0.120 25);
+  --status-hold-bg: oklch(0.940 0.030 25);
+  --status-active: oklch(0.600 0.100 145);
+  --status-active-bg: oklch(0.940 0.030 145);
+
+  /* Surfaces */
+  --bg-primary: var(--stone-50);
+  --bg-elevated: oklch(0.995 0.002 75);
+  --bg-inset: var(--stone-100);
+  --text-primary: var(--stone-900);
+  --text-secondary: var(--stone-600);
+  --text-tertiary: var(--stone-400);
+  --border-default: var(--stone-200);
+  --border-subtle: oklch(0.940 0.006 75);
+
+  /* Radii */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px oklch(0.3 0.01 60 / 0.08), 0 1px 2px oklch(0.3 0.01 60 / 0.04);
+  --shadow-md: 0 4px 6px oklch(0.3 0.01 60 / 0.06), 0 2px 4px oklch(0.3 0.01 60 / 0.04);
+
+  /* Spacing */
+  --space-xs: clamp(0.25rem, 0.2rem + 0.15vw, 0.375rem);
+  --space-sm: clamp(0.5rem, 0.45rem + 0.15vw, 0.625rem);
+  --space-md: clamp(0.75rem, 0.65rem + 0.3vw, 1rem);
+  --space-lg: clamp(1.25rem, 1rem + 0.6vw, 1.75rem);
+  --space-xl: clamp(2rem, 1.5rem + 1.2vw, 3rem);
+
+  /* Type */
+  --text-xs: clamp(0.6875rem, 0.65rem + 0.1vw, 0.75rem);
+  --text-sm: clamp(0.8125rem, 0.78rem + 0.1vw, 0.875rem);
+  --text-base: clamp(0.875rem, 0.85rem + 0.12vw, 0.9375rem);
+  --text-lg: clamp(1.0625rem, 1rem + 0.2vw, 1.125rem);
+  --text-xl: clamp(1.25rem, 1.1rem + 0.4vw, 1.5rem);
+  --text-2xl: clamp(1.5rem, 1.3rem + 0.6vw, 1.875rem);
+  --text-3xl: clamp(1.875rem, 1.5rem + 1vw, 2.5rem);
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-normal: 200ms;
+  --duration-slow: 400ms;
+}
+
+/* — Dark mode — */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: var(--stone-950);
+    --bg-elevated: oklch(0.200 0.014 48);
+    --bg-inset: oklch(0.140 0.014 40);
+    --text-primary: oklch(0.920 0.006 75);
+    --text-secondary: oklch(0.640 0.010 70);
+    --text-tertiary: oklch(0.480 0.010 65);
+    --border-default: oklch(0.260 0.012 50);
+    --border-subtle: oklch(0.220 0.010 48);
+    --amber-subtle: oklch(0.240 0.030 65);
+    --shadow-sm: 0 1px 3px oklch(0.05 0.01 60 / 0.35), 0 1px 2px oklch(0.05 0.01 60 / 0.20);
+    --shadow-md: 0 4px 6px oklch(0.05 0.01 60 / 0.25), 0 2px 4px oklch(0.05 0.01 60 / 0.15);
+  }
+}
+
+/* — Reset — */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* — Global — */
+.vk-body {
+  font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+::selection {
+  background-color: var(--amber-subtle);
+  color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--amber-accent);
+  outline-offset: 2px;
+}
+
+/* — Layout — */
+.vk-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* — Brand Panel (left) — */
+.vk-brand-panel {
+  display: none;
+  width: 45%;
+  background-color: var(--stone-900);
+  position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  .vk-brand-panel {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.vk-brand-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image:
+    linear-gradient(var(--stone-400) 1px, transparent 1px),
+    linear-gradient(90deg, var(--stone-400) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.vk-brand-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--space-xl);
+  height: 100%;
+}
+
+.vk-brand-top {}
+
+.vk-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.vk-brand-title {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: var(--text-3xl);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--stone-100);
+}
+
+.vk-brand-subtitle {
+  margin-top: var(--space-xs);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--stone-400);
+}
+
+.vk-brand-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.vk-brand-quote {
+  border-left: 2px solid var(--amber-accent);
+  padding-left: var(--space-md);
+}
+
+.vk-brand-quote p {
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--stone-300);
+}
+
+.vk-brand-features {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.vk-feature {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--stone-400);
+}
+
+.vk-feature-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background-color: var(--amber-accent);
+  opacity: 0.6;
+}
+
+.vk-brand-footer {
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+/* — Form Panel (right) — */
+.vk-form-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background-color: var(--bg-primary);
+}
+
+.vk-form-container {
+  width: 100%;
+  max-width: 24rem;
+}
+
+/* — Mobile brand — */
+.vk-mobile-brand {
+  margin-bottom: var(--space-xl);
+}
+
+@media (min-width: 1024px) {
+  .vk-mobile-brand {
+    display: none;
+  }
+}
+
+/* — Card — */
+.vk-card {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-xl);
+  animation: vk-fade-in var(--duration-slow) var(--ease-out-expo);
+}
+
+/* — Locale picker — */
+.vk-locale-picker {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.vk-locale-link {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  transition: all 120ms ease;
+}
+
+.vk-locale-link:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-inset);
+}
+
+.vk-locale-active {
+  color: var(--amber-accent);
+  background-color: var(--amber-subtle);
+}
+
+.vk-locale-active:hover {
+  color: var(--amber-hover);
+}
+
+/* — Form header — */
+.vk-form-title {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: var(--text-xl);
+  font-weight: 400;
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.vk-form-subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+/* — Form — */
+.vk-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* — Field — */
+.vk-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.vk-label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.vk-input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  font-family: inherit;
+  font-size: var(--text-base);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  transition: border-color var(--duration-normal) ease, box-shadow var(--duration-normal) ease;
+}
+
+.vk-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.vk-input:focus {
+  border-color: var(--amber-accent);
+  box-shadow: 0 0 0 3px var(--amber-subtle);
+  outline: none;
+}
+
+.vk-input-error {
+  border-color: var(--status-hold);
+}
+
+.vk-input-error:focus {
+  border-color: var(--status-hold);
+  box-shadow: 0 0 0 3px var(--status-hold-bg);
+}
+
+.vk-field-error {
+  font-size: var(--text-xs);
+  color: var(--status-hold);
+}
+
+/* — Form options row — */
+.vk-form-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+/* — Checkbox — */
+.vk-checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.vk-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--amber-accent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.vk-checkbox-label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* — Links — */
+.vk-link {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--amber-accent);
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.vk-link:hover {
+  color: var(--amber-hover);
+}
+
+/* — Primary button — */
+.vk-btn-primary {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm) var(--space-lg);
+  margin-top: var(--space-sm);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--stone-950);
+  background-color: var(--amber-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 2px oklch(0.3 0.01 60 / 0.06);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out-expo);
+}
+
+.vk-btn-primary:hover {
+  background-color: var(--amber-hover);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-0.5px);
+}
+
+.vk-btn-primary:active {
+  transform: translateY(0);
+}
+
+.vk-btn-primary:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  transform: none;
+}
+
+/* — Alerts — */
+.vk-alert {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  margin-bottom: var(--space-md);
+  line-height: 1.5;
+}
+
+.vk-alert-error {
+  background-color: var(--status-hold-bg);
+  color: var(--status-hold);
+  border-left: 3px solid var(--status-hold);
+}
+
+.vk-alert-warning {
+  background-color: oklch(0.940 0.035 75);
+  color: oklch(0.620 0.100 70);
+  border-left: 3px solid oklch(0.620 0.100 70);
+}
+
+.vk-alert-success {
+  background-color: var(--status-active-bg);
+  color: var(--status-active);
+  border-left: 3px solid var(--status-active);
+}
+
+.vk-alert-info {
+  background-color: var(--amber-subtle);
+  color: var(--text-secondary);
+  border-left: 3px solid var(--amber-accent);
+}
+
+/* — Info section — */
+.vk-info {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-subtle);
+  text-align: center;
+}
+
+.vk-info-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* — Restricted notice — */
+.vk-restricted {
+  margin-top: var(--space-lg);
+  font-size: var(--text-xs);
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+/* — Animation — */
+@keyframes vk-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* — Hide default Keycloak chrome — */
+#kc-header,
+#kc-header-wrapper,
+#kc-content-wrapper > .col-md-10,
+.pf-c-login,
+.login-pf-page {
+  all: unset;
+}

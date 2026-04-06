@@ -11,10 +11,33 @@ export function Header() {
       style={{
         borderBottom: '1px solid var(--border-default)',
         backgroundColor: 'var(--bg-elevated)',
+        boxShadow: 'var(--shadow-xs)',
       }}
     >
       <div className="flex items-center gap-[var(--space-lg)]">
         <a href="/en/cases" className="flex items-center gap-[var(--space-sm)]">
+          {/* Shield mark */}
+          <svg
+            width="22"
+            height="26"
+            viewBox="0 0 22 26"
+            fill="none"
+            className="shrink-0"
+            aria-hidden="true"
+          >
+            <path
+              d="M11 1L2 5v7c0 6.075 3.75 10.35 9 12 5.25-1.65 9-5.925 9-12V5L11 1z"
+              stroke="var(--amber-accent)"
+              strokeWidth="1.5"
+              fill="none"
+            />
+            <path
+              d="M11 7v6m0 2.5v.5"
+              stroke="var(--amber-accent)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
           <span
             className="font-[family-name:var(--font-heading)] text-[var(--text-lg)]"
             style={{ color: 'var(--text-primary)' }}
@@ -23,17 +46,10 @@ export function Header() {
           </span>
         </a>
         {isAuthenticated && (
-          <nav className="hidden sm:flex items-center gap-[var(--space-md)]">
+          <nav className="hidden sm:flex items-center gap-[var(--space-xs)]">
             <a
               href="/en/cases"
-              className="text-[var(--text-sm)] transition-colors"
-              style={{ color: 'var(--text-secondary)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--text-secondary)';
-              }}
+              className="btn-ghost text-[var(--text-sm)]"
             >
               Cases
             </a>
@@ -43,13 +59,26 @@ export function Header() {
 
       {isAuthenticated && user && (
         <div className="flex items-center gap-[var(--space-md)]">
-          <div className="hidden sm:block text-right">
-            <p className="text-[var(--text-sm)] font-medium" style={{ color: 'var(--text-primary)' }}>
-              {user.name}
-            </p>
-            <p className="text-[var(--text-xs)]" style={{ color: 'var(--text-tertiary)' }}>
-              {user.systemRole?.replace('_', ' ')}
-            </p>
+          <div className="hidden sm:flex items-center gap-[var(--space-sm)]">
+            {/* User avatar */}
+            <div
+              className="flex items-center justify-center w-8 h-8 text-[var(--text-xs)] font-semibold"
+              style={{
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--amber-subtle)',
+                color: 'var(--amber-accent)',
+              }}
+            >
+              {Array.from(user.name || '?').slice(0, 2).join('').toUpperCase()}
+            </div>
+            <div className="text-right">
+              <p className="text-[var(--text-sm)] font-medium" style={{ color: 'var(--text-primary)' }}>
+                {user.name}
+              </p>
+              <p className="text-[var(--text-xs)]" style={{ color: 'var(--text-tertiary)' }}>
+                {user.systemRole?.replace('_', ' ')}
+              </p>
+            </div>
           </div>
           <div
             className="w-px h-6"
@@ -57,14 +86,7 @@ export function Header() {
           />
           <button
             onClick={signOut}
-            className="text-[var(--text-xs)] font-medium uppercase tracking-wide transition-colors"
-            style={{ color: 'var(--text-tertiary)' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-tertiary)';
-            }}
+            className="btn-ghost text-[var(--text-xs)] uppercase tracking-wide"
             type="button"
           >
             Sign out

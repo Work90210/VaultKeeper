@@ -57,74 +57,63 @@ export default function NewCasePage() {
       <div className="max-w-xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
         <a
           href="/en/cases"
-          className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
-          style={{ color: 'var(--text-tertiary)' }}
+          className="link-subtle text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
         >
           &larr; Cases
         </a>
 
         <h1
-          className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)] mb-[var(--space-xl)]"
+          className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)] mb-[var(--space-lg)]"
           style={{ color: 'var(--text-primary)' }}
         >
           New Case
         </h1>
 
-        {error && (
-          <div
-            className="mb-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
-            style={{
-              backgroundColor: 'var(--status-hold-bg)',
-              color: 'var(--status-hold)',
-              borderLeft: '3px solid var(--status-hold)',
-            }}
-          >
-            {error}
-          </div>
-        )}
+        {error && <div className="banner-error mb-[var(--space-md)]">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="space-y-[var(--space-lg)]">
-          <FormField
-            label="Reference Code"
-            name="reference_code"
-            required
-            placeholder="ICC-UKR-2024"
-            hint="Format: ABC-ABC-1234"
-          />
-          <FormField label="Title" name="title" required maxLength={500} />
-          <FormField
-            label="Description"
-            name="description"
-            multiline
-            maxLength={10000}
-          />
-          <FormField label="Jurisdiction" name="jurisdiction" maxLength={200} />
+        <div className="card p-[var(--space-lg)]">
+          <form onSubmit={handleSubmit} className="space-y-[var(--space-lg)]">
+            <FormField
+              label="Reference Code"
+              name="reference_code"
+              required
+              placeholder="ICC-UKR-2024"
+              hint="Format: ABC-ABC-1234"
+            />
+            <FormField label="Title" name="title" required maxLength={500} />
+            <FormField
+              label="Description"
+              name="description"
+              multiline
+              maxLength={10000}
+            />
+            <FormField
+              label="Jurisdiction"
+              name="jurisdiction"
+              maxLength={200}
+            />
 
-          <div
-            className="flex gap-[var(--space-md)] pt-[var(--space-md)]"
-            style={{ borderTop: '1px solid var(--border-subtle)' }}
-          >
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-[var(--space-lg)] py-[var(--space-sm)] text-[var(--text-sm)] font-medium transition-all disabled:opacity-40"
-              style={{
-                backgroundColor: 'var(--amber-accent)',
-                color: 'var(--stone-950)',
-              }}
+            <div
+              className="flex gap-[var(--space-md)] pt-[var(--space-md)]"
+              style={{ borderTop: '1px solid var(--border-subtle)' }}
             >
-              {loading ? 'Creating...' : 'Create case'}
-            </button>
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)] transition-colors"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary"
+              >
+                {loading ? 'Creating...' : 'Create case'}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="btn-ghost"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </Shell>
   );
@@ -147,19 +136,9 @@ function FormField({
   multiline?: boolean;
   maxLength?: number;
 }) {
-  const inputStyle = {
-    backgroundColor: 'var(--bg-elevated)',
-    border: '1px solid var(--border-default)',
-    color: 'var(--text-primary)',
-  };
-
   return (
     <div>
-      <label
-        htmlFor={name}
-        className="block text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-xs)]"
-        style={{ color: 'var(--text-tertiary)' }}
-      >
+      <label htmlFor={name} className="field-label">
         {label}
       </label>
       {multiline ? (
@@ -168,10 +147,7 @@ function FormField({
           name={name}
           rows={4}
           maxLength={maxLength}
-          className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] resize-y transition-colors"
-          style={inputStyle}
-          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
+          className="input-field resize-y"
         />
       ) : (
         <input
@@ -181,14 +157,14 @@ function FormField({
           required={required}
           placeholder={placeholder}
           maxLength={maxLength}
-          className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] transition-colors"
-          style={inputStyle}
-          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
+          className="input-field"
         />
       )}
       {hint && (
-        <p className="mt-[var(--space-xs)] text-[var(--text-xs)]" style={{ color: 'var(--text-tertiary)' }}>
+        <p
+          className="mt-[var(--space-xs)] text-[var(--text-xs)]"
+          style={{ color: 'var(--text-tertiary)' }}
+        >
           {hint}
         </p>
       )}

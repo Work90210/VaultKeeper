@@ -3,6 +3,7 @@
   "realm": "vaultkeeper",
   "enabled": true,
   "displayName": "VaultKeeper",
+  "loginTheme": "vaultkeeper",
   "sslRequired": "external",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,

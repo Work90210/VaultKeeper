@@ -41,42 +41,73 @@ export function CaseSettings({
     setError('');
     setSuccess('');
     setLoading(true);
-    const res = await fetch(`${API_BASE}/api/cases/${caseData.id}`, {
-      method: 'PATCH', headers,
-      body: JSON.stringify({ title, description, jurisdiction }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) { setError(data.error || 'Update failed'); return; }
-    setSuccess('Changes saved');
+    try {
+      const res = await fetch(`${API_BASE}/api/cases/${caseData.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ title, description, jurisdiction }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Update failed');
+        return;
+      }
+      setSuccess('Changes saved');
+    } catch {
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLegalHold = async () => {
     const newHold = !legalHold;
-    if (!window.confirm(newHold ? 'Set legal hold? This prevents archival.' : 'Release legal hold?')) return;
-    const res = await fetch(`${API_BASE}/api/cases/${caseData.id}/legal-hold`, {
-      method: 'POST', headers,
-      body: JSON.stringify({ hold: newHold }),
-    });
-    if (res.ok) { setLegalHold(newHold); setSuccess(newHold ? 'Legal hold set' : 'Legal hold released'); setError(''); }
-    else { const data = await res.json(); setError(data.error || 'Failed'); }
+    if (
+      !window.confirm(
+        newHold
+          ? 'Set legal hold? This prevents archival.'
+          : 'Release legal hold?',
+      )
+    )
+      return;
+    const res = await fetch(
+      `${API_BASE}/api/cases/${caseData.id}/legal-hold`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ hold: newHold }),
+      },
+    );
+    if (res.ok) {
+      setLegalHold(newHold);
+      setSuccess(newHold ? 'Legal hold set' : 'Legal hold released');
+      setError('');
+    } else {
+      const data = await res.json();
+      setError(data.error || 'Failed');
+    }
   };
 
   const handleArchive = async () => {
     if (!window.confirm('Archive this case? This cannot be undone.')) return;
-    const res = await fetch(`${API_BASE}/api/cases/${caseData.id}/archive`, { method: 'POST', headers });
+    const res = await fetch(`${API_BASE}/api/cases/${caseData.id}/archive`, {
+      method: 'POST',
+      headers,
+    });
     if (res.ok) router.push(`/en/cases/${caseData.id}`);
-    else { const data = await res.json(); setError(data.error || 'Archive failed'); }
-  };
-
-  const inputStyle = {
-    backgroundColor: 'var(--bg-elevated)',
-    border: '1px solid var(--border-default)',
-    color: 'var(--text-primary)',
+    else {
+      const data = await res.json();
+      setError(data.error || 'Archive failed');
+    }
   };
 
   return (
-    <div className="space-y-[var(--space-xl)]" style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}>
+    <div
+      className="space-y-[var(--space-lg)]"
+      style={{
+        animation: 'fade-in var(--duration-slow) var(--ease-out-expo)',
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -95,87 +126,83 @@ export function CaseSettings({
         </div>
         <a
           href={`/en/cases/${caseData.id}`}
-          className="text-[var(--text-sm)]"
-          style={{ color: 'var(--amber-accent)' }}
+          className="btn-ghost text-[var(--text-sm)]"
         >
           &larr; Back
         </a>
       </div>
 
       {/* Feedback */}
-      {error && (
-        <div
-          className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
-          style={{ backgroundColor: 'var(--status-hold-bg)', color: 'var(--status-hold)', borderLeft: '3px solid var(--status-hold)' }}
-        >
-          {error}
-        </div>
-      )}
-      {success && (
-        <div
-          className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
-          style={{ backgroundColor: 'var(--status-active-bg)', color: 'var(--status-active)', borderLeft: '3px solid var(--status-active)' }}
-        >
-          {success}
-        </div>
-      )}
+      {error && <div className="banner-error">{error}</div>}
+      {success && <div className="banner-success">{success}</div>}
 
       {/* Edit form */}
-      <form onSubmit={handleUpdate} className="space-y-[var(--space-md)]">
-        <h2 className="text-[var(--text-xs)] uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
-          Case details
-        </h2>
-        <div>
-          <label className="block text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-xs)]" style={{ color: 'var(--text-tertiary)' }}>Title</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={500}
-            className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] transition-colors"
-            style={inputStyle}
-            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-          />
-        </div>
-        <div>
-          <label className="block text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-xs)]" style={{ color: 'var(--text-tertiary)' }}>Description</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={10000}
-            className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] resize-y transition-colors"
-            style={inputStyle}
-            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-          />
-        </div>
-        <div>
-          <label className="block text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-xs)]" style={{ color: 'var(--text-tertiary)' }}>Jurisdiction</label>
-          <input value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)} maxLength={200}
-            className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] transition-colors"
-            style={inputStyle}
-            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-          />
-        </div>
-        <button
-          type="submit" disabled={loading}
-          className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)] font-medium transition-all disabled:opacity-40"
-          style={{ backgroundColor: 'var(--amber-accent)', color: 'var(--stone-950)' }}
-        >
-          {loading ? 'Saving...' : 'Save changes'}
-        </button>
-      </form>
+      <div className="card p-[var(--space-lg)]">
+        <form onSubmit={handleUpdate} className="space-y-[var(--space-md)]">
+          <h2 className="field-label text-[var(--text-sm)]">Case details</h2>
+          <div>
+            <label className="field-label" htmlFor="settings-title">
+              Title
+            </label>
+            <input
+              id="settings-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={500}
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="settings-description">
+              Description
+            </label>
+            <textarea
+              id="settings-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              maxLength={10000}
+              className="input-field resize-y"
+            />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="settings-jurisdiction">
+              Jurisdiction
+            </label>
+            <input
+              id="settings-jurisdiction"
+              value={jurisdiction}
+              onChange={(e) => setJurisdiction(e.target.value)}
+              maxLength={200}
+              className="input-field"
+            />
+          </div>
+          <button type="submit" disabled={loading} className="btn-primary">
+            {loading ? 'Saving...' : 'Save changes'}
+          </button>
+        </form>
+      </div>
 
       {/* Legal hold */}
-      <div style={{ borderTop: '1px solid var(--border-default)' }} className="pt-[var(--space-lg)]">
-        <h2 className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-sm)]" style={{ color: 'var(--text-tertiary)' }}>
+      <div className="card p-[var(--space-lg)]">
+        <h2 className="field-label text-[var(--text-sm)] mb-[var(--space-sm)]">
           Legal hold
         </h2>
-        <p className="text-[var(--text-sm)] mb-[var(--space-md)]" style={{ color: 'var(--text-secondary)' }}>
+        <p
+          className="text-[var(--text-sm)] mb-[var(--space-md)]"
+          style={{ color: 'var(--text-secondary)' }}
+        >
           {legalHold
             ? 'Legal hold is active. This case cannot be archived or have evidence deleted.'
             : 'No legal hold. Case follows standard lifecycle rules.'}
         </p>
         <button
           onClick={handleLegalHold}
-          className="px-[var(--space-md)] py-[var(--space-xs)] text-[var(--text-sm)] font-medium transition-colors"
+          className="btn-secondary"
           style={{
-            border: `1px solid ${legalHold ? 'var(--status-active)' : 'var(--status-hold)'}`,
+            borderColor: legalHold
+              ? 'var(--status-active)'
+              : 'var(--status-hold)',
             color: legalHold ? 'var(--status-active)' : 'var(--status-hold)',
           }}
           type="button"
@@ -186,24 +213,35 @@ export function CaseSettings({
 
       {/* Archive */}
       {caseData.status !== 'archived' && (
-        <div style={{ borderTop: '1px solid var(--border-default)' }} className="pt-[var(--space-lg)]">
-          <h2 className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-sm)]" style={{ color: 'var(--status-hold)' }}>
+        <div
+          className="card p-[var(--space-lg)]"
+          style={{ borderColor: 'var(--status-hold-bg)' }}
+        >
+          <h2
+            className="field-label text-[var(--text-sm)] mb-[var(--space-sm)]"
+            style={{ color: 'var(--status-hold)' }}
+          >
             Danger zone
           </h2>
-          <p className="text-[var(--text-sm)] mb-[var(--space-md)]" style={{ color: 'var(--text-secondary)' }}>
+          <p
+            className="text-[var(--text-sm)] mb-[var(--space-md)]"
+            style={{ color: 'var(--text-secondary)' }}
+          >
             Archiving is permanent. The case must be closed first.
           </p>
           <button
             onClick={handleArchive}
             disabled={legalHold || caseData.status !== 'closed'}
-            className="px-[var(--space-md)] py-[var(--space-xs)] text-[var(--text-sm)] font-medium transition-all disabled:opacity-30"
-            style={{ backgroundColor: 'var(--status-hold)', color: 'var(--text-inverse)' }}
+            className="btn-danger"
             type="button"
           >
             Archive case
           </button>
           {legalHold && (
-            <p className="mt-[var(--space-xs)] text-[var(--text-xs)]" style={{ color: 'var(--status-hold)' }}>
+            <p
+              className="mt-[var(--space-xs)] text-[var(--text-xs)]"
+              style={{ color: 'var(--status-hold)' }}
+            >
               Release legal hold before archiving.
             </p>
           )}

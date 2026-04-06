@@ -29,7 +29,10 @@ export function CaseDetail({
   const status = STATUS_STYLES[caseData.status] || STATUS_STYLES.archived;
 
   return (
-    <div className="space-y-[var(--space-xl)]" style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}>
+    <div
+      className="space-y-[var(--space-lg)]"
+      style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}
+    >
       {/* Header band */}
       <div>
         <div className="flex items-center gap-[var(--space-sm)] mb-[var(--space-xs)]">
@@ -40,15 +43,18 @@ export function CaseDetail({
             {caseData.reference_code}
           </span>
           <span
-            className="text-[var(--text-xs)] font-medium px-[var(--space-xs)] py-px"
+            className="badge"
             style={{ backgroundColor: status.bg, color: status.color }}
           >
             {caseData.status}
           </span>
           {caseData.legal_hold && (
             <span
-              className="text-[var(--text-xs)] font-medium px-[var(--space-xs)] py-px"
-              style={{ backgroundColor: 'var(--status-hold-bg)', color: 'var(--status-hold)' }}
+              className="badge"
+              style={{
+                backgroundColor: 'var(--status-hold-bg)',
+                color: 'var(--status-hold)',
+              }}
             >
               LEGAL HOLD
             </span>
@@ -62,37 +68,36 @@ export function CaseDetail({
         </h1>
       </div>
 
-      {/* Metadata row */}
-      <div
-        className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-lg)] py-[var(--space-md)]"
-        style={{
-          borderTop: '1px solid var(--border-default)',
-          borderBottom: '1px solid var(--border-default)',
-        }}
-      >
+      {/* Metadata card */}
+      <div className="card-inset grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-lg)] p-[var(--space-md)]">
         <MetaField label="Jurisdiction" value={caseData.jurisdiction || '\u2014'} />
         <MetaField
           label="Created"
           value={new Date(caseData.created_at).toLocaleDateString('en-GB', {
-            day: '2-digit', month: 'short', year: 'numeric',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
           })}
         />
         <MetaField
           label="Updated"
           value={new Date(caseData.updated_at).toLocaleDateString('en-GB', {
-            day: '2-digit', month: 'short', year: 'numeric',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
           })}
         />
-        <MetaField label="Created by" value={caseData.created_by.slice(0, 8) + '\u2026'} mono />
+        <MetaField
+          label="Created by"
+          value={caseData.created_by.slice(0, 8) + '\u2026'}
+          mono
+        />
       </div>
 
       {/* Description */}
       {caseData.description && (
-        <div>
-          <h2
-            className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-sm)]"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
+        <div className="card p-[var(--space-lg)]">
+          <h2 className="field-label mb-[var(--space-sm)]">
             Description
           </h2>
           <p
@@ -106,17 +111,10 @@ export function CaseDetail({
 
       {/* Actions */}
       {canEdit && (
-        <div style={{ borderTop: '1px solid var(--border-subtle)' }} className="pt-[var(--space-md)]">
+        <div>
           <a
             href={`/en/cases/${caseData.id}/settings`}
-            className="text-[var(--text-sm)] font-medium transition-colors"
-            style={{ color: 'var(--amber-accent)' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--amber-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--amber-accent)';
-            }}
+            className="link-accent text-[var(--text-sm)]"
           >
             Case settings &rarr;
           </a>
@@ -126,15 +124,18 @@ export function CaseDetail({
   );
 }
 
-function MetaField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MetaField({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
     <div>
-      <dt
-        className="text-[var(--text-xs)] uppercase tracking-wider font-medium"
-        style={{ color: 'var(--text-tertiary)' }}
-      >
-        {label}
-      </dt>
+      <dt className="field-label">{label}</dt>
       <dd
         className={`mt-[var(--space-xs)] text-[var(--text-sm)] ${mono ? 'font-[family-name:var(--font-mono)]' : ''}`}
         style={{ color: 'var(--text-primary)' }}

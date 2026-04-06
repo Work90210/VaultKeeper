@@ -2,6 +2,7 @@
 
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
 
 const ERROR_MESSAGES: Record<string, string> = {
   OAuthSignin: 'Unable to start sign in. Please try again.',
@@ -31,114 +32,93 @@ export default function LoginPage() {
     ? ERROR_MESSAGES[error] || ERROR_MESSAGES.Default
     : null;
 
-  return (
-    <div className="flex min-h-screen">
-      {/* Left: brand panel */}
+  // No error → skip this page entirely, go straight to Keycloak
+  useEffect(() => {
+    if (!error) {
+      signIn('keycloak', { callbackUrl });
+    }
+  }, [error, callbackUrl]);
+
+  // While redirecting (no error), show a minimal loading state
+  if (!error) {
+    return (
       <div
-        className="hidden lg:flex lg:w-[45%] flex-col justify-between p-[var(--space-xl)]"
-        style={{ backgroundColor: 'var(--stone-900)' }}
+        className="flex min-h-screen items-center justify-center"
+        style={{ backgroundColor: 'var(--bg-primary)' }}
       >
-        <div>
+        <p className="text-[var(--text-sm)]" style={{ color: 'var(--text-tertiary)' }}>
+          Redirecting to sign in...
+        </p>
+      </div>
+    );
+  }
+
+  // Error state → show the error with a retry button
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center px-[var(--space-lg)]"
+      style={{ backgroundColor: 'var(--bg-primary)' }}
+    >
+      <div className="w-full max-w-sm">
+        <div className="flex items-center gap-[var(--space-sm)] mb-[var(--space-lg)]">
+          <svg
+            width="24"
+            height="30"
+            viewBox="0 0 22 26"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M11 1L2 5v7c0 6.075 3.75 10.35 9 12 5.25-1.65 9-5.925 9-12V5L11 1z"
+              stroke="var(--amber-accent)"
+              strokeWidth="1.5"
+              fill="none"
+            />
+            <path
+              d="M11 7v6m0 2.5v.5"
+              stroke="var(--amber-accent)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
           <h1
-            className="font-[family-name:var(--font-heading)] text-[var(--text-3xl)] leading-tight"
-            style={{ color: 'var(--stone-100)' }}
+            className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)]"
+            style={{ color: 'var(--text-primary)' }}
           >
             VaultKeeper
           </h1>
-          <p
-            className="mt-[var(--space-xs)] text-[var(--text-sm)] tracking-wide uppercase"
-            style={{ color: 'var(--stone-400)', letterSpacing: '0.1em' }}
-          >
-            Sovereign Evidence Management
-          </p>
         </div>
 
-        <div className="space-y-[var(--space-lg)]">
-          <div style={{ borderLeft: '2px solid var(--amber-accent)', paddingLeft: 'var(--space-md)' }}>
-            <p
-              className="text-[var(--text-sm)] leading-relaxed"
-              style={{ color: 'var(--stone-300)' }}
-            >
-              Tamper-evident chain of custody. Role-based access control.
-              Cryptographic integrity verification for every piece of evidence.
-            </p>
-          </div>
-          <p
-            className="text-[var(--text-xs)]"
-            style={{ color: 'var(--stone-500)' }}
-          >
-            All access is logged and auditable.
-          </p>
-        </div>
-      </div>
-
-      {/* Right: sign-in form */}
-      <div className="flex flex-1 flex-col items-center justify-center px-[var(--space-lg)]">
-        <div className="w-full max-w-sm">
-          {/* Mobile-only brand mark */}
-          <div className="lg:hidden mb-[var(--space-xl)]">
-            <h1
-              className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)]"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              VaultKeeper
-            </h1>
-            <p className="text-[var(--text-xs)] uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>
-              Evidence Management
-            </p>
-          </div>
-
+        <div
+          className="card p-[var(--space-xl)]"
+          style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}
+        >
           <h2
-            className="text-[var(--text-lg)] font-semibold"
+            className="font-[family-name:var(--font-heading)] text-[var(--text-xl)]"
             style={{ color: 'var(--text-primary)' }}
           >
-            Sign in
+            Sign in failed
           </h2>
-          <p
-            className="mt-[var(--space-xs)] text-[var(--text-sm)]"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            Authenticate via your organization's credentials.
-          </p>
 
-          {errorMessage && (
-            <div
-              className="mt-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
-              style={{
-                backgroundColor: 'var(--status-hold-bg)',
-                color: 'var(--status-hold)',
-                borderLeft: '3px solid var(--status-hold)',
-              }}
-            >
-              {errorMessage}
-            </div>
-          )}
+          <div className="banner-error mt-[var(--space-md)]">
+            {errorMessage}
+          </div>
 
           <button
             onClick={() => signIn('keycloak', { callbackUrl })}
-            className="mt-[var(--space-lg)] w-full py-[var(--space-sm)] px-[var(--space-md)] text-[var(--text-sm)] font-medium transition-colors"
-            style={{
-              backgroundColor: 'var(--amber-accent)',
-              color: 'var(--stone-950)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--amber-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--amber-accent)';
-            }}
+            className="btn-primary w-full mt-[var(--space-lg)]"
             type="button"
           >
-            Sign in with SSO
+            Try again
           </button>
-
-          <p
-            className="mt-[var(--space-xl)] text-[var(--text-xs)] text-center"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            Access restricted to authorized personnel
-          </p>
         </div>
+
+        <p
+          className="mt-[var(--space-lg)] text-[var(--text-xs)] text-center"
+          style={{ color: 'var(--text-tertiary)' }}
+        >
+          Access restricted to authorized personnel
+        </p>
       </div>
     </div>
   );

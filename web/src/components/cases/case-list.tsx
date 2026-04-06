@@ -58,45 +58,39 @@ export function CaseList({
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-[var(--space-sm)]">
         <form onSubmit={handleSearch} className="flex flex-1 gap-[var(--space-xs)]">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by reference, title, or description..."
-            className="flex-1 px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-sm)] transition-colors"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-primary)',
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = 'var(--amber-accent)';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-default)';
-            }}
-          />
-          <button
-            type="submit"
-            className="px-[var(--space-md)] py-[var(--space-xs)] text-[var(--text-sm)] font-medium transition-colors"
-            style={{
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-secondary)',
-              backgroundColor: 'var(--bg-elevated)',
-            }}
-          >
+          <div className="relative flex-1">
+            {/* Search icon */}
+            <svg
+              className="absolute left-[var(--space-sm)] top-1/2 -translate-y-1/2 pointer-events-none"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--text-tertiary)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by reference, title, or description..."
+              className="input-field pl-[var(--space-xl)] !py-[var(--space-xs)]"
+            />
+          </div>
+          <button type="submit" className="btn-secondary">
             Search
           </button>
         </form>
         <select
           value={currentStatus}
           onChange={(e) => handleStatusFilter(e.target.value)}
-          className="px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-sm)]"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-secondary)',
-          }}
+          className="input-field !w-auto"
+          style={{ minWidth: '140px', padding: 'var(--space-xs) var(--space-sm)' }}
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
@@ -108,8 +102,7 @@ export function CaseList({
       {/* Table */}
       {cases.length === 0 ? (
         <div
-          className="py-[var(--space-2xl)] text-center"
-          style={{ borderTop: '1px solid var(--border-default)' }}
+          className="card py-[var(--space-2xl)] text-center"
         >
           <p
             className="font-[family-name:var(--font-heading)] text-[var(--text-xl)]"
@@ -117,20 +110,24 @@ export function CaseList({
           >
             No cases found
           </p>
-          <p className="mt-[var(--space-xs)] text-[var(--text-sm)]" style={{ color: 'var(--text-tertiary)' }}>
+          <p
+            className="mt-[var(--space-xs)] text-[var(--text-sm)]"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
             {currentQuery
               ? 'Try adjusting your search terms.'
               : 'Create a case to get started.'}
           </p>
         </div>
       ) : (
-        <div style={{ borderTop: '1px solid var(--border-strong)' }}>
+        <div className="card overflow-hidden">
           {/* Column headers */}
           <div
-            className="grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-xs)] uppercase tracking-wider font-medium"
+            className="grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-xs)] uppercase tracking-wider font-semibold"
             style={{
               color: 'var(--text-tertiary)',
               borderBottom: '1px solid var(--border-default)',
+              backgroundColor: 'var(--bg-inset)',
             }}
           >
             <span>Reference</span>
@@ -147,15 +144,18 @@ export function CaseList({
               return (
                 <div
                   key={c.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open case ${c.reference_code}: ${c.title}`}
                   onClick={() => router.push(`/en/cases/${c.id}`)}
-                  className="grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-sm)] py-[var(--space-sm)] items-center cursor-pointer transition-colors"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      router.push(`/en/cases/${c.id}`);
+                    }
+                  }}
+                  className="table-row grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] items-center"
                   style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--bg-inset)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
                 >
                   <span
                     className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] font-medium"
@@ -164,12 +164,18 @@ export function CaseList({
                     {c.reference_code}
                   </span>
 
-                  <span className="text-[var(--text-sm)] font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                  <span
+                    className="text-[var(--text-sm)] font-medium truncate flex items-center gap-[var(--space-sm)]"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
                     {c.title}
                     {c.legal_hold && (
                       <span
-                        className="ml-[var(--space-sm)] text-[var(--text-xs)] font-medium px-[var(--space-xs)] py-px inline-block"
-                        style={{ backgroundColor: 'var(--status-hold-bg)', color: 'var(--status-hold)' }}
+                        className="badge shrink-0"
+                        style={{
+                          backgroundColor: 'var(--status-hold-bg)',
+                          color: 'var(--status-hold)',
+                        }}
                       >
                         HOLD
                       </span>
@@ -177,17 +183,23 @@ export function CaseList({
                   </span>
 
                   <span
-                    className="text-[var(--text-xs)] font-medium px-[var(--space-xs)] py-px w-fit"
+                    className="badge w-fit"
                     style={{ backgroundColor: style.bg, color: style.color }}
                   >
                     {c.status}
                   </span>
 
-                  <span className="text-[var(--text-sm)] truncate" style={{ color: 'var(--text-secondary)' }}>
+                  <span
+                    className="text-[var(--text-sm)] truncate"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
                     {c.jurisdiction || '\u2014'}
                   </span>
 
-                  <span className="text-[var(--text-xs)] text-right tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
+                  <span
+                    className="text-[var(--text-xs)] text-right tabular-nums"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
                     {new Date(c.created_at).toLocaleDateString('en-GB', {
                       day: '2-digit',
                       month: 'short',
@@ -210,14 +222,7 @@ export function CaseList({
               ...(currentStatus ? { status: currentStatus } : {}),
               cursor: nextCursor,
             }).toString()}`}
-            className="text-[var(--text-sm)] font-medium transition-colors"
-            style={{ color: 'var(--amber-accent)' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--amber-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--amber-accent)';
-            }}
+            className="link-accent text-[var(--text-sm)]"
           >
             Load more results &rarr;
           </a>
