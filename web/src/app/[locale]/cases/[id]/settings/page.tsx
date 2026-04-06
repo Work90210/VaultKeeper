@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { redirect, notFound } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { authenticatedFetch } from '@/lib/api';
+import { Shell } from '@/components/layout/shell';
 import { CaseSettings } from '@/components/cases/case-settings';
 
 interface CaseData {
@@ -36,8 +37,10 @@ export default async function CaseSettingsPage({
   if (res.error || !res.data) notFound();
 
   return (
-    <main className="container mx-auto max-w-2xl px-6 py-8">
-      <CaseSettings caseData={res.data} accessToken={session.accessToken || ''} />
-    </main>
+    <Shell>
+      <div className="max-w-xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+        <CaseSettings caseData={res.data} accessToken={session.accessToken || ''} />
+      </div>
+    </Shell>
   );
 }

@@ -41,171 +41,174 @@ export function CaseSettings({
     setError('');
     setSuccess('');
     setLoading(true);
-
     const res = await fetch(`${API_BASE}/api/cases/${caseData.id}`, {
-      method: 'PATCH',
-      headers,
+      method: 'PATCH', headers,
       body: JSON.stringify({ title, description, jurisdiction }),
     });
-
     const data = await res.json();
     setLoading(false);
-
-    if (!res.ok) {
-      setError(data.error || 'Update failed');
-      return;
-    }
-    setSuccess('Case updated');
+    if (!res.ok) { setError(data.error || 'Update failed'); return; }
+    setSuccess('Changes saved');
   };
 
   const handleLegalHold = async () => {
     const newHold = !legalHold;
-    const msg = newHold
-      ? 'Set legal hold? This prevents archival.'
-      : 'Release legal hold?';
-    if (!window.confirm(msg)) return;
-
+    if (!window.confirm(newHold ? 'Set legal hold? This prevents archival.' : 'Release legal hold?')) return;
     const res = await fetch(`${API_BASE}/api/cases/${caseData.id}/legal-hold`, {
-      method: 'POST',
-      headers,
+      method: 'POST', headers,
       body: JSON.stringify({ hold: newHold }),
     });
-
-    if (res.ok) {
-      setLegalHold(newHold);
-      setSuccess(newHold ? 'Legal hold set' : 'Legal hold released');
-      setError('');
-    } else {
-      const data = await res.json();
-      setError(data.error || 'Failed to toggle legal hold');
-    }
+    if (res.ok) { setLegalHold(newHold); setSuccess(newHold ? 'Legal hold set' : 'Legal hold released'); setError(''); }
+    else { const data = await res.json(); setError(data.error || 'Failed'); }
   };
 
   const handleArchive = async () => {
     if (!window.confirm('Archive this case? This cannot be undone.')) return;
+    const res = await fetch(`${API_BASE}/api/cases/${caseData.id}/archive`, { method: 'POST', headers });
+    if (res.ok) router.push(`/en/cases/${caseData.id}`);
+    else { const data = await res.json(); setError(data.error || 'Archive failed'); }
+  };
 
-    const res = await fetch(`${API_BASE}/api/cases/${caseData.id}/archive`, {
-      method: 'POST',
-      headers,
-    });
-
-    if (res.ok) {
-      router.push(`/en/cases/${caseData.id}`);
-    } else {
-      const data = await res.json();
-      setError(data.error || 'Archive failed');
-    }
+  const inputStyle = {
+    backgroundColor: 'var(--bg-elevated)',
+    border: '1px solid var(--border-default)',
+    color: 'var(--text-primary)',
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-[var(--space-xl)]" style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}>
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Case Settings</h1>
-        <span className="font-mono text-sm text-zinc-500">{caseData.reference_code}</span>
+        <div>
+          <h1
+            className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)]"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            Settings
+          </h1>
+          <p
+            className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] mt-[var(--space-xs)]"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            {caseData.reference_code}
+          </p>
+        </div>
+        <a
+          href={`/en/cases/${caseData.id}`}
+          className="text-[var(--text-sm)]"
+          style={{ color: 'var(--amber-accent)' }}
+        >
+          &larr; Back
+        </a>
       </div>
 
+      {/* Feedback */}
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
+          style={{ backgroundColor: 'var(--status-hold-bg)', color: 'var(--status-hold)', borderLeft: '3px solid var(--status-hold)' }}
+        >
           {error}
         </div>
       )}
       {success && (
-        <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div
+          className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
+          style={{ backgroundColor: 'var(--status-active-bg)', color: 'var(--status-active)', borderLeft: '3px solid var(--status-active)' }}
+        >
           {success}
         </div>
       )}
 
-      <form onSubmit={handleUpdate} className="space-y-4 rounded-md border p-4">
-        <h2 className="font-semibold">Edit Case</h2>
+      {/* Edit form */}
+      <form onSubmit={handleUpdate} className="space-y-[var(--space-md)]">
+        <h2 className="text-[var(--text-xs)] uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
+          Case details
+        </h2>
         <div>
-          <label htmlFor="title" className="mb-1 block text-sm font-medium">Title</label>
-          <input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm"
-            maxLength={500}
+          <label className="block text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-xs)]" style={{ color: 'var(--text-tertiary)' }}>Title</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={500}
+            className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] transition-colors"
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
           />
         </div>
         <div>
-          <label htmlFor="description" className="mb-1 block text-sm font-medium">Description</label>
-          <textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm"
-            rows={3}
-            maxLength={10000}
+          <label className="block text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-xs)]" style={{ color: 'var(--text-tertiary)' }}>Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={10000}
+            className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] resize-y transition-colors"
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
           />
         </div>
         <div>
-          <label htmlFor="jurisdiction" className="mb-1 block text-sm font-medium">Jurisdiction</label>
-          <input
-            id="jurisdiction"
-            value={jurisdiction}
-            onChange={(e) => setJurisdiction(e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm"
-            maxLength={200}
+          <label className="block text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-xs)]" style={{ color: 'var(--text-tertiary)' }}>Jurisdiction</label>
+          <input value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)} maxLength={200}
+            className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] transition-colors"
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
           />
         </div>
         <button
-          type="submit"
-          disabled={loading}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          type="submit" disabled={loading}
+          className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)] font-medium transition-all disabled:opacity-40"
+          style={{ backgroundColor: 'var(--amber-accent)', color: 'var(--stone-950)' }}
         >
-          {loading ? 'Saving...' : 'Save Changes'}
+          {loading ? 'Saving...' : 'Save changes'}
         </button>
       </form>
 
-      <div className="space-y-3 rounded-md border p-4">
-        <h2 className="font-semibold">Legal Hold</h2>
-        <p className="text-sm text-zinc-500">
+      {/* Legal hold */}
+      <div style={{ borderTop: '1px solid var(--border-default)' }} className="pt-[var(--space-lg)]">
+        <h2 className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-sm)]" style={{ color: 'var(--text-tertiary)' }}>
+          Legal hold
+        </h2>
+        <p className="text-[var(--text-sm)] mb-[var(--space-md)]" style={{ color: 'var(--text-secondary)' }}>
           {legalHold
-            ? 'Legal hold is active. Case cannot be archived.'
-            : 'No legal hold. Case can be archived.'}
+            ? 'Legal hold is active. This case cannot be archived or have evidence deleted.'
+            : 'No legal hold. Case follows standard lifecycle rules.'}
         </p>
         <button
           onClick={handleLegalHold}
-          className={`rounded-md px-4 py-2 text-sm font-medium ${
-            legalHold
-              ? 'border border-green-600 text-green-700 hover:bg-green-50'
-              : 'border border-red-600 text-red-700 hover:bg-red-50'
-          }`}
+          className="px-[var(--space-md)] py-[var(--space-xs)] text-[var(--text-sm)] font-medium transition-colors"
+          style={{
+            border: `1px solid ${legalHold ? 'var(--status-active)' : 'var(--status-hold)'}`,
+            color: legalHold ? 'var(--status-active)' : 'var(--status-hold)',
+          }}
           type="button"
         >
-          {legalHold ? 'Release Legal Hold' : 'Set Legal Hold'}
+          {legalHold ? 'Release hold' : 'Set legal hold'}
         </button>
       </div>
 
+      {/* Archive */}
       {caseData.status !== 'archived' && (
-        <div className="space-y-3 rounded-md border border-red-200 p-4">
-          <h2 className="font-semibold text-red-700">Danger Zone</h2>
-          <p className="text-sm text-zinc-500">
-            Archiving a case is permanent. The case must be closed first.
+        <div style={{ borderTop: '1px solid var(--border-default)' }} className="pt-[var(--space-lg)]">
+          <h2 className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-sm)]" style={{ color: 'var(--status-hold)' }}>
+            Danger zone
+          </h2>
+          <p className="text-[var(--text-sm)] mb-[var(--space-md)]" style={{ color: 'var(--text-secondary)' }}>
+            Archiving is permanent. The case must be closed first.
           </p>
           <button
             onClick={handleArchive}
             disabled={legalHold || caseData.status !== 'closed'}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            className="px-[var(--space-md)] py-[var(--space-xs)] text-[var(--text-sm)] font-medium transition-all disabled:opacity-30"
+            style={{ backgroundColor: 'var(--status-hold)', color: 'var(--text-inverse)' }}
             type="button"
           >
-            Archive Case
+            Archive case
           </button>
           {legalHold && (
-            <p className="text-xs text-red-600">Release legal hold before archiving.</p>
-          )}
-          {caseData.status === 'active' && (
-            <p className="text-xs text-zinc-500">Close the case before archiving.</p>
+            <p className="mt-[var(--space-xs)] text-[var(--text-xs)]" style={{ color: 'var(--status-hold)' }}>
+              Release legal hold before archiving.
+            </p>
           )}
         </div>
       )}
-
-      <a
-        href={`/en/cases/${caseData.id}`}
-        className="inline-block text-sm text-zinc-500 hover:text-zinc-900"
-      >
-        Back to case
-      </a>
     </div>
   );
 }

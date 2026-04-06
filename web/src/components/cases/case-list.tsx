@@ -13,6 +13,12 @@ interface CaseItem {
   created_at: string;
 }
 
+const STATUS_STYLES: Record<string, { color: string; bg: string }> = {
+  active: { color: 'var(--status-active)', bg: 'var(--status-active-bg)' },
+  closed: { color: 'var(--status-closed)', bg: 'var(--status-closed-bg)' },
+  archived: { color: 'var(--status-archived)', bg: 'var(--status-archived-bg)' },
+};
+
 export function CaseList({
   cases,
   nextCursor,
@@ -33,40 +39,51 @@ export function CaseList({
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const params = new URLSearchParams(searchParams.toString());
-    if (search) {
-      params.set('q', search);
-    } else {
-      params.delete('q');
-    }
+    if (search) params.set('q', search);
+    else params.delete('q');
     params.delete('cursor');
     router.push(`/en/cases?${params.toString()}`);
   };
 
   const handleStatusFilter = (status: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (status) {
-      params.set('status', status);
-    } else {
-      params.delete('status');
-    }
+    if (status) params.set('status', status);
+    else params.delete('status');
     params.delete('cursor');
     router.push(`/en/cases?${params.toString()}`);
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-3">
-        <form onSubmit={handleSearch} className="flex flex-1 gap-2">
+    <div className="space-y-[var(--space-md)]">
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-[var(--space-sm)]">
+        <form onSubmit={handleSearch} className="flex flex-1 gap-[var(--space-xs)]">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search cases..."
-            className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            placeholder="Search by reference, title, or description..."
+            className="flex-1 px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-sm)] transition-colors"
+            style={{
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-primary)',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'var(--amber-accent)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-default)';
+            }}
           />
           <button
             type="submit"
-            className="rounded-md border px-3 py-2 text-sm hover:bg-zinc-50"
+            className="px-[var(--space-md)] py-[var(--space-xs)] text-[var(--text-sm)] font-medium transition-colors"
+            style={{
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--bg-elevated)',
+            }}
           >
             Search
           </button>
@@ -74,7 +91,12 @@ export function CaseList({
         <select
           value={currentStatus}
           onChange={(e) => handleStatusFilter(e.target.value)}
-          className="rounded-md border px-3 py-2 text-sm"
+          className="px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-sm)]"
+          style={{
+            backgroundColor: 'var(--bg-elevated)',
+            border: '1px solid var(--border-default)',
+            color: 'var(--text-secondary)',
+          }}
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
@@ -83,84 +105,124 @@ export function CaseList({
         </select>
       </div>
 
+      {/* Table */}
       {cases.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center">
-          <p className="text-sm text-zinc-500">No cases found</p>
+        <div
+          className="py-[var(--space-2xl)] text-center"
+          style={{ borderTop: '1px solid var(--border-default)' }}
+        >
+          <p
+            className="font-[family-name:var(--font-heading)] text-[var(--text-xl)]"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            No cases found
+          </p>
+          <p className="mt-[var(--space-xs)] text-[var(--text-sm)]" style={{ color: 'var(--text-tertiary)' }}>
+            {currentQuery
+              ? 'Try adjusting your search terms.'
+              : 'Create a case to get started.'}
+          </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-md border">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-zinc-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium">Reference</th>
-                <th className="px-4 py-3 text-left font-medium">Title</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Jurisdiction</th>
-                <th className="px-4 py-3 text-left font-medium">Created</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {cases.map((c) => (
-                <tr
+        <div style={{ borderTop: '1px solid var(--border-strong)' }}>
+          {/* Column headers */}
+          <div
+            className="grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-xs)] uppercase tracking-wider font-medium"
+            style={{
+              color: 'var(--text-tertiary)',
+              borderBottom: '1px solid var(--border-default)',
+            }}
+          >
+            <span>Reference</span>
+            <span>Title</span>
+            <span>Status</span>
+            <span>Jurisdiction</span>
+            <span className="text-right">Date</span>
+          </div>
+
+          {/* Rows */}
+          <div className="stagger-in">
+            {cases.map((c) => {
+              const style = STATUS_STYLES[c.status] || STATUS_STYLES.archived;
+              return (
+                <div
                   key={c.id}
-                  className="cursor-pointer hover:bg-zinc-50"
                   onClick={() => router.push(`/en/cases/${c.id}`)}
+                  className="grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-sm)] py-[var(--space-sm)] items-center cursor-pointer transition-colors"
+                  style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-inset)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                 >
-                  <td className="px-4 py-3 font-mono text-xs">
+                  <span
+                    className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] font-medium"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
                     {c.reference_code}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span>{c.title}</span>
+                  </span>
+
+                  <span className="text-[var(--text-sm)] font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                    {c.title}
                     {c.legal_hold && (
-                      <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                        Legal Hold
+                      <span
+                        className="ml-[var(--space-sm)] text-[var(--text-xs)] font-medium px-[var(--space-xs)] py-px inline-block"
+                        style={{ backgroundColor: 'var(--status-hold-bg)', color: 'var(--status-hold)' }}
+                      >
+                        HOLD
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={c.status} />
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">{c.jurisdiction}</td>
-                  <td className="px-4 py-3 text-zinc-500">
-                    {new Date(c.created_at).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </span>
+
+                  <span
+                    className="text-[var(--text-xs)] font-medium px-[var(--space-xs)] py-px w-fit"
+                    style={{ backgroundColor: style.bg, color: style.color }}
+                  >
+                    {c.status}
+                  </span>
+
+                  <span className="text-[var(--text-sm)] truncate" style={{ color: 'var(--text-secondary)' }}>
+                    {c.jurisdiction || '\u2014'}
+                  </span>
+
+                  <span className="text-[var(--text-xs)] text-right tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
+                    {new Date(c.created_at).toLocaleDateString('en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
+      {/* Pagination */}
       {hasMore && (
-        <div className="flex justify-center pt-2">
+        <div className="pt-[var(--space-sm)]">
           <a
             href={`/en/cases?${new URLSearchParams({
               ...(currentQuery ? { q: currentQuery } : {}),
               ...(currentStatus ? { status: currentStatus } : {}),
               cursor: nextCursor,
             }).toString()}`}
-            className="rounded-md border px-4 py-2 text-sm hover:bg-zinc-50"
+            className="text-[var(--text-sm)] font-medium transition-colors"
+            style={{ color: 'var(--amber-accent)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--amber-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--amber-accent)';
+            }}
           >
-            Load more
+            Load more results &rarr;
           </a>
         </div>
       )}
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    closed: 'bg-yellow-100 text-yellow-700',
-    archived: 'bg-zinc-100 text-zinc-600',
-  };
-
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] || 'bg-zinc-100 text-zinc-600'}`}
-    >
-      {status}
-    </span>
   );
 }

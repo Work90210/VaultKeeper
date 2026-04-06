@@ -1,9 +1,27 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { DM_Serif_Display, Source_Sans_3, JetBrains_Mono } from 'next/font/google';
 import '../globals.css';
 import { Providers } from '@/components/providers';
 
-const inter = Inter({ subsets: ['latin'] });
+const heading = DM_Serif_Display({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-heading',
+  display: 'swap',
+});
+
+const body = Source_Sans_3({
+  subsets: ['latin'],
+  variable: '--font-body',
+  display: 'swap',
+});
+
+const mono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+  weight: ['400', '500'],
+});
 
 export const metadata: Metadata = {
   title: 'VaultKeeper',
@@ -18,8 +36,8 @@ export default function LocaleLayout({
   params: { locale: string };
 }) {
   return (
-    <html lang={params.locale}>
-      <body className={inter.className}>
+    <html lang={params.locale} className={`${heading.variable} ${body.variable} ${mono.variable}`}>
+      <body className="font-[family-name:var(--font-body)] antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

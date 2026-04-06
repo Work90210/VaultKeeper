@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { authenticatedFetch, type ApiResponse } from '@/lib/api';
+import { Shell } from '@/components/layout/shell';
 import { CaseList } from '@/components/cases/case-list';
 
 interface CaseData {
@@ -41,52 +42,74 @@ export default async function CasesPage({
 
   try {
     const res: ApiResponse<CaseData[]> = await authenticatedFetch(path);
-    if (res.data) {
-      cases = res.data;
-    }
+    if (res.data) cases = res.data;
     if (res.meta) {
       total = res.meta.total;
       nextCursor = res.meta.next_cursor;
       hasMore = res.meta.has_more;
     }
-    if (res.error) {
-      error = res.error;
-    }
-  } catch {
+    if (res.error) error = res.error;
+  } catch (e) {
+    // Re-throw Next.js redirect errors (they use throw internally)
+    if (typeof e === 'object' && e !== null && 'digest' in e) throw e;
     error = 'Failed to load cases';
   }
 
+  const canCreate =
+    session.user.systemRole === 'system_admin' ||
+    session.user.systemRole === 'case_admin';
+
   return (
-    <main className="container mx-auto px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cases</h1>
-          <p className="text-sm text-zinc-500">{total} total</p>
+    <Shell>
+      <div className="max-w-6xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+        {/* Page header */}
+        <div className="flex items-end justify-between mb-[var(--space-lg)]">
+          <div>
+            <h1
+              className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)]"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              Cases
+            </h1>
+            <p className="text-[var(--text-sm)]" style={{ color: 'var(--text-tertiary)' }}>
+              {total} {total === 1 ? 'case' : 'cases'}
+            </p>
+          </div>
+          {canCreate && (
+            <a
+              href="/en/cases/new"
+              className="px-[var(--space-md)] py-[var(--space-xs)] text-[var(--text-sm)] font-medium"
+              style={{
+                backgroundColor: 'var(--amber-accent)',
+                color: 'var(--stone-950)',
+              }}
+            >
+              New case
+            </a>
+          )}
         </div>
-        {session.user.systemRole === 'system_admin' ||
-        session.user.systemRole === 'case_admin' ? (
-          <a
-            href="/en/cases/new"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+
+        {error && (
+          <div
+            className="mb-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
+            style={{
+              backgroundColor: 'var(--status-hold-bg)',
+              color: 'var(--status-hold)',
+              borderLeft: '3px solid var(--status-hold)',
+            }}
           >
-            Create Case
-          </a>
-        ) : null}
+            {error}
+          </div>
+        )}
+
+        <CaseList
+          cases={cases}
+          nextCursor={nextCursor}
+          hasMore={hasMore}
+          currentQuery={searchParams.q || ''}
+          currentStatus={searchParams.status || ''}
+        />
       </div>
-
-      {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <CaseList
-        cases={cases}
-        nextCursor={nextCursor}
-        hasMore={hasMore}
-        currentQuery={searchParams.q || ''}
-        currentStatus={searchParams.status || ''}
-      />
-    </main>
+    </Shell>
   );
 }

@@ -3,13 +3,15 @@
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useState } from 'react';
+import { Shell } from '@/components/layout/shell';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function NewCasePage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,7 +27,7 @@ export default function NewCasePage() {
     };
 
     try {
-      const res = await fetch(`${apiBase}/api/cases`, {
+      const res = await fetch(`${API_BASE}/api/cases`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,90 +53,145 @@ export default function NewCasePage() {
   };
 
   return (
-    <main className="container mx-auto max-w-2xl px-6 py-8">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">Create Case</h1>
+    <Shell>
+      <div className="max-w-xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+        <a
+          href="/en/cases"
+          className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
+          style={{ color: 'var(--text-tertiary)' }}
+        >
+          &larr; Cases
+        </a>
 
-      {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+        <h1
+          className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)] mb-[var(--space-xl)]"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          New Case
+        </h1>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="reference_code" className="mb-1 block text-sm font-medium">
-            Reference Code
-          </label>
-          <input
-            id="reference_code"
+        {error && (
+          <div
+            className="mb-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
+            style={{
+              backgroundColor: 'var(--status-hold-bg)',
+              color: 'var(--status-hold)',
+              borderLeft: '3px solid var(--status-hold)',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-[var(--space-lg)]">
+          <FormField
+            label="Reference Code"
             name="reference_code"
-            type="text"
             required
             placeholder="ICC-UKR-2024"
-            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            hint="Format: ABC-ABC-1234"
           />
-          <p className="mt-1 text-xs text-zinc-500">
-            Format: ABC-ABC-1234 (e.g., ICC-UKR-2024)
-          </p>
-        </div>
-
-        <div>
-          <label htmlFor="title" className="mb-1 block text-sm font-medium">
-            Title
-          </label>
-          <input
-            id="title"
-            name="title"
-            type="text"
-            required
-            maxLength={500}
-            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="description" className="mb-1 block text-sm font-medium">
-            Description
-          </label>
-          <textarea
-            id="description"
+          <FormField label="Title" name="title" required maxLength={500} />
+          <FormField
+            label="Description"
             name="description"
-            rows={4}
+            multiline
             maxLength={10000}
-            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
           />
-        </div>
+          <FormField label="Jurisdiction" name="jurisdiction" maxLength={200} />
 
-        <div>
-          <label htmlFor="jurisdiction" className="mb-1 block text-sm font-medium">
-            Jurisdiction
-          </label>
-          <input
-            id="jurisdiction"
-            name="jurisdiction"
-            type="text"
-            maxLength={200}
-            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-          />
-        </div>
+          <div
+            className="flex gap-[var(--space-md)] pt-[var(--space-md)]"
+            style={{ borderTop: '1px solid var(--border-subtle)' }}
+          >
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-[var(--space-lg)] py-[var(--space-sm)] text-[var(--text-sm)] font-medium transition-all disabled:opacity-40"
+              style={{
+                backgroundColor: 'var(--amber-accent)',
+                color: 'var(--stone-950)',
+              }}
+            >
+              {loading ? 'Creating...' : 'Create case'}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)] transition-colors"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </Shell>
+  );
+}
 
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
-          >
-            {loading ? 'Creating...' : 'Create Case'}
-          </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-md border px-4 py-2 text-sm hover:bg-zinc-50"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </main>
+function FormField({
+  label,
+  name,
+  required,
+  placeholder,
+  hint,
+  multiline,
+  maxLength,
+}: {
+  label: string;
+  name: string;
+  required?: boolean;
+  placeholder?: string;
+  hint?: string;
+  multiline?: boolean;
+  maxLength?: number;
+}) {
+  const inputStyle = {
+    backgroundColor: 'var(--bg-elevated)',
+    border: '1px solid var(--border-default)',
+    color: 'var(--text-primary)',
+  };
+
+  return (
+    <div>
+      <label
+        htmlFor={name}
+        className="block text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-xs)]"
+        style={{ color: 'var(--text-tertiary)' }}
+      >
+        {label}
+      </label>
+      {multiline ? (
+        <textarea
+          id={name}
+          name={name}
+          rows={4}
+          maxLength={maxLength}
+          className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] resize-y transition-colors"
+          style={inputStyle}
+          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
+          onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
+        />
+      ) : (
+        <input
+          id={name}
+          name={name}
+          type="text"
+          required={required}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          className="w-full px-[var(--space-sm)] py-[var(--space-xs)] text-[var(--text-base)] transition-colors"
+          style={inputStyle}
+          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--amber-accent)'; }}
+          onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
+        />
+      )}
+      {hint && (
+        <p className="mt-[var(--space-xs)] text-[var(--text-xs)]" style={{ color: 'var(--text-tertiary)' }}>
+          {hint}
+        </p>
+      )}
+    </div>
   );
 }

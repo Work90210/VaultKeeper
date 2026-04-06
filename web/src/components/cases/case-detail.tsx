@@ -13,6 +13,12 @@ interface CaseData {
   updated_at: string;
 }
 
+const STATUS_STYLES: Record<string, { color: string; bg: string }> = {
+  active: { color: 'var(--status-active)', bg: 'var(--status-active-bg)' },
+  closed: { color: 'var(--status-closed)', bg: 'var(--status-closed-bg)' },
+  archived: { color: 'var(--status-archived)', bg: 'var(--status-archived-bg)' },
+};
+
 export function CaseDetail({
   caseData,
   canEdit,
@@ -20,57 +26,99 @@ export function CaseDetail({
   caseData: CaseData;
   canEdit: boolean;
 }) {
+  const status = STATUS_STYLES[caseData.status] || STATUS_STYLES.archived;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-mono text-zinc-500">{caseData.reference_code}</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight">{caseData.title}</h1>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="space-y-[var(--space-xl)]" style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}>
+      {/* Header band */}
+      <div>
+        <div className="flex items-center gap-[var(--space-sm)] mb-[var(--space-xs)]">
+          <span
+            className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] tracking-wide"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            {caseData.reference_code}
+          </span>
+          <span
+            className="text-[var(--text-xs)] font-medium px-[var(--space-xs)] py-px"
+            style={{ backgroundColor: status.bg, color: status.color }}
+          >
+            {caseData.status}
+          </span>
           {caseData.legal_hold && (
-            <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
-              Legal Hold
+            <span
+              className="text-[var(--text-xs)] font-medium px-[var(--space-xs)] py-px"
+              style={{ backgroundColor: 'var(--status-hold-bg)', color: 'var(--status-hold)' }}
+            >
+              LEGAL HOLD
             </span>
           )}
-          <StatusBadge status={caseData.status} />
         </div>
+        <h1
+          className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)] leading-tight text-balance"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          {caseData.title}
+        </h1>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-4 rounded-md border p-4">
-          <h2 className="font-semibold">Details</h2>
-          <dl className="space-y-2 text-sm">
-            <div>
-              <dt className="text-zinc-500">Jurisdiction</dt>
-              <dd>{caseData.jurisdiction || 'Not specified'}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">Created</dt>
-              <dd>{new Date(caseData.created_at).toLocaleString()}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">Last Updated</dt>
-              <dd>{new Date(caseData.updated_at).toLocaleString()}</dd>
-            </div>
-          </dl>
-        </div>
-
-        {caseData.description && (
-          <div className="space-y-2 rounded-md border p-4">
-            <h2 className="font-semibold">Description</h2>
-            <p className="text-sm text-zinc-600 whitespace-pre-wrap">{caseData.description}</p>
-          </div>
-        )}
+      {/* Metadata row */}
+      <div
+        className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-lg)] py-[var(--space-md)]"
+        style={{
+          borderTop: '1px solid var(--border-default)',
+          borderBottom: '1px solid var(--border-default)',
+        }}
+      >
+        <MetaField label="Jurisdiction" value={caseData.jurisdiction || '\u2014'} />
+        <MetaField
+          label="Created"
+          value={new Date(caseData.created_at).toLocaleDateString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+          })}
+        />
+        <MetaField
+          label="Updated"
+          value={new Date(caseData.updated_at).toLocaleDateString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+          })}
+        />
+        <MetaField label="Created by" value={caseData.created_by.slice(0, 8) + '\u2026'} mono />
       </div>
 
+      {/* Description */}
+      {caseData.description && (
+        <div>
+          <h2
+            className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-sm)]"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            Description
+          </h2>
+          <p
+            className="text-[var(--text-base)] leading-relaxed whitespace-pre-wrap max-w-2xl"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {caseData.description}
+          </p>
+        </div>
+      )}
+
+      {/* Actions */}
       {canEdit && (
-        <div className="flex gap-3 border-t pt-4">
+        <div style={{ borderTop: '1px solid var(--border-subtle)' }} className="pt-[var(--space-md)]">
           <a
             href={`/en/cases/${caseData.id}/settings`}
-            className="rounded-md border px-4 py-2 text-sm hover:bg-zinc-50"
+            className="text-[var(--text-sm)] font-medium transition-colors"
+            style={{ color: 'var(--amber-accent)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--amber-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--amber-accent)';
+            }}
           >
-            Settings
+            Case settings &rarr;
           </a>
         </div>
       )}
@@ -78,18 +126,21 @@ export function CaseDetail({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    closed: 'bg-yellow-100 text-yellow-700',
-    archived: 'bg-zinc-100 text-zinc-600',
-  };
-
+function MetaField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-medium ${styles[status] || 'bg-zinc-100 text-zinc-600'}`}
-    >
-      {status}
-    </span>
+    <div>
+      <dt
+        className="text-[var(--text-xs)] uppercase tracking-wider font-medium"
+        style={{ color: 'var(--text-tertiary)' }}
+      >
+        {label}
+      </dt>
+      <dd
+        className={`mt-[var(--space-xs)] text-[var(--text-sm)] ${mono ? 'font-[family-name:var(--font-mono)]' : ''}`}
+        style={{ color: 'var(--text-primary)' }}
+      >
+        {value}
+      </dd>
+    </div>
   );
 }

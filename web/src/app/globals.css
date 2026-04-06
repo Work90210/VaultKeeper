@@ -1,3 +1,163 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================================
+   VaultKeeper Design System — "The Archive"
+   Precision instrument with institutional weight.
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* — Stone palette (warm neutrals, never cold gray) — */
+    --stone-50: oklch(0.985 0.004 75);
+    --stone-100: oklch(0.965 0.007 75);
+    --stone-200: oklch(0.925 0.010 75);
+    --stone-300: oklch(0.870 0.012 75);
+    --stone-400: oklch(0.710 0.014 70);
+    --stone-500: oklch(0.560 0.014 65);
+    --stone-600: oklch(0.440 0.014 60);
+    --stone-700: oklch(0.370 0.012 55);
+    --stone-800: oklch(0.290 0.012 50);
+    --stone-900: oklch(0.220 0.014 45);
+    --stone-950: oklch(0.160 0.016 40);
+
+    /* — Accent: subdued amber (archival warmth) — */
+    --amber-accent: oklch(0.680 0.130 70);
+    --amber-hover: oklch(0.620 0.130 68);
+    --amber-muted: oklch(0.750 0.080 75);
+    --amber-subtle: oklch(0.920 0.040 80);
+
+    /* — Semantic: muted earth tones — */
+    --status-active: oklch(0.600 0.100 145);
+    --status-active-bg: oklch(0.940 0.030 145);
+    --status-closed: oklch(0.620 0.100 70);
+    --status-closed-bg: oklch(0.940 0.035 75);
+    --status-archived: oklch(0.550 0.010 60);
+    --status-archived-bg: oklch(0.940 0.005 60);
+    --status-hold: oklch(0.560 0.120 25);
+    --status-hold-bg: oklch(0.940 0.030 25);
+
+    /* — Light theme surfaces — */
+    --bg-primary: var(--stone-50);
+    --bg-secondary: oklch(0.978 0.003 75);
+    --bg-elevated: oklch(0.995 0.002 75);
+    --bg-inset: var(--stone-100);
+
+    --text-primary: var(--stone-900);
+    --text-secondary: var(--stone-600);
+    --text-tertiary: var(--stone-400);
+    --text-inverse: var(--stone-50);
+
+    --border-default: var(--stone-200);
+    --border-subtle: oklch(0.940 0.006 75);
+    --border-strong: var(--stone-300);
+
+    --focus-ring: var(--amber-accent);
+
+    /* — Type scale (fluid, modular) — */
+    --text-xs: clamp(0.6875rem, 0.65rem + 0.1vw, 0.75rem);
+    --text-sm: clamp(0.8125rem, 0.78rem + 0.1vw, 0.875rem);
+    --text-base: clamp(0.875rem, 0.85rem + 0.12vw, 0.9375rem);
+    --text-lg: clamp(1.0625rem, 1rem + 0.2vw, 1.125rem);
+    --text-xl: clamp(1.25rem, 1.1rem + 0.4vw, 1.5rem);
+    --text-2xl: clamp(1.5rem, 1.3rem + 0.6vw, 1.875rem);
+    --text-3xl: clamp(1.875rem, 1.5rem + 1vw, 2.5rem);
+
+    /* — Spacing rhythm — */
+    --space-xs: clamp(0.25rem, 0.2rem + 0.15vw, 0.375rem);
+    --space-sm: clamp(0.5rem, 0.45rem + 0.15vw, 0.625rem);
+    --space-md: clamp(0.75rem, 0.65rem + 0.3vw, 1rem);
+    --space-lg: clamp(1.25rem, 1rem + 0.6vw, 1.75rem);
+    --space-xl: clamp(2rem, 1.5rem + 1.2vw, 3rem);
+    --space-2xl: clamp(3rem, 2rem + 2vw, 5rem);
+
+    /* — Transitions — */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --duration-fast: 120ms;
+    --duration-normal: 200ms;
+    --duration-slow: 400ms;
+  }
+
+  /* — Dark theme — */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-primary: var(--stone-950);
+      --bg-secondary: oklch(0.180 0.012 45);
+      --bg-elevated: oklch(0.200 0.014 48);
+      --bg-inset: oklch(0.140 0.014 40);
+
+      --text-primary: oklch(0.920 0.006 75);
+      --text-secondary: oklch(0.640 0.010 70);
+      --text-tertiary: oklch(0.480 0.010 65);
+      --text-inverse: var(--stone-950);
+
+      --border-default: oklch(0.260 0.012 50);
+      --border-subtle: oklch(0.220 0.010 48);
+      --border-strong: oklch(0.340 0.012 55);
+
+      --amber-subtle: oklch(0.240 0.030 65);
+      --status-active-bg: oklch(0.220 0.030 145);
+      --status-closed-bg: oklch(0.220 0.030 70);
+      --status-archived-bg: oklch(0.200 0.005 60);
+      --status-hold-bg: oklch(0.220 0.030 25);
+    }
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--amber-subtle);
+    color: var(--text-primary);
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+
+  .stagger-in > * {
+    opacity: 0;
+    transform: translateY(6px);
+    animation: stagger-fade-in var(--duration-slow) var(--ease-out-expo) forwards;
+  }
+  .stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-in > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger-in > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger-in > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger-in > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger-in > *:nth-child(6) { animation-delay: 200ms; }
+  .stagger-in > *:nth-child(7) { animation-delay: 240ms; }
+  .stagger-in > *:nth-child(8) { animation-delay: 280ms; }
+  .stagger-in > *:nth-child(n+9) { animation-delay: 320ms; }
+}
+
+@keyframes stagger-fade-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { redirect, notFound } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { authenticatedFetch } from '@/lib/api';
+import { Shell } from '@/components/layout/shell';
 import { CaseDetail } from '@/components/cases/case-detail';
 
 interface CaseData {
@@ -28,29 +29,46 @@ export default async function CaseDetailPage({
   const res = await authenticatedFetch<CaseData>(`/api/cases/${params.id}`);
 
   if (res.error) {
-    if (res.error === 'not found') {
-      notFound();
-    }
+    if (res.error === 'not found') notFound();
     return (
-      <main className="container mx-auto px-6 py-8">
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {res.error}
+      <Shell>
+        <div className="max-w-4xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+          <div
+            className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-sm)]"
+            style={{
+              backgroundColor: 'var(--status-hold-bg)',
+              color: 'var(--status-hold)',
+              borderLeft: '3px solid var(--status-hold)',
+            }}
+          >
+            {res.error}
+          </div>
         </div>
-      </main>
+      </Shell>
     );
   }
 
   if (!res.data) notFound();
 
   return (
-    <main className="container mx-auto px-6 py-8">
-      <CaseDetail
-        caseData={res.data}
-        canEdit={
-          session.user.systemRole === 'system_admin' ||
-          session.user.systemRole === 'case_admin'
-        }
-      />
-    </main>
+    <Shell>
+      <div className="max-w-4xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+        <a
+          href="/en/cases"
+          className="text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
+          style={{ color: 'var(--text-tertiary)' }}
+        >
+          &larr; All cases
+        </a>
+
+        <CaseDetail
+          caseData={res.data}
+          canEdit={
+            session.user.systemRole === 'system_admin' ||
+            session.user.systemRole === 'case_admin'
+          }
+        />
+      </div>
+    </Shell>
   );
 }
