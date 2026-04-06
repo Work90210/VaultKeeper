@@ -10,14 +10,29 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/vaultkeeper/vaultkeeper/internal/auth"
 	"github.com/vaultkeeper/vaultkeeper/internal/httputil"
 )
 
+// CaseRoleStore is the interface the RoleHandler depends on. RoleRepository
+// implements it; tests can substitute a lightweight mock.
+type CaseRoleStore interface {
+	Assign(ctx context.Context, caseID uuid.UUID, userID, role, grantedBy string) (CaseRole, error)
+	Revoke(ctx context.Context, caseID uuid.UUID, userID string) error
+	ListByCaseID(ctx context.Context, caseID uuid.UUID) ([]CaseRole, error)
+}
+
+type roleDBPool interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 type RoleRepository struct {
-	pool *pgxpool.Pool
+	pool roleDBPool
 }
 
 func NewRoleRepository(pool *pgxpool.Pool) *RoleRepository {
@@ -97,12 +112,12 @@ func (r *RoleRepository) LoadCaseRole(ctx context.Context, caseID, userID string
 }
 
 type RoleHandler struct {
-	roles   *RoleRepository
+	roles   CaseRoleStore
 	custody CustodyRecorder
 	audit   auth.AuditLogger
 }
 
-func NewRoleHandler(roles *RoleRepository, custody CustodyRecorder, audit auth.AuditLogger) *RoleHandler {
+func NewRoleHandler(roles CaseRoleStore, custody CustodyRecorder, audit auth.AuditLogger) *RoleHandler {
 	return &RoleHandler{roles: roles, custody: custody, audit: audit}
 }
 

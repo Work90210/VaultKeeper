@@ -12,13 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// dbPool is the subset of pgxpool.Pool used by PGRepository.
+// Declaring the dependency as an interface enables injection of test fakes
+// without requiring an external mock library.
+type dbPool interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
 type CustodyReader interface {
 	ListByEvidence(ctx context.Context, evidenceID uuid.UUID, limit int, cursor string) ([]Event, int, error)
 	ListByCase(ctx context.Context, caseID uuid.UUID, limit int, cursor string) ([]Event, int, error)
 }
 
 type PGRepository struct {
-	pool *pgxpool.Pool
+	pool dbPool
 }
 
 func NewRepository(pool *pgxpool.Pool) *PGRepository {

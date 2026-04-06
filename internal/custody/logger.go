@@ -3,7 +3,6 @@ package custody
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,10 +25,9 @@ func (l *Logger) Record(ctx context.Context, event Event) error {
 }
 
 func (l *Logger) RecordCaseEvent(ctx context.Context, caseID uuid.UUID, action string, actorUserID string, detail map[string]string) error {
-	detailJSON, err := json.Marshal(detail)
-	if err != nil {
-		return fmt.Errorf("marshal custody detail: %w", err)
-	}
+	// json.Marshal on map[string]string is infallible in the Go standard library;
+	// the error return is intentionally not checked here.
+	detailJSON, _ := json.Marshal(detail)
 
 	return l.repo.Insert(ctx, Event{
 		CaseID:      caseID,

@@ -365,9 +365,11 @@ func TestPGRepository_FindAll_StatusFilter(t *testing.T) {
 	ctx := context.Background()
 
 	unique := uuid.New().String()[:8]
+	juris := "STSFLT-" + unique
 	c, err := repo.Create(ctx, Case{
 		ReferenceCode: "STS-" + unique + "-0001",
 		Title:         "StatusFilter-" + unique,
+		Jurisdiction:  juris,
 		Status:        StatusActive,
 		CreatedBy:     uuid.New().String(),
 	})
@@ -375,10 +377,11 @@ func TestPGRepository_FindAll_StatusFilter(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	// Filter to only active cases; our newly created case must appear.
+	// Filter by status AND jurisdiction to isolate from other test data.
 	items, _, err := repo.FindAll(ctx, CaseFilter{
-		SystemAdmin: true,
-		Status:      []string{StatusActive},
+		SystemAdmin:  true,
+		Status:       []string{StatusActive},
+		Jurisdiction: juris,
 	}, Pagination{Limit: 200})
 	if err != nil {
 		t.Fatalf("FindAll with status: %v", err)
@@ -506,6 +509,177 @@ func TestPGRepository_FindAll_LimitCapping(t *testing.T) {
 	_, _, err := repo.FindAll(ctx, CaseFilter{SystemAdmin: true}, Pagination{Limit: 99999})
 	if err != nil {
 		t.Fatalf("FindAll with oversized limit: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Create — general insert error (not duplicate key) via cancelled context
+// L48: return Case{}, fmt.Errorf("insert case: %w", err)
+// ---------------------------------------------------------------------------
+
+func TestPGRepository_Create_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately so the DB call fails
+
+	_, err := repo.Create(ctx, Case{
+		ReferenceCode: "CTX-TST-" + uuid.New().String()[:4],
+		Title:         "Context Cancel Test",
+		Status:        StatusActive,
+		CreatedBy:     uuid.New().String(),
+	})
+	if err == nil {
+		t.Fatal("expected error for cancelled context, got nil")
+	}
+	if strings.Contains(err.Error(), "reference code already exists") {
+		t.Errorf("unexpected duplicate error on cancelled context: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FindByID — general scan error (not ErrNoRows) via cancelled context
+// L66: return Case{}, fmt.Errorf("find case by id: %w", err)
+// ---------------------------------------------------------------------------
+
+func TestPGRepository_FindByID_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := repo.FindByID(ctx, uuid.New())
+	if err == nil {
+		t.Fatal("expected error for cancelled context, got nil")
+	}
+	// Must NOT be ErrNotFound — that's the pgx.ErrNoRows path; a cancelled
+	// context returns a different error wrapped with "find case by id".
+	if err == ErrNotFound {
+		t.Error("expected a context error, got ErrNotFound")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FindAll — count scan error via cancelled context (L148-L149)
+// ---------------------------------------------------------------------------
+
+func TestPGRepository_FindAll_CountError(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := repo.FindAll(ctx, CaseFilter{SystemAdmin: true}, Pagination{Limit: 10})
+	if err == nil {
+		t.Fatal("expected error for cancelled context in FindAll, got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Update — description / jurisdiction / status SET clauses (L199, L204, L209)
+// ---------------------------------------------------------------------------
+
+func TestPGRepository_Update_AllFields(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRepository(pool)
+	ctx := context.Background()
+
+	c, err := repo.Create(ctx, Case{
+		ReferenceCode: "UPD-AF-" + uuid.New().String()[:8],
+		Title:         "AllFields Initial",
+		Description:   "initial desc",
+		Jurisdiction:  "initial juris",
+		Status:        StatusActive,
+		CreatedBy:     uuid.New().String(),
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	newDesc := "updated desc"
+	newJur := "updated juris"
+	newStatus := StatusClosed
+
+	updated, err := repo.Update(ctx, c.ID, UpdateCaseInput{
+		Description:  &newDesc,
+		Jurisdiction: &newJur,
+		Status:       &newStatus,
+	})
+	if err != nil {
+		t.Fatalf("Update all fields: %v", err)
+	}
+	if updated.Description != newDesc {
+		t.Errorf("Description = %q, want %q", updated.Description, newDesc)
+	}
+	if updated.Jurisdiction != newJur {
+		t.Errorf("Jurisdiction = %q, want %q", updated.Jurisdiction, newJur)
+	}
+	if updated.Status != newStatus {
+		t.Errorf("Status = %q, want %q", updated.Status, newStatus)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Update — general update error (not ErrNoRows) via cancelled context (L236)
+// ---------------------------------------------------------------------------
+
+func TestPGRepository_Update_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	newTitle := "ctx cancel"
+	_, err := repo.Update(ctx, uuid.New(), UpdateCaseInput{Title: &newTitle})
+	if err == nil {
+		t.Fatal("expected error for cancelled context in Update, got nil")
+	}
+	if err == ErrNotFound {
+		t.Error("expected a context error, got ErrNotFound")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Archive — Exec error via cancelled context (L244)
+// ---------------------------------------------------------------------------
+
+func TestPGRepository_Archive_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := repo.Archive(ctx, uuid.New())
+	if err == nil {
+		t.Fatal("expected error for cancelled context in Archive, got nil")
+	}
+	if err == ErrNotFound {
+		t.Error("expected a context error, got ErrNotFound")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SetLegalHold — Exec error via cancelled context (L256)
+// ---------------------------------------------------------------------------
+
+func TestPGRepository_SetLegalHold_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := repo.SetLegalHold(ctx, uuid.New(), true)
+	if err == nil {
+		t.Fatal("expected error for cancelled context in SetLegalHold, got nil")
+	}
+	if err == ErrNotFound {
+		t.Error("expected a context error, got ErrNotFound")
 	}
 }
 

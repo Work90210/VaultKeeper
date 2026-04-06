@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -23,8 +24,14 @@ type Repository interface {
 	SetLegalHold(ctx context.Context, id uuid.UUID, hold bool) error
 }
 
+type dbPool interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 type PGRepository struct {
-	pool *pgxpool.Pool
+	pool dbPool
 }
 
 func NewRepository(pool *pgxpool.Pool) *PGRepository {

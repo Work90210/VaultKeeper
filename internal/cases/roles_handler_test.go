@@ -18,10 +18,16 @@ import (
 )
 
 type mockRoleRepo struct {
-	roles map[string]CaseRole // key: "caseID:userID"
+	roles        map[string]CaseRole // key: "caseID:userID"
+	assignErr    error
+	revokeErr    error
+	listErr      error
 }
 
 func (m *mockRoleRepo) Assign(_ context.Context, caseID uuid.UUID, userID, role, grantedBy string) (CaseRole, error) {
+	if m.assignErr != nil {
+		return CaseRole{}, m.assignErr
+	}
 	key := caseID.String() + ":" + userID
 	if _, exists := m.roles[key]; exists {
 		return CaseRole{}, fmt.Errorf("role already assigned: duplicate")
@@ -35,6 +41,9 @@ func (m *mockRoleRepo) Assign(_ context.Context, caseID uuid.UUID, userID, role,
 }
 
 func (m *mockRoleRepo) Revoke(_ context.Context, caseID uuid.UUID, userID string) error {
+	if m.revokeErr != nil {
+		return m.revokeErr
+	}
 	key := caseID.String() + ":" + userID
 	if _, exists := m.roles[key]; !exists {
 		return ErrNotFound
@@ -44,6 +53,9 @@ func (m *mockRoleRepo) Revoke(_ context.Context, caseID uuid.UUID, userID string
 }
 
 func (m *mockRoleRepo) ListByCaseID(_ context.Context, caseID uuid.UUID) ([]CaseRole, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	var result []CaseRole
 	for key, cr := range m.roles {
 		if strings.HasPrefix(key, caseID.String()+":") {
@@ -57,15 +69,9 @@ func setupRoleHandler(t *testing.T) (*RoleHandler, *mockRoleRepo, uuid.UUID) {
 	t.Helper()
 	roleRepo := &mockRoleRepo{roles: make(map[string]CaseRole)}
 	custody := &mockCustody{}
-	h := &RoleHandler{roles: &RoleRepository{}, custody: custody, audit: nil}
-	// Use the mock directly — we'll override the handler methods via a wrapper
-	_ = h
-
-	// Create a real handler with mocked dependencies
-	// Since RoleRepository uses pgxpool, we'll test via HTTP with a real router
-	// using the mock role repo pattern
 	caseID := uuid.New()
-	return &RoleHandler{custody: custody}, roleRepo, caseID
+	h := NewRoleHandler(roleRepo, custody, nil)
+	return h, roleRepo, caseID
 }
 
 func TestRoleHandler_Assign(t *testing.T) {
@@ -129,6 +135,141 @@ func TestRoleHandler_Revoke_Self(t *testing.T) {
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("self-revoke: status = %d, want 403", rr.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Handler error branches using mockRoleRepo
+// ---------------------------------------------------------------------------
+
+// buildRoleHandlerRequest builds a request with chi URL params and auth ctx.
+func buildRoleHandlerRequest(method, caseIDStr, userIDParam string, body any) *http.Request {
+	var buf bytes.Buffer
+	if body != nil {
+		_ = json.NewEncoder(&buf).Encode(body)
+	}
+	req := httptest.NewRequest(method, "/", &buf)
+	req.Header.Set("Content-Type", "application/json")
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", caseIDStr)
+	if userIDParam != "" {
+		rctx.URLParams.Add("userId", userIDParam)
+	}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = auth.WithAuthContext(ctx, auth.AuthContext{
+		UserID: "admin-user", SystemRole: auth.RoleSystemAdmin,
+	})
+	return req.WithContext(ctx)
+}
+
+// TestRoleHandler_Assign_InvalidJSON_Unit covers L131 (decodeBody error).
+func TestRoleHandler_Assign_InvalidJSON_Unit(t *testing.T) {
+	roleRepo := &mockRoleRepo{roles: make(map[string]CaseRole)}
+	h := NewRoleHandler(roleRepo, nil, nil)
+
+	caseID := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", caseID.String())
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = auth.WithAuthContext(ctx, auth.AuthContext{UserID: "admin", SystemRole: auth.RoleSystemAdmin})
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	h.Assign(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Assign invalid JSON: status = %d, want 400", rr.Code)
+	}
+}
+
+// TestRoleHandler_Assign_InternalError_Unit covers L152 (non-duplicate repo error).
+func TestRoleHandler_Assign_InternalError_Unit(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles:     make(map[string]CaseRole),
+		assignErr: fmt.Errorf("unexpected db failure"),
+	}
+	h := NewRoleHandler(roleRepo, nil, nil)
+
+	caseID := uuid.New()
+	req := buildRoleHandlerRequest(http.MethodPost, caseID.String(), "", AssignRoleInput{
+		UserID: uuid.New().String(),
+		Role:   "investigator",
+	})
+
+	rr := httptest.NewRecorder()
+	h.Assign(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Assign internal error: status = %d, want 500", rr.Code)
+	}
+}
+
+// TestRoleHandler_Revoke_ListError_Unit covers L188 (ListByCaseID error during revoke).
+func TestRoleHandler_Revoke_ListError_Unit(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles:   make(map[string]CaseRole),
+		listErr: fmt.Errorf("list query failed"),
+	}
+	h := NewRoleHandler(roleRepo, nil, nil)
+
+	caseID := uuid.New()
+	targetID := uuid.New().String()
+	req := buildRoleHandlerRequest(http.MethodDelete, caseID.String(), targetID, nil)
+
+	rr := httptest.NewRecorder()
+	h.Revoke(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Revoke list error: status = %d, want 500", rr.Code)
+	}
+}
+
+// TestRoleHandler_Revoke_RevokeError_Unit covers L205 (Revoke repo error ≠ ErrNotFound).
+func TestRoleHandler_Revoke_RevokeError_Unit(t *testing.T) {
+	caseID := uuid.New()
+	targetID := uuid.New().String()
+
+	// List succeeds (role exists); Revoke fails with a non-ErrNotFound error.
+	roleRepo := &mockRoleRepo{
+		roles: map[string]CaseRole{
+			caseID.String() + ":" + targetID: {
+				ID:     uuid.New(),
+				CaseID: caseID,
+				UserID: targetID,
+				Role:   "investigator",
+			},
+		},
+		revokeErr: fmt.Errorf("unexpected revoke failure"),
+	}
+	h := NewRoleHandler(roleRepo, nil, nil)
+
+	req := buildRoleHandlerRequest(http.MethodDelete, caseID.String(), targetID, nil)
+
+	rr := httptest.NewRecorder()
+	h.Revoke(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Revoke error: status = %d, want 500", rr.Code)
+	}
+}
+
+// TestRoleHandler_List_ListError_Unit covers L228 (ListByCaseID error in List).
+func TestRoleHandler_List_ListError_Unit(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles:   make(map[string]CaseRole),
+		listErr: fmt.Errorf("list query failed"),
+	}
+	h := NewRoleHandler(roleRepo, nil, nil)
+
+	caseID := uuid.New()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", caseID.String())
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.List(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("List error: status = %d, want 500", rr.Code)
 	}
 }
 

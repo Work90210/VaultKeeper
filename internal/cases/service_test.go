@@ -12,8 +12,10 @@ import (
 )
 
 type mockRepo struct {
-	cases    map[uuid.UUID]Case
-	createFn func(ctx context.Context, c Case) (Case, error)
+	cases      map[uuid.UUID]Case
+	createFn   func(ctx context.Context, c Case) (Case, error)
+	findByIDFn func(ctx context.Context, id uuid.UUID) (Case, error)
+	findAllFn  func(ctx context.Context, filter CaseFilter, page Pagination) ([]Case, int, error)
 }
 
 func newMockRepo() *mockRepo {
@@ -36,7 +38,10 @@ func (m *mockRepo) Create(ctx context.Context, c Case) (Case, error) {
 	return c, nil
 }
 
-func (m *mockRepo) FindByID(_ context.Context, id uuid.UUID) (Case, error) {
+func (m *mockRepo) FindByID(ctx context.Context, id uuid.UUID) (Case, error) {
+	if m.findByIDFn != nil {
+		return m.findByIDFn(ctx, id)
+	}
 	c, ok := m.cases[id]
 	if !ok {
 		return Case{}, ErrNotFound
@@ -44,7 +49,10 @@ func (m *mockRepo) FindByID(_ context.Context, id uuid.UUID) (Case, error) {
 	return c, nil
 }
 
-func (m *mockRepo) FindAll(_ context.Context, _ CaseFilter, page Pagination) ([]Case, int, error) {
+func (m *mockRepo) FindAll(ctx context.Context, filter CaseFilter, page Pagination) ([]Case, int, error) {
+	if m.findAllFn != nil {
+		return m.findAllFn(ctx, filter, page)
+	}
 	page = ClampPagination(page)
 	var result []Case
 	for _, c := range m.cases {
@@ -419,5 +427,237 @@ func TestValidationError_Error(t *testing.T) {
 	ve := &ValidationError{Field: "title", Message: "too long"}
 	if ve.Error() != "title: too long" {
 		t.Errorf("Error() = %q", ve.Error())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CreateCase — repo.Create error path (L59)
+// ---------------------------------------------------------------------------
+
+func TestService_CreateCase_RepoError(t *testing.T) {
+	repo := newMockRepo()
+	repoErr := fmt.Errorf("db connection lost")
+	repo.createFn = func(_ context.Context, _ Case) (Case, error) {
+		return Case{}, repoErr
+	}
+	custody := &mockCustody{}
+	svc, _ := NewService(repo, custody, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	_, err := svc.CreateCase(context.Background(), CreateCaseInput{
+		ReferenceCode: "ICC-UKR-2024",
+		Title:         "Test",
+	}, "user-1")
+
+	if err == nil {
+		t.Fatal("expected error from repo.Create, got nil")
+	}
+	if !errors.Is(err, repoErr) {
+		t.Errorf("error = %v, want %v", err, repoErr)
+	}
+	if len(custody.events) != 0 {
+		t.Error("expected no custody events on create error")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ListCases — hasMore + nextCursor branch (L87)
+// ---------------------------------------------------------------------------
+
+func TestService_ListCases_HasMore(t *testing.T) {
+	repo := newMockRepo()
+	// Simulate repo returning limit items and a total larger than limit so
+	// hasMore is true and nextCursor gets populated.
+	limit := 2
+	fakeItems := []Case{
+		{ID: uuid.New(), Title: "A", Status: StatusActive},
+		{ID: uuid.New(), Title: "B", Status: StatusActive},
+	}
+	repo.findAllFn = func(_ context.Context, _ CaseFilter, _ Pagination) ([]Case, int, error) {
+		return fakeItems, 5, nil // 5 total, returning exactly limit items
+	}
+	custody := &mockCustody{}
+	svc, _ := NewService(repo, custody, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	result, err := svc.ListCases(context.Background(), CaseFilter{SystemAdmin: true}, Pagination{Limit: limit})
+	if err != nil {
+		t.Fatalf("ListCases error: %v", err)
+	}
+	if !result.HasMore {
+		t.Error("expected HasMore = true")
+	}
+	if result.NextCursor == "" {
+		t.Error("expected non-empty NextCursor when HasMore is true")
+	}
+	if result.TotalCount != 5 {
+		t.Errorf("TotalCount = %d, want 5", result.TotalCount)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// UpdateCase — sanitize description and jurisdiction (L109, L113)
+// and custody detail for description, jurisdiction, status changes (L128-L134)
+// ---------------------------------------------------------------------------
+
+func TestService_UpdateCase_AllFields(t *testing.T) {
+	svc, repo, custody := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Old", Status: StatusActive}
+
+	newDesc := "<b>Bold</b>"
+	newJur := "  ICC  "
+	newStatus := StatusClosed
+	c, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{
+		Description:  &newDesc,
+		Jurisdiction: &newJur,
+		Status:       &newStatus,
+	}, "user-1")
+
+	if err != nil {
+		t.Fatalf("UpdateCase error: %v", err)
+	}
+	// HTML escaping applied to description
+	if strings.Contains(c.Description, "<b>") {
+		t.Errorf("Description should be HTML escaped, got %q", c.Description)
+	}
+	// Whitespace trimmed from jurisdiction
+	if strings.Contains(c.Jurisdiction, "  ") {
+		t.Errorf("Jurisdiction should be trimmed, got %q", c.Jurisdiction)
+	}
+	// Custody should record description, jurisdiction, and status changes
+	if len(custody.events) == 0 || custody.events[len(custody.events)-1] != "case_updated" {
+		t.Errorf("custody events = %v", custody.events)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ArchiveCase — FindByID error path (L145)
+// ---------------------------------------------------------------------------
+
+func TestService_ArchiveCase_FindByIDError(t *testing.T) {
+	repo := newMockRepo()
+	findErr := fmt.Errorf("db timeout on find")
+	repo.findByIDFn = func(_ context.Context, _ uuid.UUID) (Case, error) {
+		return Case{}, findErr
+	}
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	err := svc.ArchiveCase(context.Background(), uuid.New(), "user-1")
+	if err == nil {
+		t.Fatal("expected error from FindByID, got nil")
+	}
+	if !errors.Is(err, findErr) {
+		t.Errorf("error = %v, want %v", err, findErr)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SetLegalHold — FindByID error path (L174)
+// ---------------------------------------------------------------------------
+
+func TestService_SetLegalHold_FindByIDError(t *testing.T) {
+	repo := newMockRepo()
+	findErr := fmt.Errorf("db timeout on find")
+	repo.findByIDFn = func(_ context.Context, _ uuid.UUID) (Case, error) {
+		return Case{}, findErr
+	}
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	err := svc.SetLegalHold(context.Background(), uuid.New(), true, "user-1")
+	if err == nil {
+		t.Fatal("expected error from FindByID, got nil")
+	}
+	if !errors.Is(err, findErr) {
+		t.Errorf("error = %v, want %v", err, findErr)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateUpdateInput — empty title (L231), title too long (L234),
+// description too long (L239), jurisdiction too long (L243)
+// ---------------------------------------------------------------------------
+
+func TestService_UpdateCase_EmptyTitle(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Old", Status: StatusActive}
+
+	empty := ""
+	_, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{Title: &empty}, "user-1")
+	if err == nil {
+		t.Fatal("expected error for empty title")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) || ve.Field != "title" {
+		t.Errorf("expected title ValidationError, got %v", err)
+	}
+}
+
+func TestService_UpdateCase_TitleTooLong(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Old", Status: StatusActive}
+
+	long := strings.Repeat("x", MaxTitleLength+1)
+	_, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{Title: &long}, "user-1")
+	if err == nil {
+		t.Fatal("expected error for title too long")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) || ve.Field != "title" {
+		t.Errorf("expected title ValidationError, got %v", err)
+	}
+}
+
+func TestService_UpdateCase_DescriptionTooLong(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Old", Status: StatusActive}
+
+	long := strings.Repeat("x", MaxDescriptionLength+1)
+	_, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{Description: &long}, "user-1")
+	if err == nil {
+		t.Fatal("expected error for description too long")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) || ve.Field != "description" {
+		t.Errorf("expected description ValidationError, got %v", err)
+	}
+}
+
+func TestService_UpdateCase_JurisdictionTooLong(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Old", Status: StatusActive}
+
+	long := strings.Repeat("x", MaxJurisdictionLen+1)
+	_, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{Jurisdiction: &long}, "user-1")
+	if err == nil {
+		t.Fatal("expected error for jurisdiction too long")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) || ve.Field != "jurisdiction" {
+		t.Errorf("expected jurisdiction ValidationError, got %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateUpdateInput — FindByID error during status transition check (L249)
+// ---------------------------------------------------------------------------
+
+func TestService_UpdateCase_StatusTransition_FindByIDError(t *testing.T) {
+	repo := newMockRepo()
+	findErr := fmt.Errorf("db timeout during status check")
+	repo.findByIDFn = func(_ context.Context, _ uuid.UUID) (Case, error) {
+		return Case{}, findErr
+	}
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	newStatus := StatusClosed
+	_, err := svc.UpdateCase(context.Background(), uuid.New(), UpdateCaseInput{Status: &newStatus}, "user-1")
+	if err == nil {
+		t.Fatal("expected error from FindByID during status check, got nil")
+	}
+	if !errors.Is(err, findErr) {
+		t.Errorf("error = %v, want %v", err, findErr)
 	}
 }

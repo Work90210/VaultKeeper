@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -281,3 +282,78 @@ func setChiParam(ctx context.Context, key, val string) context.Context {
 	rctx.URLParams.Add(key, val)
 	return context.WithValue(ctx, chi.RouteCtxKey, rctx)
 }
+
+// ---------------------------------------------------------------------------
+// RoleRepository error paths via cancelled context
+// ---------------------------------------------------------------------------
+
+// TestRoleRepository_Assign_ContextCancelled covers L39:
+// general insert error (not duplicate key).
+func TestRoleRepository_Assign_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRoleRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := repo.Assign(ctx, uuid.New(), uuid.New().String(), "investigator", uuid.New().String())
+	if err == nil {
+		t.Fatal("expected error for cancelled context in Assign, got nil")
+	}
+	if strings.Contains(err.Error(), "role already assigned") {
+		t.Errorf("unexpected duplicate error on cancelled context: %v", err)
+	}
+}
+
+// TestRoleRepository_Revoke_ContextCancelled covers L49:
+// Exec error path.
+func TestRoleRepository_Revoke_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRoleRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := repo.Revoke(ctx, uuid.New(), uuid.New().String())
+	if err == nil {
+		t.Fatal("expected error for cancelled context in Revoke, got nil")
+	}
+	if err == ErrNotFound {
+		t.Error("expected a context error, got ErrNotFound")
+	}
+}
+
+// TestRoleRepository_ListByCaseID_ContextCancelled covers L64:
+// query error path.
+func TestRoleRepository_ListByCaseID_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRoleRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := repo.ListByCaseID(ctx, uuid.New())
+	if err == nil {
+		t.Fatal("expected error for cancelled context in ListByCaseID, got nil")
+	}
+}
+
+// TestRoleRepository_LoadCaseRole_ContextCancelled covers L94:
+// general scan error (not ErrNoRows).
+func TestRoleRepository_LoadCaseRole_ContextCancelled(t *testing.T) {
+	pool := testPool(t)
+	repo := NewRoleRepository(pool)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	caseID := uuid.New()
+	_, err := repo.LoadCaseRole(ctx, caseID.String(), uuid.New().String())
+	if err == nil {
+		t.Fatal("expected error for cancelled context in LoadCaseRole, got nil")
+	}
+	if err == auth.ErrNoCaseRole {
+		t.Error("expected a context error, got ErrNoCaseRole")
+	}
+}
+
