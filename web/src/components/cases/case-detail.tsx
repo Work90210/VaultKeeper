@@ -37,7 +37,7 @@ export function CaseDetail({
       <div>
         <div className="flex items-center gap-[var(--space-sm)] mb-[var(--space-xs)]">
           <span
-            className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] tracking-wide"
+            className="font-[family-name:var(--font-mono)] text-xs tracking-wide"
             style={{ color: 'var(--text-tertiary)' }}
           >
             {caseData.reference_code}
@@ -61,7 +61,7 @@ export function CaseDetail({
           )}
         </div>
         <h1
-          className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)] leading-tight text-balance"
+          className="font-[family-name:var(--font-heading)] text-2xl leading-tight text-balance"
           style={{ color: 'var(--text-primary)' }}
         >
           {caseData.title}
@@ -101,7 +101,7 @@ export function CaseDetail({
             Description
           </h2>
           <p
-            className="text-[var(--text-base)] leading-relaxed whitespace-pre-wrap max-w-2xl"
+            className="text-base leading-relaxed whitespace-pre-wrap max-w-2xl"
             style={{ color: 'var(--text-secondary)' }}
           >
             {caseData.description}
@@ -109,12 +109,29 @@ export function CaseDetail({
         </div>
       )}
 
+      {/* Evidence */}
+      <div className="card p-[var(--space-lg)]">
+        <h2 className="field-label mb-[var(--space-sm)]">Evidence</h2>
+        <p
+          className="text-sm mb-[var(--space-md)]"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          Manage uploaded evidence files, classifications, and chain of custody.
+        </p>
+        <a
+          href={`/en/cases/${caseData.id}/evidence`}
+          className="link-accent text-sm"
+        >
+          View evidence &rarr;
+        </a>
+      </div>
+
       {/* Actions */}
       {canEdit && (
         <div>
           <a
             href={`/en/cases/${caseData.id}/settings`}
-            className="link-accent text-[var(--text-sm)]"
+            className="link-accent text-sm"
           >
             Case settings &rarr;
           </a>
@@ -137,7 +154,7 @@ function MetaField({
     <div>
       <dt className="field-label">{label}</dt>
       <dd
-        className={`mt-[var(--space-xs)] text-[var(--text-sm)] ${mono ? 'font-[family-name:var(--font-mono)]' : ''}`}
+        className={`mt-[var(--space-xs)] text-sm ${mono ? 'font-[family-name:var(--font-mono)]' : ''}`}
         style={{ color: 'var(--text-primary)' }}
       >
         {value}

@@ -18,7 +18,10 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/config"
 	"github.com/vaultkeeper/vaultkeeper/internal/custody"
 	"github.com/vaultkeeper/vaultkeeper/internal/database"
+	"github.com/vaultkeeper/vaultkeeper/internal/evidence"
+	"github.com/vaultkeeper/vaultkeeper/internal/integrity"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
+	"github.com/vaultkeeper/vaultkeeper/internal/search"
 	"github.com/vaultkeeper/vaultkeeper/internal/server"
 )
 
@@ -86,7 +89,43 @@ func run() error {
 	roleRepo := cases.NewRoleRepository(pool)
 	roleHandler := cases.NewRoleHandler(roleRepo, custodyLogger, auditLogger)
 
-	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, caseHandler, roleHandler)
+	// Evidence subsystem
+	minioStorage, err := evidence.NewMinIOStorage(ctx, cfg.MinIOEndpoint, cfg.MinIOAccessKey, cfg.MinIOSecretKey, cfg.MinIOBucket, cfg.MinIOUseSSL)
+	if err != nil {
+		return fmt.Errorf("create minio storage: %w", err)
+	}
+
+	var tsaClient integrity.TimestampAuthority
+	if cfg.TSAEnabled {
+		tsaClient = integrity.NewRFC3161Client(cfg.TSAURL)
+	} else {
+		tsaClient = &integrity.NoopTimestampAuthority{}
+	}
+
+	var searchIndexer search.SearchIndexer
+	if cfg.MeilisearchURL != "" {
+		searchIndexer = search.NewMeilisearchClient(cfg.MeilisearchURL, cfg.MeilisearchAPIKey)
+	} else {
+		searchIndexer = &search.NoopSearchIndexer{}
+	}
+
+	evidenceRepo := evidence.NewRepository(pool)
+	caseLookup := evidence.NewCaseLookup(pool)
+	thumbGen := evidence.NewThumbnailGenerator()
+
+	evidenceSvc := evidence.NewService(
+		evidenceRepo, minioStorage, tsaClient, searchIndexer,
+		custodyLogger, caseLookup, thumbGen, logger, cfg.MaxUploadSize,
+	)
+	evidenceHandler := evidence.NewHandler(evidenceSvc, custodyRepo, auditLogger, cfg.MaxUploadSize)
+
+	// Start TSA retry job
+	tsaRetryJob := integrity.NewTSARetryJob(tsaClient, evidenceRepo, evidenceRepo, custodyLogger, logger)
+	tsaCtx, tsaCancel := context.WithCancel(ctx)
+	defer tsaCancel()
+	go tsaRetryJob.Start(tsaCtx)
+
+	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, caseHandler, roleHandler, evidenceHandler)
 
 	serverErr := make(chan error, 1)
 	go func() {

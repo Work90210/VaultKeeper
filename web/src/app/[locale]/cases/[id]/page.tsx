@@ -46,7 +46,7 @@ export default async function CaseDetailPage({
       <div className="max-w-4xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
         <a
           href="/en/cases"
-          className="link-subtle text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
+          className="link-subtle text-xs uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
         >
           &larr; All cases
         </a>

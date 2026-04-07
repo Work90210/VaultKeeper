@@ -66,13 +66,13 @@ export default async function CasesPage({
         <div className="flex items-end justify-between mb-[var(--space-lg)]">
           <div>
             <h1
-              className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)]"
+              className="font-[family-name:var(--font-heading)] text-2xl"
               style={{ color: 'var(--text-primary)' }}
             >
               Cases
             </h1>
             <p
-              className="text-[var(--text-sm)] mt-[var(--space-xs)]"
+              className="text-sm mt-[var(--space-xs)]"
               style={{ color: 'var(--text-tertiary)' }}
             >
               {total} {total === 1 ? 'case' : 'cases'}

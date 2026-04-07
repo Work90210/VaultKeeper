@@ -13,17 +13,30 @@ export interface Case {
 export interface EvidenceItem {
   id: string;
   case_id: string;
+  evidence_number: string;
+  version: number;
+  parent_id: string | null;
+  title: string;
+  description: string;
   filename: string;
   original_name: string;
-  mime_type: string;
   size_bytes: number;
+  mime_type: string;
   sha256_hash: string;
+  tsa_token: string | null;
+  tsa_timestamp: string | null;
+  tsa_name: string;
   classification: 'public' | 'restricted' | 'confidential' | 'ex_parte';
+  tags: string[];
+  source: string;
+  source_date: string | null;
+  created_at: string;
   uploaded_by: string;
   is_current: boolean;
-  version: number;
-  tsa_token: string | null;
-  created_at: string;
+  destroyed_at: string | null;
+  metadata: Record<string, unknown>;
+  storage_key: string;
+  thumbnail_key: string | null;
 }
 
 export interface CustodyEntry {

@@ -39,7 +39,7 @@ export function Header() {
             />
           </svg>
           <span
-            className="font-[family-name:var(--font-heading)] text-[var(--text-lg)]"
+            className="font-[family-name:var(--font-heading)] text-lg"
             style={{ color: 'var(--text-primary)' }}
           >
             VaultKeeper
@@ -49,7 +49,7 @@ export function Header() {
           <nav className="hidden sm:flex items-center gap-[var(--space-xs)]">
             <a
               href="/en/cases"
-              className="btn-ghost text-[var(--text-sm)]"
+              className="btn-ghost text-sm"
             >
               Cases
             </a>
@@ -62,7 +62,7 @@ export function Header() {
           <div className="hidden sm:flex items-center gap-[var(--space-sm)]">
             {/* User avatar */}
             <div
-              className="flex items-center justify-center w-8 h-8 text-[var(--text-xs)] font-semibold"
+              className="flex items-center justify-center w-8 h-8 text-xs font-semibold"
               style={{
                 borderRadius: 'var(--radius-full)',
                 backgroundColor: 'var(--amber-subtle)',
@@ -72,10 +72,10 @@ export function Header() {
               {Array.from(user.name || '?').slice(0, 2).join('').toUpperCase()}
             </div>
             <div className="text-right">
-              <p className="text-[var(--text-sm)] font-medium" style={{ color: 'var(--text-primary)' }}>
+              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                 {user.name}
               </p>
-              <p className="text-[var(--text-xs)]" style={{ color: 'var(--text-tertiary)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                 {user.systemRole?.replace('_', ' ')}
               </p>
             </div>
@@ -86,7 +86,7 @@ export function Header() {
           />
           <button
             onClick={signOut}
-            className="btn-ghost text-[var(--text-xs)] uppercase tracking-wide"
+            className="btn-ghost text-xs uppercase tracking-wide"
             type="button"
           >
             Sign out

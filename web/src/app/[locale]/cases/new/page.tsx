@@ -57,13 +57,13 @@ export default function NewCasePage() {
       <div className="max-w-xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
         <a
           href="/en/cases"
-          className="link-subtle text-[var(--text-xs)] uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
+          className="link-subtle text-xs uppercase tracking-wider font-medium mb-[var(--space-lg)] inline-block"
         >
           &larr; Cases
         </a>
 
         <h1
-          className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)] mb-[var(--space-lg)]"
+          className="font-[family-name:var(--font-heading)] text-2xl mb-[var(--space-lg)]"
           style={{ color: 'var(--text-primary)' }}
         >
           New Case
@@ -77,8 +77,8 @@ export default function NewCasePage() {
               label="Reference Code"
               name="reference_code"
               required
-              placeholder="ICC-UKR-2024"
-              hint="Format: ABC-ABC-1234"
+              placeholder="ICC-01/04-01/06"
+              hint="Your institution's case reference, e.g. ICC-01/04-01/06, KSC-BC-2020-06, ICTR-96-4-T"
             />
             <FormField label="Title" name="title" required maxLength={500} />
             <FormField
@@ -162,7 +162,7 @@ function FormField({
       )}
       {hint && (
         <p
-          className="mt-[var(--space-xs)] text-[var(--text-xs)]"
+          className="mt-[var(--space-xs)] text-xs"
           style={{ color: 'var(--text-tertiary)' }}
         >
           {hint}

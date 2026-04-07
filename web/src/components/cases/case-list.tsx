@@ -105,13 +105,13 @@ export function CaseList({
           className="card py-[var(--space-2xl)] text-center"
         >
           <p
-            className="font-[family-name:var(--font-heading)] text-[var(--text-xl)]"
+            className="font-[family-name:var(--font-heading)] text-xl"
             style={{ color: 'var(--text-tertiary)' }}
           >
             No cases found
           </p>
           <p
-            className="mt-[var(--space-xs)] text-[var(--text-sm)]"
+            className="mt-[var(--space-xs)] text-sm"
             style={{ color: 'var(--text-tertiary)' }}
           >
             {currentQuery
@@ -123,7 +123,7 @@ export function CaseList({
         <div className="card overflow-hidden">
           {/* Column headers */}
           <div
-            className="grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-[var(--text-xs)] uppercase tracking-wider font-semibold"
+            className="grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-xs uppercase tracking-wider font-semibold"
             style={{
               color: 'var(--text-tertiary)',
               borderBottom: '1px solid var(--border-default)',
@@ -158,14 +158,14 @@ export function CaseList({
                   style={{ borderBottom: '1px solid var(--border-subtle)' }}
                 >
                   <span
-                    className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] font-medium"
+                    className="font-[family-name:var(--font-mono)] text-xs font-medium"
                     style={{ color: 'var(--text-secondary)' }}
                   >
                     {c.reference_code}
                   </span>
 
                   <span
-                    className="text-[var(--text-sm)] font-medium truncate flex items-center gap-[var(--space-sm)]"
+                    className="text-sm font-medium truncate flex items-center gap-[var(--space-sm)]"
                     style={{ color: 'var(--text-primary)' }}
                   >
                     {c.title}
@@ -190,14 +190,14 @@ export function CaseList({
                   </span>
 
                   <span
-                    className="text-[var(--text-sm)] truncate"
+                    className="text-sm truncate"
                     style={{ color: 'var(--text-secondary)' }}
                   >
                     {c.jurisdiction || '\u2014'}
                   </span>
 
                   <span
-                    className="text-[var(--text-xs)] text-right tabular-nums"
+                    className="text-xs text-right tabular-nums"
                     style={{ color: 'var(--text-tertiary)' }}
                   >
                     {new Date(c.created_at).toLocaleDateString('en-GB', {
@@ -222,7 +222,7 @@ export function CaseList({
               ...(currentStatus ? { status: currentStatus } : {}),
               cursor: nextCursor,
             }).toString()}`}
-            className="link-accent text-[var(--text-sm)]"
+            className="link-accent text-sm"
           >
             Load more results &rarr;
           </a>

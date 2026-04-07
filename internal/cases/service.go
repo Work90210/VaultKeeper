@@ -219,7 +219,7 @@ func (s *Service) validateCreateInput(input CreateCaseInput) error {
 		return &ValidationError{Field: "reference_code", Message: "reference code is required"}
 	}
 	if !s.referenceCodeExpr.MatchString(ref) {
-		return &ValidationError{Field: "reference_code", Message: fmt.Sprintf("reference code must match pattern: %s", s.referenceCodeExpr.String())}
+		return &ValidationError{Field: "reference_code", Message: "reference code must be 3-100 characters using letters, digits, hyphens, slashes, dots, or underscores (e.g. ICC-01/04-01/06, KSC-BC-2020-06)"}
 	}
 
 	return nil

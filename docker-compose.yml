@@ -107,6 +107,7 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./keycloak/themes/vaultkeeper:/opt/keycloak/themes/vaultkeeper:ro
       - keycloak_data:/opt/keycloak/data
     networks:
       - vaultkeeper

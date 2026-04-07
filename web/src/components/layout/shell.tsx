@@ -6,7 +6,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <Header />
       <main className="flex-1">{children}</main>
       <footer
-        className="flex items-center justify-center py-[var(--space-md)] text-[var(--text-xs)]"
+        className="flex items-center justify-center py-[var(--space-md)] text-xs"
         style={{
           borderTop: '1px solid var(--border-subtle)',
           color: 'var(--text-tertiary)',

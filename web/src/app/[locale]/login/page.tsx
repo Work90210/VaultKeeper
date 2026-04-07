@@ -46,7 +46,7 @@ export default function LoginPage() {
         className="flex min-h-screen items-center justify-center"
         style={{ backgroundColor: 'var(--bg-primary)' }}
       >
-        <p className="text-[var(--text-sm)]" style={{ color: 'var(--text-tertiary)' }}>
+        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
           Redirecting to sign in...
         </p>
       </div>
@@ -82,7 +82,7 @@ export default function LoginPage() {
             />
           </svg>
           <h1
-            className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)]"
+            className="font-[family-name:var(--font-heading)] text-2xl"
             style={{ color: 'var(--text-primary)' }}
           >
             VaultKeeper
@@ -94,7 +94,7 @@ export default function LoginPage() {
           style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}
         >
           <h2
-            className="font-[family-name:var(--font-heading)] text-[var(--text-xl)]"
+            className="font-[family-name:var(--font-heading)] text-xl"
             style={{ color: 'var(--text-primary)' }}
           >
             Sign in failed
@@ -114,7 +114,7 @@ export default function LoginPage() {
         </div>
 
         <p
-          className="mt-[var(--space-lg)] text-[var(--text-xs)] text-center"
+          className="mt-[var(--space-lg)] text-xs text-center"
           style={{ color: 'var(--text-tertiary)' }}
         >
           Access restricted to authorized personnel

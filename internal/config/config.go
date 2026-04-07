@@ -18,7 +18,7 @@ const (
 	DefaultServerPort                   = 8080
 	DefaultSMTPPort                     = 587
 	DefaultMaxConcurrentSessions        = 3
-	DefaultCaseReferenceRegex           = `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`
+	DefaultCaseReferenceRegex           = `^[A-Za-z0-9][A-Za-z0-9/._-]{1,98}[A-Za-z0-9]$`
 )
 
 type Config struct {

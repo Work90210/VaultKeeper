@@ -24,6 +24,19 @@ func (l *Logger) Record(ctx context.Context, event Event) error {
 	return l.repo.Insert(ctx, event)
 }
 
+func (l *Logger) RecordEvidenceEvent(ctx context.Context, caseID, evidenceID uuid.UUID, action string, actorUserID string, detail map[string]string) error {
+	detailJSON, _ := json.Marshal(detail)
+
+	return l.repo.Insert(ctx, Event{
+		CaseID:      caseID,
+		EvidenceID:  evidenceID,
+		Action:      action,
+		ActorUserID: actorUserID,
+		Detail:      string(detailJSON),
+		Timestamp:   time.Now().UTC(),
+	})
+}
+
 func (l *Logger) RecordCaseEvent(ctx context.Context, caseID uuid.UUID, action string, actorUserID string, detail map[string]string) error {
 	// json.Marshal on map[string]string is infallible in the Go standard library;
 	// the error return is intentionally not checked here.

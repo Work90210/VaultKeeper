@@ -112,13 +112,13 @@ export function CaseSettings({
       <div className="flex items-center justify-between">
         <div>
           <h1
-            className="font-[family-name:var(--font-heading)] text-[var(--text-2xl)]"
+            className="font-[family-name:var(--font-heading)] text-2xl"
             style={{ color: 'var(--text-primary)' }}
           >
             Settings
           </h1>
           <p
-            className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] mt-[var(--space-xs)]"
+            className="font-[family-name:var(--font-mono)] text-xs mt-[var(--space-xs)]"
             style={{ color: 'var(--text-tertiary)' }}
           >
             {caseData.reference_code}
@@ -126,7 +126,7 @@ export function CaseSettings({
         </div>
         <a
           href={`/en/cases/${caseData.id}`}
-          className="btn-ghost text-[var(--text-sm)]"
+          className="btn-ghost text-sm"
         >
           &larr; Back
         </a>
@@ -139,7 +139,7 @@ export function CaseSettings({
       {/* Edit form */}
       <div className="card p-[var(--space-lg)]">
         <form onSubmit={handleUpdate} className="space-y-[var(--space-md)]">
-          <h2 className="field-label text-[var(--text-sm)]">Case details</h2>
+          <h2 className="field-label text-sm">Case details</h2>
           <div>
             <label className="field-label" htmlFor="settings-title">
               Title
@@ -185,11 +185,11 @@ export function CaseSettings({
 
       {/* Legal hold */}
       <div className="card p-[var(--space-lg)]">
-        <h2 className="field-label text-[var(--text-sm)] mb-[var(--space-sm)]">
+        <h2 className="field-label text-sm mb-[var(--space-sm)]">
           Legal hold
         </h2>
         <p
-          className="text-[var(--text-sm)] mb-[var(--space-md)]"
+          className="text-sm mb-[var(--space-md)]"
           style={{ color: 'var(--text-secondary)' }}
         >
           {legalHold
@@ -218,13 +218,13 @@ export function CaseSettings({
           style={{ borderColor: 'var(--status-hold-bg)' }}
         >
           <h2
-            className="field-label text-[var(--text-sm)] mb-[var(--space-sm)]"
+            className="field-label text-sm mb-[var(--space-sm)]"
             style={{ color: 'var(--status-hold)' }}
           >
             Danger zone
           </h2>
           <p
-            className="text-[var(--text-sm)] mb-[var(--space-md)]"
+            className="text-sm mb-[var(--space-md)]"
             style={{ color: 'var(--text-secondary)' }}
           >
             Archiving is permanent. The case must be closed first.
@@ -239,7 +239,7 @@ export function CaseSettings({
           </button>
           {legalHold && (
             <p
-              className="mt-[var(--space-xs)] text-[var(--text-xs)]"
+              className="mt-[var(--space-xs)] text-xs"
               style={{ color: 'var(--status-hold)' }}
             >
               Release legal hold before archiving.

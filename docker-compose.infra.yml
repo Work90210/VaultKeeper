@@ -49,6 +49,7 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin_dev}
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./keycloak/themes/vaultkeeper:/opt/keycloak/themes/vaultkeeper:ro
     ports:
       - "8180:8080"
     depends_on:
