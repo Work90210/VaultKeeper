@@ -1,0 +1,35 @@
+---
+# Example inventory - replace with actual server details
+# Usage: ansible-playbook -i inventory.yml deploy.yml
+
+all:
+  children:
+    vaultkeeper:
+      hosts:
+        vk-example-org:
+          ansible_host: "1.2.3.4"  # Replace with actual server IP from Terraform output
+          ansible_user: root
+          ansible_ssh_private_key_file: "~/.ssh/vaultkeeper_deploy"
+
+          # Customer-specific variables
+          vk_domain: "evidence.example.org"
+          vk_customer_name: "example-org"
+          vk_tier: "starter"
+
+          # Secrets - use ansible-vault to encrypt
+          # ansible-vault encrypt_string 'your-secret' --name 'vk_postgres_password'
+          vk_postgres_password: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_ENCRYPTED_VALUE
+          vk_minio_access_key: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_ENCRYPTED_VALUE
+          vk_minio_secret_key: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_ENCRYPTED_VALUE
+          vk_keycloak_admin_password: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_ENCRYPTED_VALUE
+          vk_meilisearch_api_key: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_ENCRYPTED_VALUE

@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/encrypt"
 )
 
 // mockMinioClient implements minioClient for unit testing storage.go
@@ -52,6 +54,12 @@ func (m *mockMinioClient) RemoveObject(_ context.Context, _, _ string, _ minio.R
 
 func (m *mockMinioClient) StatObject(_ context.Context, _, _ string, _ minio.StatObjectOptions) (minio.ObjectInfo, error) {
 	return m.statObjectInfo, m.statObjectErr
+}
+
+func (m *mockMinioClient) ListObjects(_ context.Context, _ string, _ minio.ListObjectsOptions) <-chan minio.ObjectInfo {
+	ch := make(chan minio.ObjectInfo)
+	close(ch)
+	return ch
 }
 
 func TestInitStorage_BucketExistsError(t *testing.T) {
@@ -219,6 +227,16 @@ func TestNewMinIOStorage_InvalidEndpoint(t *testing.T) {
 	}
 }
 
+func TestNewMinIOStorage_ValidEndpointFailsInit(t *testing.T) {
+	// minio.New succeeds with a valid-looking endpoint (no actual connection),
+	// but initStorage fails because BucketExists can't reach a real server.
+	// This covers the success path of minio.New (line 51: return initStorage).
+	_, err := NewMinIOStorage(context.Background(), "localhost:9999", "key", "secret", "test", false)
+	if err == nil {
+		t.Fatal("expected error from initStorage when no server is running")
+	}
+}
+
 func TestMinIOStorage_PutObject_Success(t *testing.T) {
 	mock := &mockMinioClient{}
 	s := &MinIOStorage{client: mock, bucket: "test"}
@@ -248,4 +266,175 @@ func TestMinIOStorage_StatObject_Success(t *testing.T) {
 	if size != 42 {
 		t.Fatalf("expected size 42, got %d", size)
 	}
+}
+
+func TestMinIOStorage_BucketExists_Success(t *testing.T) {
+	s := &MinIOStorage{
+		client: &mockMinioClient{bucketExistsVal: true},
+		bucket: "test",
+	}
+	exists, err := s.BucketExists(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected bucket to exist")
+	}
+}
+
+func TestMinIOStorage_BucketExists_Error(t *testing.T) {
+	s := &MinIOStorage{
+		client: &mockMinioClient{bucketExistsErr: fmt.Errorf("connection refused")},
+		bucket: "test",
+	}
+	_, err := s.BucketExists(context.Background(), "test")
+	if err == nil {
+		t.Fatal("expected error from BucketExists")
+	}
+}
+
+func TestMinIOStorage_BucketExists_NotFound(t *testing.T) {
+	s := &MinIOStorage{
+		client: &mockMinioClient{bucketExistsVal: false},
+		bucket: "test",
+	}
+	exists, err := s.BucketExists(context.Background(), "other-bucket")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
+		t.Fatal("expected bucket to not exist")
+	}
+}
+
+func TestMinIOStorage_ListObjects_Empty(t *testing.T) {
+	s := &MinIOStorage{
+		client: &mockMinioClient{},
+		bucket: "test",
+	}
+	keys, err := s.ListObjects(context.Background(), "prefix/")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Fatalf("expected empty keys, got %v", keys)
+	}
+}
+
+func TestMinIOStorage_ListObjects_WithKeys(t *testing.T) {
+	mock := &mockMinioClientWithListData{
+		objects: []minio.ObjectInfo{
+			{Key: "prefix/file1.txt"},
+			{Key: "prefix/file2.txt"},
+		},
+	}
+	s := &MinIOStorage{
+		client: mock,
+		bucket: "test",
+	}
+	keys, err := s.ListObjects(context.Background(), "prefix/")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(keys) != 2 {
+		t.Fatalf("expected 2 keys, got %d", len(keys))
+	}
+	if keys[0] != "prefix/file1.txt" || keys[1] != "prefix/file2.txt" {
+		t.Fatalf("unexpected keys: %v", keys)
+	}
+}
+
+func TestMinIOStorage_PutObject_WithSSE(t *testing.T) {
+	mock := &mockMinioClient{}
+	s := &MinIOStorage{client: mock, bucket: "test", sse: encrypt.NewSSE()}
+	err := s.PutObject(context.Background(), "key", bytes.NewReader([]byte("data")), 4, "text/plain")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestMinIOStorage_PutObject_RetriesExhausted(t *testing.T) {
+	mock := &mockMinioClient{putObjectErr: fmt.Errorf("transient error")}
+	s := &MinIOStorage{client: mock, bucket: "test"}
+	err := s.PutObject(context.Background(), "key", bytes.NewReader([]byte("data")), 4, "text/plain")
+	if err == nil {
+		t.Fatal("expected error after retries exhausted")
+	}
+	if !strings.Contains(err.Error(), "after retries") {
+		t.Errorf("expected 'after retries' in error, got: %v", err)
+	}
+}
+
+func TestMinIOStorage_PutObject_ContextCancelled(t *testing.T) {
+	mock := &mockMinioClient{putObjectErr: fmt.Errorf("transient")}
+	s := &MinIOStorage{client: mock, bucket: "test"}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+	err := s.PutObject(ctx, "key", bytes.NewReader([]byte("data")), 4, "text/plain")
+	if err == nil {
+		t.Fatal("expected error from cancelled context")
+	}
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Errorf("expected 'cancelled' in error, got: %v", err)
+	}
+}
+
+func TestMinIOStorage_GetObject_WithSSE(t *testing.T) {
+	mock := &mockMinioClient{
+		statObjectInfo: minio.ObjectInfo{Size: 50, ContentType: "application/octet-stream"},
+	}
+	s := &MinIOStorage{client: mock, bucket: "test", sse: encrypt.NewSSE()}
+	_, size, ct, err := s.GetObject(context.Background(), "key")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if size != 50 {
+		t.Fatalf("expected size 50, got %d", size)
+	}
+	if ct != "application/octet-stream" {
+		t.Fatalf("expected application/octet-stream, got %s", ct)
+	}
+}
+
+func TestMinIOStorage_StatObject_WithSSE(t *testing.T) {
+	mock := &mockMinioClient{statObjectInfo: minio.ObjectInfo{Size: 99}}
+	s := &MinIOStorage{client: mock, bucket: "test", sse: encrypt.NewSSE()}
+	size, err := s.StatObject(context.Background(), "key")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if size != 99 {
+		t.Fatalf("expected size 99, got %d", size)
+	}
+}
+
+func TestMinIOStorage_ListObjects_Error(t *testing.T) {
+	mock := &mockMinioClientWithListData{
+		objects: []minio.ObjectInfo{
+			{Err: fmt.Errorf("list error")},
+		},
+	}
+	s := &MinIOStorage{
+		client: mock,
+		bucket: "test",
+	}
+	_, err := s.ListObjects(context.Background(), "prefix/")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// mockMinioClientWithListData extends mockMinioClient to return actual objects from ListObjects.
+type mockMinioClientWithListData struct {
+	mockMinioClient
+	objects []minio.ObjectInfo
+}
+
+func (m *mockMinioClientWithListData) ListObjects(_ context.Context, _ string, _ minio.ListObjectsOptions) <-chan minio.ObjectInfo {
+	ch := make(chan minio.ObjectInfo, len(m.objects))
+	for _, obj := range m.objects {
+		ch <- obj
+	}
+	close(ch)
+	return ch
 }

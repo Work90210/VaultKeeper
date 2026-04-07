@@ -29,6 +29,7 @@ type minioClient interface {
 	GetObject(ctx context.Context, bucket, key string, opts minio.GetObjectOptions) (*minio.Object, error)
 	RemoveObject(ctx context.Context, bucket, key string, opts minio.RemoveObjectOptions) error
 	StatObject(ctx context.Context, bucket, key string, opts minio.StatObjectOptions) (minio.ObjectInfo, error)
+	ListObjects(ctx context.Context, bucket string, opts minio.ListObjectsOptions) <-chan minio.ObjectInfo
 }
 
 // MinIOStorage implements ObjectStorage using MinIO with SSE-S3 encryption.
@@ -84,6 +85,11 @@ func initStorage(ctx context.Context, client minioClient, bucket string) (*MinIO
 	}, nil
 }
 
+// BucketExists checks whether the given bucket exists in MinIO.
+func (s *MinIOStorage) BucketExists(ctx context.Context, bucket string) (bool, error) {
+	return s.client.BucketExists(ctx, bucket)
+}
+
 func (s *MinIOStorage) PutObject(ctx context.Context, key string, reader io.ReadSeeker, size int64, contentType string) error {
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -136,6 +142,24 @@ func (s *MinIOStorage) DeleteObject(ctx context.Context, key string) error {
 		return fmt.Errorf("delete object %s: %w", key, err)
 	}
 	return nil
+}
+
+// ListObjects returns all object keys in the bucket with the given prefix.
+func (s *MinIOStorage) ListObjects(ctx context.Context, prefix string) ([]string, error) {
+	opts := minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	}
+
+	var keys []string
+	for obj := range s.client.ListObjects(ctx, s.bucket, opts) {
+		if obj.Err != nil {
+			return nil, fmt.Errorf("list objects: %w", obj.Err)
+		}
+		keys = append(keys, obj.Key)
+	}
+
+	return keys, nil
 }
 
 func (s *MinIOStorage) StatObject(ctx context.Context, key string) (int64, error) {

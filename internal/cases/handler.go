@@ -49,7 +49,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.service.CreateCase(r.Context(), input, ac.UserID)
+	result, err := h.service.CreateCase(r.Context(), input, ac.UserID, ac.Username)
 	if err != nil {
 		respondServiceError(w, err)
 		return

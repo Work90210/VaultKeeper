@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -96,6 +97,16 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	description := r.FormValue("description")
+	source := r.FormValue("source")
+
+	var sourceDate *time.Time
+	if sd := r.FormValue("source_date"); sd != "" {
+		if t, err := time.Parse(time.RFC3339, sd); err == nil {
+			sourceDate = &t
+		} else if t, err := time.Parse("2006-01-02", sd); err == nil {
+			sourceDate = &t
+		}
+	}
 
 	var tags []string
 	if tagsStr := r.FormValue("tags"); tagsStr != "" {
@@ -114,6 +125,9 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		Description:    description,
 		Tags:           tags,
 		UploadedBy:     ac.UserID,
+		UploadedByName: ac.Username,
+		Source:         source,
+		SourceDate:     sourceDate,
 	}
 
 	evidence, err := h.service.Upload(r.Context(), input)

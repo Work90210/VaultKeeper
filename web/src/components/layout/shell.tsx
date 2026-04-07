@@ -1,6 +1,11 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { Header } from './header';
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  const t = useTranslations('common');
+
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <Header />
@@ -12,7 +17,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           color: 'var(--text-tertiary)',
         }}
       >
-        VaultKeeper &middot; Sovereign Evidence Management
+        {t('appName')} &middot; {t('tagline')}
       </footer>
     </div>
   );

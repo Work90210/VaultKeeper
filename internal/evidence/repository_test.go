@@ -240,20 +240,23 @@ func TestPGRepository_FindByID_Success(t *testing.T) {
 					*dest[11].(*string) = "description"
 					*(dest[12].(*[]string)) = []string{"tag1"}
 					*dest[13].(*string) = "user-1"
-					*dest[14].(*bool) = true
-					*dest[15].(*int) = 1
-					*dest[16].(**uuid.UUID) = nil // parent_id
-					*dest[17].(*[]byte) = nil     // tsa_token
-					*dest[18].(**string) = nil     // tsa_name
-					*dest[19].(**time.Time) = nil  // tsa_timestamp
-					*dest[20].(*string) = "disabled"
-					*dest[21].(*int) = 0           // tsa_retry_count
-					*dest[22].(**time.Time) = nil   // tsa_last_retry
-					*dest[23].(*[]byte) = nil       // exif_data
-					*dest[24].(**time.Time) = nil   // destroyed_at
-					*dest[25].(**string) = nil      // destroyed_by
-					*dest[26].(**string) = nil      // destroy_reason
-					*dest[27].(*time.Time) = now
+					*dest[14].(*string) = "Test User" // uploaded_by_name
+					*dest[15].(*bool) = true
+					*dest[16].(*int) = 1
+					*dest[17].(**uuid.UUID) = nil // parent_id
+					*dest[18].(*[]byte) = nil     // tsa_token
+					*dest[19].(**string) = nil     // tsa_name
+					*dest[20].(**time.Time) = nil  // tsa_timestamp
+					*dest[21].(*string) = "disabled"
+					*dest[22].(*int) = 0           // tsa_retry_count
+					*dest[23].(**time.Time) = nil   // tsa_last_retry
+					*dest[24].(*[]byte) = nil       // exif_data
+					*dest[25].(*string) = ""        // source
+					*dest[26].(**time.Time) = nil   // source_date
+					*dest[27].(**time.Time) = nil   // destroyed_at
+					*dest[28].(**string) = nil      // destroyed_by
+					*dest[29].(**string) = nil      // destroy_reason
+					*dest[30].(*time.Time) = now
 					return nil
 				},
 			}
@@ -299,20 +302,23 @@ func TestPGRepository_Create_Success(t *testing.T) {
 					*dest[11].(*string) = "test"
 					*(dest[12].(*[]string)) = []string{}
 					*dest[13].(*string) = "user-1"
-					*dest[14].(*bool) = true
-					*dest[15].(*int) = 1
-					*dest[16].(**uuid.UUID) = nil
-					*dest[17].(*[]byte) = nil
-					*dest[18].(**string) = nil
-					*dest[19].(**time.Time) = nil
-					*dest[20].(*string) = "disabled"
-					*dest[21].(*int) = 0
-					*dest[22].(**time.Time) = nil
-					*dest[23].(*[]byte) = nil
-					*dest[24].(**time.Time) = nil
-					*dest[25].(**string) = nil
-					*dest[26].(**string) = nil
-					*dest[27].(*time.Time) = now
+					*dest[14].(*string) = "Test User" // uploaded_by_name
+					*dest[15].(*bool) = true
+					*dest[16].(*int) = 1
+					*dest[17].(**uuid.UUID) = nil
+					*dest[18].(*[]byte) = nil
+					*dest[19].(**string) = nil
+					*dest[20].(**time.Time) = nil
+					*dest[21].(*string) = "disabled"
+					*dest[22].(*int) = 0
+					*dest[23].(**time.Time) = nil
+					*dest[24].(*[]byte) = nil
+					*dest[25].(*string) = ""        // source
+					*dest[26].(**time.Time) = nil   // source_date
+					*dest[27].(**time.Time) = nil
+					*dest[28].(**string) = nil
+					*dest[29].(**string) = nil
+					*dest[30].(*time.Time) = now
 					return nil
 				},
 			}
@@ -386,20 +392,23 @@ func TestPGRepository_Update_NoChanges(t *testing.T) {
 					*dest[11].(*string) = "test"
 					*(dest[12].(*[]string)) = []string{}
 					*dest[13].(*string) = "user-1"
-					*dest[14].(*bool) = true
-					*dest[15].(*int) = 1
-					*dest[16].(**uuid.UUID) = nil
-					*dest[17].(*[]byte) = nil
-					*dest[18].(**string) = nil
-					*dest[19].(**time.Time) = nil
-					*dest[20].(*string) = "disabled"
-					*dest[21].(*int) = 0
-					*dest[22].(**time.Time) = nil
-					*dest[23].(*[]byte) = nil
-					*dest[24].(**time.Time) = nil
-					*dest[25].(**string) = nil
-					*dest[26].(**string) = nil
-					*dest[27].(*time.Time) = now
+					*dest[14].(*string) = "Test User" // uploaded_by_name
+					*dest[15].(*bool) = true
+					*dest[16].(*int) = 1
+					*dest[17].(**uuid.UUID) = nil
+					*dest[18].(*[]byte) = nil
+					*dest[19].(**string) = nil
+					*dest[20].(**time.Time) = nil
+					*dest[21].(*string) = "disabled"
+					*dest[22].(*int) = 0
+					*dest[23].(**time.Time) = nil
+					*dest[24].(*[]byte) = nil
+					*dest[25].(*string) = ""        // source
+					*dest[26].(**time.Time) = nil   // source_date
+					*dest[27].(**time.Time) = nil
+					*dest[28].(**string) = nil
+					*dest[29].(**string) = nil
+					*dest[30].(*time.Time) = now
 					return nil
 				},
 			}
@@ -463,20 +472,23 @@ func TestPGRepository_Update_Success(t *testing.T) {
 					*dest[11].(*string) = "updated desc"
 					*(dest[12].(*[]string)) = []string{"tag1"}
 					*dest[13].(*string) = "user-1"
-					*dest[14].(*bool) = true
-					*dest[15].(*int) = 1
-					*dest[16].(**uuid.UUID) = nil
-					*dest[17].(*[]byte) = nil
-					*dest[18].(**string) = nil
-					*dest[19].(**time.Time) = nil
-					*dest[20].(*string) = "disabled"
-					*dest[21].(*int) = 0
-					*dest[22].(**time.Time) = nil
-					*dest[23].(*[]byte) = nil
-					*dest[24].(**time.Time) = nil
-					*dest[25].(**string) = nil
-					*dest[26].(**string) = nil
-					*dest[27].(*time.Time) = now
+					*dest[14].(*string) = "Test User" // uploaded_by_name
+					*dest[15].(*bool) = true
+					*dest[16].(*int) = 1
+					*dest[17].(**uuid.UUID) = nil
+					*dest[18].(*[]byte) = nil
+					*dest[19].(**string) = nil
+					*dest[20].(**time.Time) = nil
+					*dest[21].(*string) = "disabled"
+					*dest[22].(*int) = 0
+					*dest[23].(**time.Time) = nil
+					*dest[24].(*[]byte) = nil
+					*dest[25].(*string) = ""        // source
+					*dest[26].(**time.Time) = nil   // source_date
+					*dest[27].(**time.Time) = nil
+					*dest[28].(**string) = nil
+					*dest[29].(**string) = nil
+					*dest[30].(*time.Time) = now
 					return nil
 				},
 			}
@@ -1093,20 +1105,23 @@ func TestPGRepository_FindByCase_SuccessWithRows(t *testing.T) {
 		*dest[11].(*string) = "test"
 		*(dest[12].(*[]string)) = []string{}
 		*dest[13].(*string) = "user-1"
-		*dest[14].(*bool) = true
-		*dest[15].(*int) = 1
-		*dest[16].(**uuid.UUID) = nil
-		*dest[17].(*[]byte) = nil
-		*dest[18].(**string) = nil
-		*dest[19].(**time.Time) = nil
-		*dest[20].(*string) = "disabled"
-		*dest[21].(*int) = 0
-		*dest[22].(**time.Time) = nil
-		*dest[23].(*[]byte) = nil
-		*dest[24].(**time.Time) = nil
-		*dest[25].(**string) = nil
-		*dest[26].(**string) = nil
-		*dest[27].(*time.Time) = now
+		*dest[14].(*string) = "Test User" // uploaded_by_name
+		*dest[15].(*bool) = true
+		*dest[16].(*int) = 1
+		*dest[17].(**uuid.UUID) = nil
+		*dest[18].(*[]byte) = nil
+		*dest[19].(**string) = nil
+		*dest[20].(**time.Time) = nil
+		*dest[21].(*string) = "disabled"
+		*dest[22].(*int) = 0
+		*dest[23].(**time.Time) = nil
+		*dest[24].(*[]byte) = nil
+		*dest[25].(*string) = ""        // source
+		*dest[26].(**time.Time) = nil   // source_date
+		*dest[27].(**time.Time) = nil
+		*dest[28].(**string) = nil
+		*dest[29].(**string) = nil
+		*dest[30].(*time.Time) = now
 		return nil
 	}
 
@@ -1198,20 +1213,23 @@ func TestPGRepository_FindByHash_WithRows(t *testing.T) {
 					*dest[11].(*string) = "test"
 					*(dest[12].(*[]string)) = []string{}
 					*dest[13].(*string) = "user-1"
-					*dest[14].(*bool) = true
-					*dest[15].(*int) = 1
-					*dest[16].(**uuid.UUID) = nil
-					*dest[17].(*[]byte) = nil
-					*dest[18].(**string) = nil
-					*dest[19].(**time.Time) = nil
-					*dest[20].(*string) = "disabled"
-					*dest[21].(*int) = 0
-					*dest[22].(**time.Time) = nil
-					*dest[23].(*[]byte) = nil
-					*dest[24].(**time.Time) = nil
-					*dest[25].(**string) = nil
-					*dest[26].(**string) = nil
-					*dest[27].(*time.Time) = now
+					*dest[14].(*string) = "Test User" // uploaded_by_name
+					*dest[15].(*bool) = true
+					*dest[16].(*int) = 1
+					*dest[17].(**uuid.UUID) = nil
+					*dest[18].(*[]byte) = nil
+					*dest[19].(**string) = nil
+					*dest[20].(**time.Time) = nil
+					*dest[21].(*string) = "disabled"
+					*dest[22].(*int) = 0
+					*dest[23].(**time.Time) = nil
+					*dest[24].(*[]byte) = nil
+					*dest[25].(*string) = ""        // source
+					*dest[26].(**time.Time) = nil   // source_date
+					*dest[27].(**time.Time) = nil
+					*dest[28].(**string) = nil
+					*dest[29].(**string) = nil
+					*dest[30].(*time.Time) = now
 					return nil
 				},
 			}, nil
@@ -1301,20 +1319,23 @@ func TestPGRepository_FindVersionHistory_Success(t *testing.T) {
 		*dest[11].(*string) = "test"
 		*(dest[12].(*[]string)) = []string{}
 		*dest[13].(*string) = "user-1"
-		*dest[14].(*bool) = true
-		*dest[15].(*int) = 1
-		*dest[16].(**uuid.UUID) = nil
-		*dest[17].(*[]byte) = nil
-		*dest[18].(**string) = nil
-		*dest[19].(**time.Time) = nil
-		*dest[20].(*string) = "disabled"
-		*dest[21].(*int) = 0
-		*dest[22].(**time.Time) = nil
-		*dest[23].(*[]byte) = nil
-		*dest[24].(**time.Time) = nil
-		*dest[25].(**string) = nil
-		*dest[26].(**string) = nil
-		*dest[27].(*time.Time) = now
+		*dest[14].(*string) = "Test User" // uploaded_by_name
+		*dest[15].(*bool) = true
+		*dest[16].(*int) = 1
+		*dest[17].(**uuid.UUID) = nil
+		*dest[18].(*[]byte) = nil
+		*dest[19].(**string) = nil
+		*dest[20].(**time.Time) = nil
+		*dest[21].(*string) = "disabled"
+		*dest[22].(*int) = 0
+		*dest[23].(**time.Time) = nil
+		*dest[24].(*[]byte) = nil
+		*dest[25].(*string) = ""        // source
+		*dest[26].(**time.Time) = nil   // source_date
+		*dest[27].(**time.Time) = nil
+		*dest[28].(**string) = nil
+		*dest[29].(**string) = nil
+		*dest[30].(*time.Time) = now
 		return nil
 	}
 
@@ -1367,20 +1388,23 @@ func TestPGRepository_FindVersionHistory_WithParentID(t *testing.T) {
 					*dest[11].(*string) = "test"
 					*(dest[12].(*[]string)) = []string{}
 					*dest[13].(*string) = "user-1"
-					*dest[14].(*bool) = true
-					*dest[15].(*int) = 2
-					*dest[16].(**uuid.UUID) = &parentID // Has parent
-					*dest[17].(*[]byte) = nil
-					*dest[18].(**string) = nil
-					*dest[19].(**time.Time) = nil
-					*dest[20].(*string) = "disabled"
-					*dest[21].(*int) = 0
-					*dest[22].(**time.Time) = nil
-					*dest[23].(*[]byte) = nil
-					*dest[24].(**time.Time) = nil
-					*dest[25].(**string) = nil
-					*dest[26].(**string) = nil
-					*dest[27].(*time.Time) = now
+					*dest[14].(*string) = "Test User" // uploaded_by_name
+					*dest[15].(*bool) = true
+					*dest[16].(*int) = 2
+					*dest[17].(**uuid.UUID) = &parentID // Has parent
+					*dest[18].(*[]byte) = nil
+					*dest[19].(**string) = nil
+					*dest[20].(**time.Time) = nil
+					*dest[21].(*string) = "disabled"
+					*dest[22].(*int) = 0
+					*dest[23].(**time.Time) = nil
+					*dest[24].(*[]byte) = nil
+					*dest[25].(*string) = ""        // source
+					*dest[26].(**time.Time) = nil   // source_date
+					*dest[27].(**time.Time) = nil
+					*dest[28].(**string) = nil
+					*dest[29].(**string) = nil
+					*dest[30].(*time.Time) = now
 					return nil
 				},
 			}
@@ -1423,20 +1447,23 @@ func TestPGRepository_FindVersionHistory_QueryError(t *testing.T) {
 					*dest[11].(*string) = "test"
 					*(dest[12].(*[]string)) = []string{}
 					*dest[13].(*string) = "user-1"
-					*dest[14].(*bool) = true
-					*dest[15].(*int) = 1
-					*dest[16].(**uuid.UUID) = nil
-					*dest[17].(*[]byte) = nil
-					*dest[18].(**string) = nil
-					*dest[19].(**time.Time) = nil
-					*dest[20].(*string) = "disabled"
-					*dest[21].(*int) = 0
-					*dest[22].(**time.Time) = nil
-					*dest[23].(*[]byte) = nil
-					*dest[24].(**time.Time) = nil
-					*dest[25].(**string) = nil
-					*dest[26].(**string) = nil
-					*dest[27].(*time.Time) = now
+					*dest[14].(*string) = "Test User" // uploaded_by_name
+					*dest[15].(*bool) = true
+					*dest[16].(*int) = 1
+					*dest[17].(**uuid.UUID) = nil
+					*dest[18].(*[]byte) = nil
+					*dest[19].(**string) = nil
+					*dest[20].(**time.Time) = nil
+					*dest[21].(*string) = "disabled"
+					*dest[22].(*int) = 0
+					*dest[23].(**time.Time) = nil
+					*dest[24].(*[]byte) = nil
+					*dest[25].(*string) = ""        // source
+					*dest[26].(**time.Time) = nil   // source_date
+					*dest[27].(**time.Time) = nil
+					*dest[28].(**string) = nil
+					*dest[29].(**string) = nil
+					*dest[30].(*time.Time) = now
 					return nil
 				},
 			}
@@ -1497,20 +1524,23 @@ func TestPGRepository_FindByCase_TrimExtraResults(t *testing.T) {
 					*dest[11].(*string) = "test"
 					*(dest[12].(*[]string)) = []string{}
 					*dest[13].(*string) = "user-1"
-					*dest[14].(*bool) = true
-					*dest[15].(*int) = 1
-					*dest[16].(**uuid.UUID) = nil
-					*dest[17].(*[]byte) = nil
-					*dest[18].(**string) = nil
-					*dest[19].(**time.Time) = nil
-					*dest[20].(*string) = "disabled"
-					*dest[21].(*int) = 0
-					*dest[22].(**time.Time) = nil
-					*dest[23].(*[]byte) = nil
-					*dest[24].(**time.Time) = nil
-					*dest[25].(**string) = nil
-					*dest[26].(**string) = nil
-					*dest[27].(*time.Time) = now
+					*dest[14].(*string) = "Test User" // uploaded_by_name
+					*dest[15].(*bool) = true
+					*dest[16].(*int) = 1
+					*dest[17].(**uuid.UUID) = nil
+					*dest[18].(*[]byte) = nil
+					*dest[19].(**string) = nil
+					*dest[20].(**time.Time) = nil
+					*dest[21].(*string) = "disabled"
+					*dest[22].(*int) = 0
+					*dest[23].(**time.Time) = nil
+					*dest[24].(*[]byte) = nil
+					*dest[25].(*string) = ""        // source
+					*dest[26].(**time.Time) = nil   // source_date
+					*dest[27].(**time.Time) = nil
+					*dest[28].(**string) = nil
+					*dest[29].(**string) = nil
+					*dest[30].(*time.Time) = now
 					return nil
 				},
 			}, nil
@@ -1570,20 +1600,23 @@ func TestPGRepository_scanEvidenceRows_NilTags(t *testing.T) {
 			*dest[11].(*string) = "test"
 			*(dest[12].(*[]string)) = nil // nil tags
 			*dest[13].(*string) = "user-1"
-			*dest[14].(*bool) = true
-			*dest[15].(*int) = 1
-			*dest[16].(**uuid.UUID) = nil
-			*dest[17].(*[]byte) = nil
-			*dest[18].(**string) = nil
-			*dest[19].(**time.Time) = nil
-			*dest[20].(*string) = "disabled"
-			*dest[21].(*int) = 0
-			*dest[22].(**time.Time) = nil
-			*dest[23].(*[]byte) = nil
-			*dest[24].(**time.Time) = nil
-			*dest[25].(**string) = nil
-			*dest[26].(**string) = nil
-			*dest[27].(*time.Time) = now
+			*dest[14].(*string) = "Test User" // uploaded_by_name
+			*dest[15].(*bool) = true
+			*dest[16].(*int) = 1
+			*dest[17].(**uuid.UUID) = nil
+			*dest[18].(*[]byte) = nil
+			*dest[19].(**string) = nil
+			*dest[20].(**time.Time) = nil
+			*dest[21].(*string) = "disabled"
+			*dest[22].(*int) = 0
+			*dest[23].(**time.Time) = nil
+			*dest[24].(*[]byte) = nil
+			*dest[25].(*string) = ""        // source
+			*dest[26].(**time.Time) = nil   // source_date
+			*dest[27].(**time.Time) = nil
+			*dest[28].(**string) = nil
+			*dest[29].(**string) = nil
+			*dest[30].(*time.Time) = now
 			return nil
 		},
 	}
@@ -1599,4 +1632,178 @@ func TestPGRepository_scanEvidenceRows_NilTags(t *testing.T) {
 	if items[0].Tags == nil {
 		t.Error("expected non-nil tags")
 	}
+}
+
+func TestPGRepository_ListByCaseForExport_QueryError(t *testing.T) {
+	pool := &mockDBPool{
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	_, err := repo.ListByCaseForExport(context.Background(), uuid.New(), "prosecution")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPGRepository_ListByCaseForExport_Empty(t *testing.T) {
+	pool := &mockDBPool{
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return &mockRows{nextVals: []bool{}}, nil
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	items, err := repo.ListByCaseForExport(context.Background(), uuid.New(), "prosecution")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected 0 items, got %d", len(items))
+	}
+}
+
+func TestPGRepository_ListByCaseForExport_DefenceRole(t *testing.T) {
+	pool := &mockDBPool{
+		queryFn: func(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
+			// Verify the defence role adds the INNER JOIN clause
+			if !contains(sql, "INNER JOIN disclosures") {
+				t.Errorf("expected defence role to add INNER JOIN disclosures clause")
+			}
+			return &mockRows{nextVals: []bool{}}, nil
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	_, err := repo.ListByCaseForExport(context.Background(), uuid.New(), "defence")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPGRepository_ListForVerification_QueryError(t *testing.T) {
+	pool := &mockDBPool{
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	_, err := repo.ListForVerification(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPGRepository_ListForVerification_Empty(t *testing.T) {
+	pool := &mockDBPool{
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return &mockRows{nextVals: []bool{}}, nil
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	items, err := repo.ListForVerification(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected 0 items, got %d", len(items))
+	}
+}
+
+func TestPGRepository_ListForVerification_Success(t *testing.T) {
+	testID := uuid.New()
+	caseID := uuid.New()
+	storageKey := "evidence/test/file.pdf"
+
+	pool := &mockDBPool{
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return &mockRows{
+				nextVals: []bool{true, false},
+				scanFn: func(dest ...any) error {
+					*dest[0].(*uuid.UUID) = testID
+					*dest[1].(*uuid.UUID) = caseID
+					*dest[2].(**string) = &storageKey
+					*dest[3].(*string) = "abc123hash"
+					*dest[4].(*[]byte) = nil
+					*dest[5].(*string) = "stamped"
+					*dest[6].(*string) = "file.pdf"
+					return nil
+				},
+			}, nil
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	items, err := repo.ListForVerification(context.Background(), caseID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].ID != testID {
+		t.Errorf("ID = %s, want %s", items[0].ID, testID)
+	}
+	if items[0].StorageKey != storageKey {
+		t.Errorf("StorageKey = %q, want %q", items[0].StorageKey, storageKey)
+	}
+}
+
+func TestPGRepository_ListForVerification_ScanError(t *testing.T) {
+	pool := &mockDBPool{
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return &mockRows{
+				nextVals: []bool{true, false},
+				scanErr:  errors.New("scan error"),
+			}, nil
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	_, err := repo.ListForVerification(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPGRepository_FlagIntegrityWarning_Success(t *testing.T) {
+	pool := &mockDBPool{
+		execFn: func(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+			return pgconn.NewCommandTag("UPDATE 1"), nil
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	err := repo.FlagIntegrityWarning(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPGRepository_FlagIntegrityWarning_Error(t *testing.T) {
+	pool := &mockDBPool{
+		execFn: func(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+			return pgconn.CommandTag{}, errors.New("db error")
+		},
+	}
+	repo := &PGRepository{pool: pool}
+
+	err := repo.FlagIntegrityWarning(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// contains is a helper to check substring presence (avoids importing strings in test).
+func contains(s, substr string) bool {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

@@ -41,12 +41,12 @@ func NewRepository(pool *pgxpool.Pool) *PGRepository {
 func (r *PGRepository) Create(ctx context.Context, c Case) (Case, error) {
 	var result Case
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO cases (reference_code, title, description, jurisdiction, status, legal_hold, created_by)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 RETURNING id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_at, updated_at`,
-		c.ReferenceCode, c.Title, c.Description, c.Jurisdiction, c.Status, c.LegalHold, c.CreatedBy,
+		`INSERT INTO cases (reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_by_name)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 RETURNING id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_by_name, created_at, updated_at`,
+		c.ReferenceCode, c.Title, c.Description, c.Jurisdiction, c.Status, c.LegalHold, c.CreatedBy, c.CreatedByName,
 	).Scan(&result.ID, &result.ReferenceCode, &result.Title, &result.Description,
-		&result.Jurisdiction, &result.Status, &result.LegalHold, &result.CreatedBy,
+		&result.Jurisdiction, &result.Status, &result.LegalHold, &result.CreatedBy, &result.CreatedByName,
 		&result.CreatedAt, &result.UpdatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
@@ -60,11 +60,11 @@ func (r *PGRepository) Create(ctx context.Context, c Case) (Case, error) {
 func (r *PGRepository) FindByID(ctx context.Context, id uuid.UUID) (Case, error) {
 	var c Case
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_at, updated_at
+		`SELECT id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_by_name, created_at, updated_at
 		 FROM cases WHERE id = $1`,
 		id,
 	).Scan(&c.ID, &c.ReferenceCode, &c.Title, &c.Description,
-		&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy,
+		&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy, &c.CreatedByName,
 		&c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -158,7 +158,7 @@ func (r *PGRepository) FindAll(ctx context.Context, filter CaseFilter, page Pagi
 
 	// Fetch items
 	query := fmt.Sprintf(
-		`SELECT c.id, c.reference_code, c.title, c.description, c.jurisdiction, c.status, c.legal_hold, c.created_by, c.created_at, c.updated_at
+		`SELECT c.id, c.reference_code, c.title, c.description, c.jurisdiction, c.status, c.legal_hold, c.created_by, c.created_by_name, c.created_at, c.updated_at
 		 FROM cases c %s
 		 ORDER BY c.id DESC
 		 LIMIT $%d`,
@@ -175,7 +175,7 @@ func (r *PGRepository) FindAll(ctx context.Context, filter CaseFilter, page Pagi
 	for rows.Next() {
 		var c Case
 		if err := rows.Scan(&c.ID, &c.ReferenceCode, &c.Title, &c.Description,
-			&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy,
+			&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy, &c.CreatedByName,
 			&c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, 0, fmt.Errorf("scan case: %w", err)
 		}
@@ -228,13 +228,13 @@ func (r *PGRepository) Update(ctx context.Context, id uuid.UUID, updates UpdateC
 
 	query := fmt.Sprintf(
 		`UPDATE cases SET %s WHERE id = $%d
-		 RETURNING id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_at, updated_at`,
+		 RETURNING id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_by_name, created_at, updated_at`,
 		strings.Join(sets, ", "), argIdx)
 
 	var c Case
 	err := r.pool.QueryRow(ctx, query, args...).Scan(
 		&c.ID, &c.ReferenceCode, &c.Title, &c.Description,
-		&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy,
+		&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy, &c.CreatedByName,
 		&c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -32,6 +32,7 @@ export interface EvidenceItem {
   source_date: string | null;
   created_at: string;
   uploaded_by: string;
+  uploaded_by_name: string;
   is_current: boolean;
   destroyed_at: string | null;
   metadata: Record<string, unknown>;
@@ -81,6 +82,7 @@ export interface Disclosure {
 
 export interface Notification {
   id: string;
+  type: string;
   case_id: string | null;
   user_id: string;
   title: string;

@@ -1,0 +1,51 @@
+---
+- name: Deploy VaultKeeper
+  hosts: vaultkeeper
+  become: true
+  vars_files:
+    - roles/vaultkeeper/vars/main.yml
+
+  pre_tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install required system packages
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - python3-pip
+          - unattended-upgrades
+        state: present
+
+  roles:
+    - docker
+    - vaultkeeper
+
+  post_tasks:
+    - name: Wait for VaultKeeper health check
+      ansible.builtin.uri:
+        url: "https://{{ vk_domain }}/health"
+        validate_certs: "{{ vk_validate_certs | default(true) }}"
+        status_code: 200
+      register: health_result
+      until: health_result.status == 200
+      retries: 30
+      delay: 10
+
+    # NOTE: Database backups are handled by the Go application's internal
+    # backup scheduler (internal/backup/runner.go) which produces encrypted,
+    # AES-256-GCM backups. No external cron job is needed.
+
+    - name: Print deployment summary
+      ansible.builtin.debug:
+        msg: |
+          VaultKeeper deployed successfully.
+          Domain: {{ vk_domain }}
+          Tier: {{ vk_tier }}
+          Health: {{ health_result.status }}

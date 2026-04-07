@@ -1,0 +1,3 @@
+{$MONITOR_DOMAIN:monitor.vaultkeeper.eu} {
+    reverse_proxy uptime-kuma:3001
+}

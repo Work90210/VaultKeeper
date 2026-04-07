@@ -1,0 +1,35 @@
+---
+- name: Update VaultKeeper
+  hosts: vaultkeeper
+  become: true
+  vars_files:
+    - roles/vaultkeeper/vars/main.yml
+
+  tasks:
+    - name: Pull latest images
+      community.docker.docker_compose_v2:
+        project_src: "{{ vk_deploy_dir }}"
+        pull: always
+        state: present
+
+    - name: Restart services
+      community.docker.docker_compose_v2:
+        project_src: "{{ vk_deploy_dir }}"
+        state: restarted
+
+    - name: Wait for VaultKeeper health check
+      ansible.builtin.uri:
+        url: "https://{{ vk_domain }}/health"
+        validate_certs: "{{ vk_validate_certs | default(true) }}"
+        status_code: 200
+      register: health_result
+      until: health_result.status == 200
+      retries: 30
+      delay: 10
+
+    - name: Print update summary
+      ansible.builtin.debug:
+        msg: |
+          VaultKeeper updated successfully.
+          Domain: {{ vk_domain }}
+          Health: {{ health_result.status }}

@@ -1,0 +1,69 @@
+---
+# Deployment paths
+vk_deploy_dir: /opt/vaultkeeper
+vk_backup_dir: /opt/vaultkeeper/backups
+vk_log_dir: /var/log/vaultkeeper
+
+# Application settings
+vk_domain: "{{ inventory_hostname }}.vaultkeeper.eu"
+vk_customer_name: "default"
+vk_tier: "starter"
+vk_image_tag: "latest"
+vk_image_registry: "ghcr.io/vaultkeeper"
+
+# Database
+vk_postgres_user: "vaultkeeper"
+vk_postgres_password: ""  # REQUIRED: Override via ansible-vault or host_vars
+
+# MinIO / Object storage
+vk_minio_access_key: ""  # REQUIRED: Override via ansible-vault or host_vars
+vk_minio_secret_key: ""  # REQUIRED: Override via ansible-vault or host_vars
+
+# Keycloak
+vk_keycloak_admin_user: "admin"
+vk_keycloak_admin_password: ""  # REQUIRED: Override via ansible-vault or host_vars
+
+# Meilisearch
+vk_meilisearch_api_key: ""  # REQUIRED: Override via ansible-vault or host_vars
+
+# Backup retention
+vk_backup_retention_days: 30
+
+# TLS certificate validation
+vk_validate_certs: true
+
+# Resource limits per tier
+vk_resource_limits:
+  starter:
+    api_memory: "512M"
+    api_cpus: "1.0"
+    postgres_memory: "1G"
+    postgres_cpus: "1.0"
+    minio_memory: "512M"
+    minio_cpus: "1.0"
+    keycloak_memory: "1G"
+    keycloak_cpus: "1.0"
+    meilisearch_memory: "512M"
+    meilisearch_cpus: "1.0"
+  professional:
+    api_memory: "1G"
+    api_cpus: "2.0"
+    postgres_memory: "2G"
+    postgres_cpus: "2.0"
+    minio_memory: "1G"
+    minio_cpus: "1.0"
+    keycloak_memory: "1.5G"
+    keycloak_cpus: "1.0"
+    meilisearch_memory: "1G"
+    meilisearch_cpus: "1.0"
+  institution:
+    api_memory: "2G"
+    api_cpus: "4.0"
+    postgres_memory: "4G"
+    postgres_cpus: "4.0"
+    minio_memory: "2G"
+    minio_cpus: "2.0"
+    keycloak_memory: "2G"
+    keycloak_cpus: "2.0"
+    meilisearch_memory: "2G"
+    meilisearch_cpus: "2.0"

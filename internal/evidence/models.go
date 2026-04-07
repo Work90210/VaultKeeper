@@ -65,6 +65,7 @@ type EvidenceItem struct {
 	Description    string     `json:"description"`
 	Tags           []string   `json:"tags"`
 	UploadedBy     string     `json:"uploaded_by"`
+	UploadedByName string     `json:"uploaded_by_name"`
 	IsCurrent      bool       `json:"is_current"`
 	Version        int        `json:"version"`
 	ParentID       *uuid.UUID `json:"parent_id,omitempty"`
@@ -75,6 +76,8 @@ type EvidenceItem struct {
 	TSARetryCount  int        `json:"-"`
 	TSALastRetry   *time.Time `json:"-"`
 	ExifData       []byte     `json:"exif_data,omitempty"`
+	Source         string     `json:"source"`
+	SourceDate     *time.Time `json:"source_date,omitempty"`
 	DestroyedAt    *time.Time `json:"destroyed_at,omitempty"`
 	DestroyedBy    *string    `json:"destroyed_by,omitempty"`
 	DestroyReason  *string    `json:"destroy_reason,omitempty"`
@@ -114,6 +117,9 @@ type CreateEvidenceInput struct {
 	Description    string
 	Tags           []string
 	UploadedBy     string
+	UploadedByName string
+	Source         string
+	SourceDate     *time.Time
 	TSAToken       []byte
 	TSAName        string
 	TSATimestamp   *time.Time

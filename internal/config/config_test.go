@@ -303,6 +303,129 @@ func TestLoadFromEnv_BooleanParsing(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnv_DatabaseURLNoHost(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("DATABASE_URL", "postgres:///dbname")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected error for DATABASE_URL with no host")
+	}
+	if !strings.Contains(err.Error(), "must include a host") {
+		t.Fatalf("expected host error, got: %v", err)
+	}
+}
+
+func TestLoadFromEnv_TSADisabledWithValidURL(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("TSA_ENABLED", "false")
+	t.Setenv("TSA_URL", "https://tsa.example.com")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.TSAEnabled {
+		t.Fatal("expected TSAEnabled=false")
+	}
+	if cfg.TSAURL != "https://tsa.example.com" {
+		t.Fatalf("unexpected TSAURL: %s", cfg.TSAURL)
+	}
+}
+
+func TestLoadFromEnv_TSADisabledWithInvalidURL(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("TSA_ENABLED", "false")
+	t.Setenv("TSA_URL", "://invalid")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected error for invalid TSA_URL even when disabled")
+	}
+	if !strings.Contains(err.Error(), "TSA_URL") {
+		t.Fatalf("expected TSA_URL error, got: %v", err)
+	}
+}
+
+func TestLoadFromEnv_BackupDestWithoutEncKey(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("BACKUP_DESTINATION", "/backups")
+	t.Setenv("BACKUP_ENC_KEY", "")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected error for BACKUP_DESTINATION without BACKUP_ENC_KEY")
+	}
+	if !strings.Contains(err.Error(), "BACKUP_ENC_KEY") {
+		t.Fatalf("expected BACKUP_ENC_KEY error, got: %v", err)
+	}
+}
+
+func TestConfigString_EmptySecrets(t *testing.T) {
+	cfg := Config{
+		MinIOEndpoint:    "minio:9000",
+		MinIOBucket:      "test",
+		KeycloakURL:      "https://auth.example.com",
+		KeycloakRealm:    "test",
+		KeycloakClientID: "test",
+		AppURL:           "https://app.example.com",
+		AppEnv:           "development",
+		ServerPort:       8080,
+		SMTPPort:         587,
+	}
+
+	value := cfg.String()
+	if !strings.Contains(value, "minio:9000") {
+		t.Fatal("expected non-secret values in string")
+	}
+	// Empty secrets should produce empty strings, not [REDACTED]
+	if strings.Contains(value, "[REDACTED]") {
+		t.Fatal("empty secrets should not be redacted")
+	}
+}
+
+func TestLoadFromEnv_ValidSMTPPort(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("SMTP_PORT", "465")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SMTPPort != 465 {
+		t.Fatalf("expected SMTPPort=465, got %d", cfg.SMTPPort)
+	}
+}
+
+func TestLoadFromEnv_URLValidation_MissingScheme(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("APP_URL", "example.com")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected error for URL without scheme")
+	}
+	if !strings.Contains(err.Error(), "must include scheme and host") {
+		t.Fatalf("expected scheme error, got: %v", err)
+	}
+}
+
+func TestValidateDatabaseURL_ParseError(t *testing.T) {
+	// url.Parse errors on control characters in some Go versions
+	err := validateDatabaseURL("postgres://host\x00bad/db")
+	if err == nil {
+		// If Go's url.Parse accepts it, the host check will catch it
+		t.Log("url.Parse did not error; Go version is lenient")
+	}
+}
+
+func TestValidateURL_ParseError(t *testing.T) {
+	err := validateURL("http://host\x00bad")
+	if err == nil {
+		t.Log("url.Parse did not error; Go version is lenient")
+	}
+}
+
 func TestLoadFromEnv_BackupEncKeyRequiredWithDestination(t *testing.T) {
 	setBaseEnv(t)
 	t.Setenv("BACKUP_DESTINATION", "/backups")

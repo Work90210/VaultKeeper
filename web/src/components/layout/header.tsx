@@ -1,8 +1,14 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/use-auth';
+import { SearchBar } from '@/components/search/search-bar';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 
 export function Header() {
+  const t = useTranslations('common');
+  const tAuth = useTranslations('auth');
+  const tCases = useTranslations('cases');
   const { user, isAuthenticated, signOut } = useAuth();
 
   return (
@@ -42,44 +48,51 @@ export function Header() {
             className="font-[family-name:var(--font-heading)] text-lg"
             style={{ color: 'var(--text-primary)' }}
           >
-            VaultKeeper
+            {t('appName')}
           </span>
         </a>
         {isAuthenticated && (
           <nav className="hidden sm:flex items-center gap-[var(--space-xs)]">
-            <a
-              href="/en/cases"
-              className="btn-ghost text-sm"
-            >
-              Cases
+            <a href="/en/cases" className="btn-ghost text-sm">
+              {tCases('title')}
             </a>
           </nav>
         )}
       </div>
 
-      {isAuthenticated && user && (
+      {isAuthenticated && (
         <div className="flex items-center gap-[var(--space-md)]">
-          <div className="hidden sm:flex items-center gap-[var(--space-sm)]">
-            {/* User avatar */}
-            <div
-              className="flex items-center justify-center w-8 h-8 text-xs font-semibold"
-              style={{
-                borderRadius: 'var(--radius-full)',
-                backgroundColor: 'var(--amber-subtle)',
-                color: 'var(--amber-accent)',
-              }}
-            >
-              {Array.from(user.name || '?').slice(0, 2).join('').toUpperCase()}
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {user.name}
-              </p>
-              <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                {user.systemRole?.replace('_', ' ')}
-              </p>
-            </div>
+          {/* Compact search bar */}
+          <div className="hidden md:block w-64">
+            <SearchBar compact />
           </div>
+
+          {/* Notification bell */}
+          <NotificationBell />
+
+          {user && (
+            <div className="hidden sm:flex items-center gap-[var(--space-sm)]">
+              {/* User avatar */}
+              <div
+                className="flex items-center justify-center w-8 h-8 text-xs font-semibold"
+                style={{
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'var(--amber-subtle)',
+                  color: 'var(--amber-accent)',
+                }}
+              >
+                {Array.from(user.name || '?').slice(0, 2).join('').toUpperCase()}
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {user.name}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  {user.systemRole?.replace('_', ' ')}
+                </p>
+              </div>
+            </div>
+          )}
           <div
             className="w-px h-6"
             style={{ backgroundColor: 'var(--border-default)' }}
@@ -89,7 +102,7 @@ export function Header() {
             className="btn-ghost text-xs uppercase tracking-wide"
             type="button"
           >
-            Sign out
+            {tAuth('logout')}
           </button>
         </div>
       )}

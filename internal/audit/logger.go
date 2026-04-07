@@ -12,6 +12,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// txBeginner is the subset of pgxpool.Pool used by Logger.
+// Declaring the dependency as an interface enables injection of test fakes.
+type txBeginner interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+}
+
 type AuthEvent struct {
 	Action      string
 	ActorUserID string
@@ -20,8 +26,12 @@ type AuthEvent struct {
 	Detail      map[string]string
 }
 
+// marshalJSON is a package-level var so tests can inject failures for the
+// otherwise-infallible json.Marshal on map[string]string.
+var marshalJSON = json.Marshal
+
 type Logger struct {
-	pool *pgxpool.Pool
+	pool txBeginner
 }
 
 func NewLogger(pool *pgxpool.Pool) *Logger {
@@ -42,7 +52,7 @@ func (l *Logger) LogAccessDenied(ctx context.Context, userID, endpoint, required
 }
 
 func (l *Logger) LogAuthEvent(ctx context.Context, event AuthEvent) error {
-	detail, err := json.Marshal(event.Detail)
+	detail, err := marshalJSON(event.Detail)
 	if err != nil {
 		return fmt.Errorf("marshal auth event detail: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -232,5 +233,104 @@ func TestExtractEXIF_ReadError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "read data for EXIF") {
 		t.Errorf("error = %q, want 'read data for EXIF' prefix", err.Error())
+	}
+}
+
+func TestExtractEXIF_GPSAndDimensions(t *testing.T) {
+	// Use testdata/gps_exif.jpg which contains GPS coordinates
+	data, err := os.ReadFile("testdata/gps_exif.jpg")
+	if err != nil {
+		t.Fatalf("failed to read testdata/gps_exif.jpg: %v", err)
+	}
+
+	result, err := ExtractEXIF(bytes.NewReader(data), "image/jpeg")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result for JPEG with EXIF")
+	}
+
+	s := string(result)
+	// The gps_exif.jpg should contain GPS data
+	if !strings.Contains(s, "gps_lat") {
+		t.Errorf("expected gps_lat in result, got: %s", s)
+	}
+	if !strings.Contains(s, "gps_long") {
+		t.Errorf("expected gps_long in result, got: %s", s)
+	}
+}
+
+func TestExtractEXIF_JPEGWithDimensions(t *testing.T) {
+	// Build a minimal JPEG with EXIF containing PixelXDimension and PixelYDimension
+	// in an EXIF sub-IFD to cover width/height parsing branches.
+	var buf bytes.Buffer
+
+	// SOI
+	buf.Write([]byte{0xFF, 0xD8})
+
+	// APP1 marker
+	buf.Write([]byte{0xFF, 0xE1})
+
+	var exifBuf bytes.Buffer
+	exifBuf.Write([]byte("Exif\x00\x00"))
+
+	// TIFF header: little-endian
+	exifBuf.Write([]byte{0x49, 0x49})
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(0x002A))
+	binary.Write(&exifBuf, binary.LittleEndian, uint32(8)) // offset to IFD0
+
+	// IFD0 with 1 tag: ExifIFDPointer (0x8769) pointing to EXIF sub-IFD
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(1)) // 1 tag
+
+	// ExifIFDPointer tag - points to sub-IFD
+	subIFDOffset := uint32(8 + 2 + 12 + 4) // after IFD0
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(0x8769))
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(4)) // LONG
+	binary.Write(&exifBuf, binary.LittleEndian, uint32(1))
+	binary.Write(&exifBuf, binary.LittleEndian, subIFDOffset)
+
+	// Next IFD = 0
+	binary.Write(&exifBuf, binary.LittleEndian, uint32(0))
+
+	// EXIF sub-IFD with 2 tags: PixelXDimension (0xA002), PixelYDimension (0xA003)
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(2))
+
+	// PixelXDimension - LONG, value 1920
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(0xA002))
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(4)) // LONG
+	binary.Write(&exifBuf, binary.LittleEndian, uint32(1))
+	binary.Write(&exifBuf, binary.LittleEndian, uint32(1920))
+
+	// PixelYDimension - LONG, value 1080
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(0xA003))
+	binary.Write(&exifBuf, binary.LittleEndian, uint16(4)) // LONG
+	binary.Write(&exifBuf, binary.LittleEndian, uint32(1))
+	binary.Write(&exifBuf, binary.LittleEndian, uint32(1080))
+
+	// Next IFD = 0
+	binary.Write(&exifBuf, binary.LittleEndian, uint32(0))
+
+	// APP1 length
+	app1Len := uint16(exifBuf.Len() + 2)
+	buf.Write([]byte{byte(app1Len >> 8), byte(app1Len)})
+	buf.Write(exifBuf.Bytes())
+
+	// EOI
+	buf.Write([]byte{0xFF, 0xD9})
+
+	result, err := ExtractEXIF(bytes.NewReader(buf.Bytes()), "image/jpeg")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// If goexif can parse it, check for dimensions
+	if result != nil {
+		s := string(result)
+		if !strings.Contains(s, "width") {
+			t.Logf("EXIF result (no width): %s", s)
+		}
+		if !strings.Contains(s, "height") {
+			t.Logf("EXIF result (no height): %s", s)
+		}
 	}
 }

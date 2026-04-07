@@ -29,6 +29,7 @@ type CustodyRecorder interface {
 type CaseLookup interface {
 	GetLegalHold(ctx context.Context, caseID uuid.UUID) (bool, error)
 	GetReferenceCode(ctx context.Context, caseID uuid.UUID) (string, error)
+	GetStatus(ctx context.Context, caseID uuid.UUID) (string, error)
 }
 
 // ValidationError represents a validation failure.
@@ -94,12 +95,24 @@ type UploadInput struct {
 	Description    string
 	Tags           []string
 	UploadedBy     string
+	UploadedByName string
+	Source         string
+	SourceDate     *time.Time
 }
 
 // Upload processes a new evidence file through the complete upload pipeline.
 func (s *Service) Upload(ctx context.Context, input UploadInput) (EvidenceItem, error) {
 	if err := s.validateUploadInput(input); err != nil {
 		return EvidenceItem{}, err
+	}
+
+	// Block uploads to closed or archived cases
+	caseStatus, err := s.cases.GetStatus(ctx, input.CaseID)
+	if err != nil {
+		return EvidenceItem{}, fmt.Errorf("check case status: %w", err)
+	}
+	if caseStatus != "active" {
+		return EvidenceItem{}, &ValidationError{Field: "case", Message: fmt.Sprintf("cannot upload evidence to a %s case", caseStatus)}
 	}
 
 	sanitizedName := SanitizeFilename(input.Filename)
@@ -179,6 +192,9 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (EvidenceItem, 
 		Description:    html.EscapeString(strings.TrimSpace(input.Description)),
 		Tags:           nonNilTags(input.Tags),
 		UploadedBy:     input.UploadedBy,
+		UploadedByName: input.UploadedByName,
+		Source:         input.Source,
+		SourceDate:     input.SourceDate,
 		TSAToken:       tsaToken,
 		TSAName:        tsaName,
 		TSATimestamp:   tsaTimestamp,
@@ -329,6 +345,15 @@ func (s *Service) Destroy(ctx context.Context, input DestroyInput) error {
 
 	if evidence.DestroyedAt != nil {
 		return nil // idempotent
+	}
+
+	// Block destruction on archived cases
+	caseStatus, err := s.cases.GetStatus(ctx, evidence.CaseID)
+	if err != nil {
+		return fmt.Errorf("check case status: %w", err)
+	}
+	if caseStatus == "archived" {
+		return &ValidationError{Field: "case", Message: "cannot destroy evidence in an archived case"}
 	}
 
 	// Check legal hold

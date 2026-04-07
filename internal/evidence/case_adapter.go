@@ -30,6 +30,15 @@ func (l *PGCaseLookup) GetLegalHold(ctx context.Context, caseID uuid.UUID) (bool
 	return held, nil
 }
 
+func (l *PGCaseLookup) GetStatus(ctx context.Context, caseID uuid.UUID) (string, error) {
+	var status string
+	err := l.pool.QueryRow(ctx, `SELECT status FROM cases WHERE id = $1`, caseID).Scan(&status)
+	if err != nil {
+		return "", fmt.Errorf("get case status: %w", err)
+	}
+	return status, nil
+}
+
 func (l *PGCaseLookup) GetReferenceCode(ctx context.Context, caseID uuid.UUID) (string, error) {
 	var code string
 	err := l.pool.QueryRow(ctx, `SELECT reference_code FROM cases WHERE id = $1`, caseID).Scan(&code)

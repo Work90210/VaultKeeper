@@ -15,6 +15,7 @@ type Case struct {
 	Status        string    `json:"status"`
 	LegalHold     bool      `json:"legal_hold"`
 	CreatedBy     string    `json:"created_by"`
+	CreatedByName string    `json:"created_by_name"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }

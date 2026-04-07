@@ -53,6 +53,21 @@ web/playwright-report/
 *.sql.gz
 *.dump
 
+# Terraform
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/.terraform.lock.hcl
+infrastructure/monitoring/.terraform/
+infrastructure/monitoring/*.tfstate
+infrastructure/monitoring/*.tfstate.*
+infrastructure/monitoring/.terraform.lock.hcl
+*.tfplan
+
+# Ansible
+infrastructure/ansible/*.retry
+infrastructure/ansible/vault_password
+
 # Secrets & credentials
 *.pem
 *.key

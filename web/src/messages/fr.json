@@ -1,6 +1,7 @@
 {
   "common": {
     "appName": "VaultKeeper",
+    "tagline": "Gestion souveraine des preuves",
     "loading": "Chargement...",
     "error": "Une erreur est survenue",
     "save": "Enregistrer",
@@ -8,13 +9,36 @@
     "delete": "Supprimer",
     "edit": "Modifier",
     "search": "Rechercher",
-    "noResults": "Aucun résultat trouvé"
+    "noResults": "Aucun résultat trouvé",
+    "actions": "Actions",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "refresh": "Actualiser",
+    "download": "Télécharger",
+    "export": "Exporter",
+    "more": "Plus",
+    "yes": "Oui",
+    "no": "Non",
+    "all": "Tous",
+    "none": "Aucun",
+    "apply": "Appliquer",
+    "reset": "Réinitialiser",
+    "required": "Obligatoire",
+    "optional": "Facultatif",
+    "createdAt": "Créé le",
+    "updatedAt": "Modifié le"
   },
   "auth": {
     "login": "Se connecter",
     "logout": "Se déconnecter",
     "loginTitle": "Connexion à VaultKeeper",
-    "loginDescription": "Plateforme souveraine de gestion des preuves"
+    "loginDescription": "Plateforme souveraine de gestion des preuves",
+    "sessionExpired": "Votre session a expiré",
+    "unauthorized": "Vous n'avez pas la permission d'accéder à cette ressource",
+    "forbidden": "Accès refusé"
   },
   "cases": {
     "title": "Affaires",
@@ -24,7 +48,18 @@
     "jurisdiction": "Juridiction",
     "active": "Active",
     "closed": "Clôturée",
-    "archived": "Archivée"
+    "archived": "Archivée",
+    "description": "Description",
+    "createdBy": "Créée par",
+    "legalHold": "Conservation légale",
+    "settings": "Paramètres de l'affaire",
+    "roles": "Rôles",
+    "assignRole": "Attribuer un rôle",
+    "exportCase": "Exporter l'affaire",
+    "verifyIntegrity": "Vérifier l'intégrité",
+    "verifying": "Vérification de l'intégrité...",
+    "verificationComplete": "Vérification de l'intégrité terminée",
+    "verificationFailed": "La vérification de l'intégrité a révélé des problèmes"
   },
   "evidence": {
     "title": "Preuves",
@@ -33,12 +68,94 @@
     "public": "Public",
     "restricted": "Restreint",
     "confidential": "Confidentiel",
-    "exParte": "Ex Parte"
+    "exParte": "Ex Parte",
+    "evidenceNumber": "Numéro de preuve",
+    "filename": "Nom du fichier",
+    "fileSize": "Taille du fichier",
+    "mimeType": "Type de fichier",
+    "hash": "Empreinte SHA-256",
+    "uploadedBy": "Téléchargé par",
+    "version": "Version",
+    "tags": "Étiquettes",
+    "description": "Description",
+    "custody": "Chaîne de traçabilité",
+    "versions": "Historique des versions",
+    "download": "Télécharger le fichier",
+    "destroy": "Détruire la preuve",
+    "destroyReason": "Motif de destruction",
+    "timestampStatus": "État de l'horodatage"
+  },
+  "custody": {
+    "title": "Chaîne de traçabilité",
+    "action": "Action",
+    "actor": "Acteur",
+    "timestamp": "Horodatage",
+    "hash": "Empreinte",
+    "detail": "Détail",
+    "exportPdf": "Exporter en PDF"
+  },
+  "search": {
+    "title": "Rechercher des preuves",
+    "placeholder": "Rechercher des preuves...",
+    "clear": "Effacer",
+    "recentSearches": "Recherches récentes",
+    "noResults": "Aucun résultat trouvé",
+    "noResultsHint": "Aucune preuve correspondant à « {query} » n'a été trouvée. Essayez d'autres mots-clés ou ajustez vos filtres.",
+    "resultsCount": "{count} résultats ({time} ms)",
+    "filters": "Filtres",
+    "clearAll": "Tout effacer",
+    "filterCase": "Affaire",
+    "allCases": "Toutes les affaires",
+    "filterType": "Type de fichier",
+    "fileType": {
+      "documents": "Documents",
+      "images": "Images",
+      "video": "Vidéo",
+      "audio": "Audio"
+    },
+    "filterDateRange": "Période",
+    "dateFrom": "Date de début",
+    "dateTo": "Date de fin",
+    "previous": "Précédent",
+    "next": "Suivant"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Tout marquer comme lu",
+    "viewAll": "Voir toutes les notifications",
+    "empty": "Aucune notification",
+    "all": "Toutes",
+    "unread": "Non lues",
+    "loadMore": "Charger plus",
+    "evidenceUploaded": "Nouvelle preuve téléchargée",
+    "userAddedToCase": "Ajouté à l'affaire",
+    "integrityWarning": "Avertissement d'intégrité",
+    "legalHoldChanged": "Conservation légale modifiée",
+    "backupFailed": "Sauvegarde échouée"
+  },
+  "health": {
+    "title": "État du système",
+    "healthy": "Opérationnel",
+    "degraded": "Dégradé",
+    "unhealthy": "Indisponible",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "postgres": "PostgreSQL",
+    "minio": "Stockage objet",
+    "meilisearch": "Moteur de recherche",
+    "keycloak": "Fournisseur d'identité"
   },
   "settings": {
     "title": "Paramètres",
     "profile": "Profil",
     "security": "Sécurité",
     "notifications": "Notifications"
+  },
+  "errors": {
+    "notFound": "Introuvable",
+    "forbidden": "Accès refusé",
+    "serverError": "Une erreur inattendue est survenue",
+    "networkError": "Impossible de se connecter au serveur",
+    "validationError": "Veuillez vérifier vos données"
   }
 }

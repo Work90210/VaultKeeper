@@ -1315,6 +1315,91 @@ func (m *mockCustodyReaderWithEvents) ListByEvidence(_ context.Context, _ uuid.U
 	}, 1, nil
 }
 
+func TestHandler_Upload_SourceDateRFC3339(t *testing.T) {
+	handler, _ := newTestHandler(t)
+
+	r := chi.NewRouter()
+	r.Route("/api/cases/{caseID}/evidence", func(r chi.Router) {
+		r.Post("/", handler.Upload)
+	})
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, _ := writer.CreateFormFile("file", "evidence.pdf")
+	part.Write([]byte("test content"))
+	writer.WriteField("source_date", "2024-06-15T14:30:00Z")
+	writer.Close()
+
+	caseID := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req = withAuthContext(req)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("status = %d, want %d, body: %s", w.Code, http.StatusCreated, w.Body.String())
+	}
+}
+
+func TestHandler_Upload_SourceDateDateOnly(t *testing.T) {
+	handler, _ := newTestHandler(t)
+
+	r := chi.NewRouter()
+	r.Route("/api/cases/{caseID}/evidence", func(r chi.Router) {
+		r.Post("/", handler.Upload)
+	})
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, _ := writer.CreateFormFile("file", "evidence.pdf")
+	part.Write([]byte("test content"))
+	writer.WriteField("source_date", "2024-06-15")
+	writer.Close()
+
+	caseID := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req = withAuthContext(req)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("status = %d, want %d, body: %s", w.Code, http.StatusCreated, w.Body.String())
+	}
+}
+
+func TestHandler_Upload_SourceDateInvalid(t *testing.T) {
+	handler, _ := newTestHandler(t)
+
+	r := chi.NewRouter()
+	r.Route("/api/cases/{caseID}/evidence", func(r chi.Router) {
+		r.Post("/", handler.Upload)
+	})
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, _ := writer.CreateFormFile("file", "evidence.pdf")
+	part.Write([]byte("test content"))
+	writer.WriteField("source_date", "not-a-date")
+	writer.Close()
+
+	caseID := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req = withAuthContext(req)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	// Invalid source_date is silently ignored (sourceDate stays nil), upload proceeds
+	if w.Code != http.StatusCreated {
+		t.Errorf("status = %d, want %d, body: %s", w.Code, http.StatusCreated, w.Body.String())
+	}
+}
+
 func TestHandler_Upload_ServiceValidationError(t *testing.T) {
 	handler, _ := newTestHandler(t)
 

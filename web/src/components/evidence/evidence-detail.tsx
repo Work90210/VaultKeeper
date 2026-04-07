@@ -114,8 +114,7 @@ export function EvidenceDetail({
         />
         <MetaField
           label="Uploaded by"
-          value={evidence.uploaded_by.slice(0, 8) + '\u2026'}
-          mono
+          value={evidence.uploaded_by_name || evidence.uploaded_by.slice(0, 8) + '\u2026'}
         />
         <MetaField label="Source" value={evidence.source || '\u2014'} />
         <MetaField

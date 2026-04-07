@@ -15,7 +15,7 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
 )
 
-func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string, jwks *auth.JWKSFetcher, audit auth.AuditLogger, registrars ...RouteRegistrar) *http.Server {
+func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string, jwks *auth.JWKSFetcher, audit auth.AuditLogger, health *HealthHandler, registrars ...RouteRegistrar) *http.Server {
 	router := chi.NewRouter()
 	router.Use(chimiddleware.RequestID)
 	router.Use(logging.Middleware(logger))
@@ -25,12 +25,15 @@ func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string, jwks 
 	authMiddleware := auth.NewMiddleware(jwks, cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, logger, audit)
 	router.Use(authMiddleware.Authenticate)
 
-	RegisterRoutes(router, version, registrars...)
+	RegisterRoutes(router, version, health, registrars...)
 
 	return &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.ServerPort),
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      120 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 }
 
@@ -87,7 +90,7 @@ func corsMiddleware(origins []string, appURL string) func(http.Handler) http.Han
 
 func isOriginAllowed(origin string, allowed map[string]struct{}) bool {
 	if len(allowed) == 0 {
-		return true
+		return false // deny all when no origins are configured
 	}
 	if _, ok := allowed["*"]; ok {
 		return true

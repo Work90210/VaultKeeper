@@ -41,7 +41,7 @@ func (e *ValidationError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Field, e.Message)
 }
 
-func (s *Service) CreateCase(ctx context.Context, input CreateCaseInput, createdBy string) (Case, error) {
+func (s *Service) CreateCase(ctx context.Context, input CreateCaseInput, createdBy, createdByName string) (Case, error) {
 	if err := s.validateCreateInput(input); err != nil {
 		return Case{}, err
 	}
@@ -53,6 +53,7 @@ func (s *Service) CreateCase(ctx context.Context, input CreateCaseInput, created
 		Jurisdiction:  html.EscapeString(strings.TrimSpace(input.Jurisdiction)),
 		Status:        StatusActive,
 		CreatedBy:     createdBy,
+		CreatedByName: createdByName,
 	}
 
 	result, err := s.repo.Create(ctx, c)
@@ -97,6 +98,15 @@ func (s *Service) ListCases(ctx context.Context, filter CaseFilter, page Paginat
 }
 
 func (s *Service) UpdateCase(ctx context.Context, id uuid.UUID, input UpdateCaseInput, updatedBy string) (Case, error) {
+	// Block all updates to archived cases
+	current, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return Case{}, err
+	}
+	if current.Status == StatusArchived {
+		return Case{}, &ValidationError{Field: "status", Message: "cannot update an archived case"}
+	}
+
 	if err := s.validateUpdateInput(ctx, id, input); err != nil {
 		return Case{}, err
 	}
@@ -173,6 +183,10 @@ func (s *Service) SetLegalHold(ctx context.Context, id uuid.UUID, hold bool, set
 	c, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return err
+	}
+
+	if c.Status == StatusArchived {
+		return &ValidationError{Field: "status", Message: "cannot change legal hold on an archived case"}
 	}
 
 	if c.LegalHold == hold {

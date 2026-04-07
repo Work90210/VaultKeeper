@@ -1,0 +1,32 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - monitoring
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - monitoring
+    depends_on:
+      - uptime-kuma
+
+volumes:
+  uptime_kuma_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  monitoring:
+    driver: bridge

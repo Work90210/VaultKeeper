@@ -54,6 +54,7 @@ type Config struct {
 	BackupEncKey          string
 	ArchiveStorageBucket  string
 	ArchiveStoragePath    string
+	AdminUserIDs          []string
 	Warnings              []string
 }
 
@@ -267,8 +268,12 @@ func LoadFromEnv() (Config, error) {
 	cfg.CORSOrigins = parseCSV(os.Getenv("CORS_ORIGINS"))
 	cfg.BackupDestination = strings.TrimSpace(os.Getenv("BACKUP_DESTINATION"))
 	cfg.BackupEncKey = os.Getenv("BACKUP_ENC_KEY")
+	if cfg.BackupDestination != "" && cfg.BackupEncKey == "" {
+		errs = append(errs, "BACKUP_ENC_KEY is required when BACKUP_DESTINATION is set")
+	}
 	cfg.ArchiveStorageBucket = strings.TrimSpace(os.Getenv("ARCHIVE_STORAGE_BUCKET"))
 	cfg.ArchiveStoragePath = strings.TrimSpace(os.Getenv("ARCHIVE_STORAGE_PATH"))
+	cfg.AdminUserIDs = parseCSV(os.Getenv("ADMIN_USER_IDS"))
 
 	if len(errs) > 0 {
 		return Config{}, fmt.Errorf("configuration validation failed: %s", strings.Join(errs, "; "))
@@ -311,12 +316,10 @@ func (c Config) String() string {
 		"BackupEncKey":          redact(c.BackupEncKey),
 		"ArchiveStorageBucket":  c.ArchiveStorageBucket,
 		"ArchiveStoragePath":    c.ArchiveStoragePath,
+		"AdminUserIDs":          c.AdminUserIDs,
 	}
 
-	b, err := json.Marshal(view)
-	if err != nil {
-		return `{"error":"failed to marshal redacted configuration"}`
-	}
+	b, _ := json.Marshal(view)
 	return string(b)
 }
 

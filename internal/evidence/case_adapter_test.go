@@ -106,3 +106,39 @@ func TestPGCaseLookup_GetReferenceCode_Error(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestPGCaseLookup_GetStatus_Success(t *testing.T) {
+	pool := &mockQueryRowPool{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &mockRow{
+				scanFn: func(dest ...any) error {
+					*dest[0].(*string) = "active"
+					return nil
+				},
+			}
+		},
+	}
+	lookup := &PGCaseLookup{pool: pool}
+
+	status, err := lookup.GetStatus(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("GetStatus error: %v", err)
+	}
+	if status != "active" {
+		t.Errorf("status = %q, want active", status)
+	}
+}
+
+func TestPGCaseLookup_GetStatus_Error(t *testing.T) {
+	pool := &mockQueryRowPool{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &mockRow{scanErr: errors.New("db error")}
+		},
+	}
+	lookup := &PGCaseLookup{pool: pool}
+
+	_, err := lookup.GetStatus(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}

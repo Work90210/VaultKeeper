@@ -10,10 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/vaultkeeper/vaultkeeper/internal/audit"
 	"github.com/vaultkeeper/vaultkeeper/internal/auth"
+	"github.com/vaultkeeper/vaultkeeper/internal/backup"
 	"github.com/vaultkeeper/vaultkeeper/internal/cases"
 	"github.com/vaultkeeper/vaultkeeper/internal/config"
 	"github.com/vaultkeeper/vaultkeeper/internal/custody"
@@ -21,6 +23,8 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/evidence"
 	"github.com/vaultkeeper/vaultkeeper/internal/integrity"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
+	"github.com/vaultkeeper/vaultkeeper/internal/notifications"
+	"github.com/vaultkeeper/vaultkeeper/internal/reports"
 	"github.com/vaultkeeper/vaultkeeper/internal/search"
 	"github.com/vaultkeeper/vaultkeeper/internal/server"
 )
@@ -125,7 +129,101 @@ func run() error {
 	defer tsaCancel()
 	go tsaRetryJob.Start(tsaCtx)
 
-	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, caseHandler, roleHandler, evidenceHandler)
+	// Notification subsystem
+	notifRepo := notifications.NewRepository(pool)
+	emailSender := notifications.NewEmailSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, logger)
+	emailCtx, emailCancel := context.WithCancel(ctx)
+	defer emailCancel()
+	emailSender.Start(emailCtx)
+	defer emailSender.Stop()
+
+	// Email delivery requires a UserEmailResolver (e.g. Keycloak admin API integration).
+	// Passing nil disables email; in-app notifications still work.
+	notifService := notifications.NewService(notifRepo, emailSender, nil, logger, cfg.AdminUserIDs)
+	notifHandler := notifications.NewHandler(notifService)
+
+	// Search subsystem
+	caseIDLoader := search.NewCaseIDsLoader(pool)
+	var evidenceSearcher search.EvidenceSearcher
+	if cfg.MeilisearchURL != "" {
+		meiliClient := search.NewMeilisearchClient(cfg.MeilisearchURL, cfg.MeilisearchAPIKey)
+		evidenceSearcher = meiliClient
+	} else {
+		evidenceSearcher = &search.NoopEvidenceSearcher{}
+	}
+	searchHandler := search.NewHandler(evidenceSearcher, caseIDLoader, caseIDLoader, auditLogger)
+
+	// Integrity verification handler
+	fileReaderAdapter := &integrity.StorageFileReader{
+		GetFn: minioStorage.GetObject,
+	}
+	evidenceLoaderAdapter := &integrity.VerifiableItemAdapter[evidence.VerifiableItem]{
+		ListFn: evidenceRepo.ListForVerification,
+		ConvertFn: func(item evidence.VerifiableItem) integrity.VerifiableItem {
+			return integrity.VerifiableItem{
+				ID:         item.ID,
+				CaseID:     item.CaseID,
+				StorageKey: item.StorageKey,
+				SHA256Hash: item.SHA256Hash,
+				TSAToken:   item.TSAToken,
+				TSAStatus:  item.TSAStatus,
+				Filename:   item.Filename,
+			}
+		},
+	}
+	integrityNotifier := &integrity.NotificationAdapter{
+		NotifyFn: func(ctx context.Context, event integrity.NotificationEvent) error {
+			return notifService.Notify(ctx, notifications.NotificationEvent{
+				Type:   event.Type,
+				CaseID: event.CaseID,
+				Title:  event.Title,
+				Body:   event.Body,
+			})
+		},
+	}
+	integrityHandler := integrity.NewHandler(
+		evidenceLoaderAdapter, fileReaderAdapter, tsaClient,
+		custodyLogger, integrityNotifier, evidenceRepo, logger, auditLogger,
+	)
+
+	// Backup subsystem
+	backupNotifier := &backup.NotificationBridge{
+		NotifyFn: func(ctx context.Context, err error) error {
+			return notifService.Notify(ctx, notifications.NotificationEvent{
+				Type:  notifications.EventBackupFailed,
+				Title: "Backup failed",
+				Body:  err.Error(),
+			})
+		},
+	}
+	backupRunner := backup.NewBackupRunner(pool, cfg.BackupEncKey, cfg.BackupDestination, logger, backupNotifier, minioStorage)
+	backupHandler := backup.NewHandler(backupRunner, logger, auditLogger)
+
+	// Start backup scheduler (daily at 03:00 UTC)
+	backupCtx, backupCancel := context.WithCancel(ctx)
+	defer backupCancel()
+	go backupRunner.StartScheduler(backupCtx, 3, 0)
+
+	// Case export
+	exportSvc := cases.NewExportService(evidenceRepo, custodyRepo, caseRepo, minioStorage, custodyLogger)
+	exportHandler := cases.NewExportHandler(exportSvc, auditLogger)
+
+	// Custody PDF reports
+	caseReportAdapter := &caseReportSourceAdapter{repo: caseRepo}
+	reportGen := reports.NewCustodyReportGenerator(custodyRepo, evidenceRepo, caseReportAdapter)
+	reportHandler := reports.NewHandler(reportGen, auditLogger)
+
+	healthHandler := server.NewHealthHandler(
+		pool, minioStorage, cfg.MinIOBucket,
+		cfg.MeilisearchURL, cfg.KeycloakURL, cfg.KeycloakRealm,
+		version, auditLogger,
+		server.WithBackupChecker(backupRunner),
+	)
+
+	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, healthHandler,
+		caseHandler, roleHandler, evidenceHandler, notifHandler, searchHandler, integrityHandler,
+		backupHandler, exportHandler, reportHandler,
+	)
 
 	serverErr := make(chan error, 1)
 	go func() {
@@ -155,4 +253,23 @@ func run() error {
 
 	logger.Info("server stopped cleanly")
 	return nil
+}
+
+// caseReportSourceAdapter adapts the cases.PGRepository to the reports.CaseReportSource interface.
+type caseReportSourceAdapter struct {
+	repo *cases.PGRepository
+}
+
+func (a *caseReportSourceAdapter) FindByID(ctx context.Context, id uuid.UUID) (reports.CaseRecord, error) {
+	c, err := a.repo.FindByID(ctx, id)
+	if err != nil {
+		return reports.CaseRecord{}, err
+	}
+	return reports.CaseRecord{
+		ID:            c.ID,
+		ReferenceCode: c.ReferenceCode,
+		Title:         c.Title,
+		Jurisdiction:  c.Jurisdiction,
+		Status:        c.Status,
+	}, nil
 }

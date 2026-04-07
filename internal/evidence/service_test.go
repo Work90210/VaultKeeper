@@ -231,6 +231,7 @@ func (m *mockCustody) RecordEvidenceEvent(_ context.Context, _, _ uuid.UUID, act
 type mockCaseLookup struct {
 	legalHold     bool
 	referenceCode string
+	status        string
 }
 
 func (m *mockCaseLookup) GetLegalHold(_ context.Context, _ uuid.UUID) (bool, error) {
@@ -242,6 +243,13 @@ func (m *mockCaseLookup) GetReferenceCode(_ context.Context, _ uuid.UUID) (strin
 		return "CASE-REF", nil
 	}
 	return m.referenceCode, nil
+}
+
+func (m *mockCaseLookup) GetStatus(_ context.Context, _ uuid.UUID) (string, error) {
+	if m.status == "" {
+		return "active", nil
+	}
+	return m.status, nil
 }
 
 type noopThumbGen struct{}
@@ -1796,6 +1804,8 @@ type mockCaseLookupWithErrors struct {
 	legalHoldVal bool
 	refCodeErr   error
 	holdErr      error
+	statusErr    error
+	statusVal    string
 }
 
 func (m *mockCaseLookupWithErrors) GetLegalHold(_ context.Context, _ uuid.UUID) (bool, error) {
@@ -1810,6 +1820,16 @@ func (m *mockCaseLookupWithErrors) GetReferenceCode(_ context.Context, _ uuid.UU
 		return "", m.refCodeErr
 	}
 	return "CASE-REF", nil
+}
+
+func (m *mockCaseLookupWithErrors) GetStatus(_ context.Context, _ uuid.UUID) (string, error) {
+	if m.statusErr != nil {
+		return "", m.statusErr
+	}
+	if m.statusVal == "" {
+		return "active", nil
+	}
+	return m.statusVal, nil
 }
 
 func TestService_Destroy_GetLegalHoldError(t *testing.T) {
@@ -1902,6 +1922,139 @@ func TestService_Upload_EXIFExtractionWarning(t *testing.T) {
 		t.Fatalf("Upload error: %v", err)
 	}
 	_ = result
+}
+
+func TestService_Upload_ClosedCase(t *testing.T) {
+	repo := newMockRepo()
+	storage := newMockStorage()
+	caseLookup := &mockCaseLookup{status: "closed"}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := NewService(
+		repo, storage, &integrity.NoopTimestampAuthority{},
+		&search.NoopSearchIndexer{}, &mockCustody{}, caseLookup,
+		&noopThumbGen{}, logger, 100*1024*1024,
+	)
+
+	_, err := svc.Upload(context.Background(), UploadInput{
+		CaseID:         uuid.New(),
+		File:           strings.NewReader("test data"),
+		Filename:       "test.pdf",
+		SizeBytes:      9,
+		Classification: ClassificationRestricted,
+		UploadedBy:     "user-1",
+		UploadedByName: "Test User",
+	})
+	if err == nil {
+		t.Fatal("expected error for closed case")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T: %v", err, err)
+	}
+	if ve.Field != "case" {
+		t.Errorf("field = %q, want case", ve.Field)
+	}
+	if !strings.Contains(ve.Message, "closed") {
+		t.Errorf("message = %q, want to mention closed", ve.Message)
+	}
+}
+
+func TestService_Upload_GetStatusError(t *testing.T) {
+	repo := newMockRepo()
+	storage := newMockStorage()
+	caseLookup := &mockCaseLookupWithErrors{statusErr: errors.New("db error")}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := NewService(
+		repo, storage, &integrity.NoopTimestampAuthority{},
+		&search.NoopSearchIndexer{}, &mockCustody{}, caseLookup,
+		&noopThumbGen{}, logger, 100*1024*1024,
+	)
+
+	_, err := svc.Upload(context.Background(), UploadInput{
+		CaseID:         uuid.New(),
+		File:           strings.NewReader("test data"),
+		Filename:       "test.pdf",
+		SizeBytes:      9,
+		Classification: ClassificationRestricted,
+		UploadedBy:     "user-1",
+		UploadedByName: "Test User",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "case status") {
+		t.Errorf("error = %q, expected case status mention", err.Error())
+	}
+}
+
+func TestService_Destroy_ArchivedCase(t *testing.T) {
+	repo := newMockRepo()
+	storage := newMockStorage()
+	caseLookup := &mockCaseLookup{status: "archived"}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := NewService(
+		repo, storage, &integrity.NoopTimestampAuthority{},
+		&search.NoopSearchIndexer{}, &mockCustody{}, caseLookup,
+		&noopThumbGen{}, logger, 100*1024*1024,
+	)
+
+	id := uuid.New()
+	repo.items[id] = EvidenceItem{
+		ID:     id,
+		CaseID: uuid.New(),
+		Tags:   []string{},
+	}
+
+	err := svc.Destroy(context.Background(), DestroyInput{
+		EvidenceID: id,
+		Reason:     "test",
+		ActorID:    "admin-1",
+	})
+	if err == nil {
+		t.Fatal("expected error for archived case")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T: %v", err, err)
+	}
+	if !strings.Contains(ve.Message, "archived") {
+		t.Errorf("message = %q, want archived mention", ve.Message)
+	}
+}
+
+func TestService_Destroy_GetStatusError(t *testing.T) {
+	repo := newMockRepo()
+	storage := newMockStorage()
+	caseLookup := &mockCaseLookupWithErrors{statusErr: errors.New("db error")}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := NewService(
+		repo, storage, &integrity.NoopTimestampAuthority{},
+		&search.NoopSearchIndexer{}, &mockCustody{}, caseLookup,
+		&noopThumbGen{}, logger, 100*1024*1024,
+	)
+
+	id := uuid.New()
+	repo.items[id] = EvidenceItem{
+		ID:     id,
+		CaseID: uuid.New(),
+		Tags:   []string{},
+	}
+
+	err := svc.Destroy(context.Background(), DestroyInput{
+		EvidenceID: id,
+		Reason:     "test",
+		ActorID:    "admin-1",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "case status") {
+		t.Errorf("error = %q, expected case status mention", err.Error())
+	}
 }
 
 func TestService_Destroy_NoStorageKey(t *testing.T) {

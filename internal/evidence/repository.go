@@ -56,18 +56,19 @@ func NewRepository(pool *pgxpool.Pool) *PGRepository {
 
 const evidenceColumns = `id, case_id, evidence_number, filename, original_name, storage_key,
 	thumbnail_key, mime_type, size_bytes, sha256_hash, classification, description,
-	tags, uploaded_by, is_current, version, parent_id, tsa_token, tsa_name, tsa_timestamp,
-	tsa_status, tsa_retry_count, tsa_last_retry, exif_data, destroyed_at, destroyed_by,
-	destroy_reason, created_at`
+	tags, uploaded_by, uploaded_by_name, is_current, version, parent_id, tsa_token, tsa_name, tsa_timestamp,
+	tsa_status, tsa_retry_count, tsa_last_retry, exif_data, source, source_date,
+	destroyed_at, destroyed_by, destroy_reason, created_at`
 
 func scanEvidence(row pgx.Row) (EvidenceItem, error) {
 	var e EvidenceItem
 	err := row.Scan(
 		&e.ID, &e.CaseID, &e.EvidenceNumber, &e.Filename, &e.OriginalName, &e.StorageKey,
 		&e.ThumbnailKey, &e.MimeType, &e.SizeBytes, &e.SHA256Hash, &e.Classification,
-		&e.Description, &e.Tags, &e.UploadedBy, &e.IsCurrent, &e.Version, &e.ParentID,
+		&e.Description, &e.Tags, &e.UploadedBy, &e.UploadedByName, &e.IsCurrent, &e.Version, &e.ParentID,
 		&e.TSAToken, &e.TSAName, &e.TSATimestamp, &e.TSAStatus, &e.TSARetryCount,
-		&e.TSALastRetry, &e.ExifData, &e.DestroyedAt, &e.DestroyedBy, &e.DestroyReason,
+		&e.TSALastRetry, &e.ExifData, &e.Source, &e.SourceDate,
+		&e.DestroyedAt, &e.DestroyedBy, &e.DestroyReason,
 		&e.CreatedAt,
 	)
 	if e.Tags == nil {
@@ -83,9 +84,10 @@ func scanEvidenceRows(rows pgx.Rows) ([]EvidenceItem, error) {
 		err := rows.Scan(
 			&e.ID, &e.CaseID, &e.EvidenceNumber, &e.Filename, &e.OriginalName, &e.StorageKey,
 			&e.ThumbnailKey, &e.MimeType, &e.SizeBytes, &e.SHA256Hash, &e.Classification,
-			&e.Description, &e.Tags, &e.UploadedBy, &e.IsCurrent, &e.Version, &e.ParentID,
+			&e.Description, &e.Tags, &e.UploadedBy, &e.UploadedByName, &e.IsCurrent, &e.Version, &e.ParentID,
 			&e.TSAToken, &e.TSAName, &e.TSATimestamp, &e.TSAStatus, &e.TSARetryCount,
-			&e.TSALastRetry, &e.ExifData, &e.DestroyedAt, &e.DestroyedBy, &e.DestroyReason,
+			&e.TSALastRetry, &e.ExifData, &e.Source, &e.SourceDate,
+			&e.DestroyedAt, &e.DestroyedBy, &e.DestroyReason,
 			&e.CreatedAt,
 		)
 		if err != nil {
@@ -102,16 +104,17 @@ func scanEvidenceRows(rows pgx.Rows) ([]EvidenceItem, error) {
 func (r *PGRepository) Create(ctx context.Context, input CreateEvidenceInput) (EvidenceItem, error) {
 	query := fmt.Sprintf(`INSERT INTO evidence_items
 		(case_id, evidence_number, filename, original_name, storage_key, mime_type, size_bytes,
-		 sha256_hash, classification, description, tags, uploaded_by, tsa_token, tsa_name,
-		 tsa_timestamp, tsa_status, exif_data)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		 sha256_hash, classification, description, tags, uploaded_by, uploaded_by_name, tsa_token, tsa_name,
+		 tsa_timestamp, tsa_status, exif_data, source, source_date)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING %s`, evidenceColumns)
 
 	row := r.pool.QueryRow(ctx, query,
 		input.CaseID, input.EvidenceNumber, input.Filename, input.OriginalName,
 		input.StorageKey, input.MimeType, input.SizeBytes, input.SHA256Hash,
 		input.Classification, input.Description, input.Tags, input.UploadedBy,
-		input.TSAToken, input.TSAName, input.TSATimestamp, input.TSAStatus, input.ExifData,
+		input.UploadedByName, input.TSAToken, input.TSAName, input.TSATimestamp, input.TSAStatus, input.ExifData,
+		input.Source, input.SourceDate,
 	)
 
 	return scanEvidence(row)
@@ -434,6 +437,78 @@ func (r *PGRepository) MarkPreviousVersions(ctx context.Context, parentID uuid.U
 		parentID)
 	if err != nil {
 		return fmt.Errorf("mark previous versions: %w", err)
+	}
+	return nil
+}
+
+// ListByCaseForExport returns all current, non-destroyed evidence items for case export.
+// When userRole is "defence", only disclosed evidence is returned.
+func (r *PGRepository) ListByCaseForExport(ctx context.Context, caseID uuid.UUID, userRole string) ([]EvidenceItem, error) {
+	joinClause := ""
+	if userRole == "defence" {
+		joinClause = " INNER JOIN disclosures d ON d.evidence_id = e.id AND d.case_id = e.case_id"
+	}
+
+	query := fmt.Sprintf(`SELECT DISTINCT %s
+		FROM evidence_items e%s
+		WHERE e.case_id = $1 AND e.is_current = true AND e.destroyed_at IS NULL
+		ORDER BY e.created_at ASC`, prefixColumns("e", evidenceColumns), joinClause)
+
+	rows, err := r.pool.Query(ctx, query, caseID)
+	if err != nil {
+		return nil, fmt.Errorf("list evidence for export: %w", err)
+	}
+	defer rows.Close()
+
+	return scanEvidenceRows(rows)
+}
+
+// ListForVerification returns all current, non-destroyed evidence items in a case
+// with only the fields needed for integrity verification.
+func (r *PGRepository) ListForVerification(ctx context.Context, caseID uuid.UUID) ([]VerifiableItem, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, case_id, storage_key, sha256_hash, tsa_token, tsa_status, filename
+		 FROM evidence_items
+		 WHERE case_id = $1 AND is_current = true AND destroyed_at IS NULL
+		 ORDER BY created_at ASC`,
+		caseID)
+	if err != nil {
+		return nil, fmt.Errorf("list evidence for verification: %w", err)
+	}
+	defer rows.Close()
+
+	var items []VerifiableItem
+	for rows.Next() {
+		var item VerifiableItem
+		var storageKey *string
+		if err := rows.Scan(&item.ID, &item.CaseID, &storageKey, &item.SHA256Hash, &item.TSAToken, &item.TSAStatus, &item.Filename); err != nil {
+			return nil, fmt.Errorf("scan evidence for verification: %w", err)
+		}
+		if storageKey != nil {
+			item.StorageKey = *storageKey
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+// VerifiableItem is a minimal struct for integrity verification.
+type VerifiableItem struct {
+	ID         uuid.UUID
+	CaseID     uuid.UUID
+	StorageKey string
+	SHA256Hash string
+	TSAToken   []byte
+	TSAStatus  string
+	Filename   string
+}
+
+// FlagIntegrityWarning sets the integrity_warning flag to true for the given evidence item.
+func (r *PGRepository) FlagIntegrityWarning(ctx context.Context, evidenceID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE evidence_items SET integrity_warning = true WHERE id = $1`, evidenceID)
+	if err != nil {
+		return fmt.Errorf("flag integrity warning: %w", err)
 	}
 	return nil
 }

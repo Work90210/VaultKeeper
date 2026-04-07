@@ -131,7 +131,7 @@ func TestService_CreateCase_Valid(t *testing.T) {
 		Title:         "Ukraine Investigation",
 		Description:   "Test description",
 		Jurisdiction:  "ICC",
-	}, "user-1")
+	}, "user-1", "Test User")
 
 	if err != nil {
 		t.Fatalf("CreateCase error: %v", err)
@@ -155,7 +155,7 @@ func TestService_CreateCase_HTMLEscaped(t *testing.T) {
 		Title:         `<script>alert("xss")</script>`,
 		Description:   `<img onerror=alert(1)>`,
 		Jurisdiction:  "ICC",
-	}, "user-1")
+	}, "user-1", "Test User")
 
 	if err != nil {
 		t.Fatalf("CreateCase error: %v", err)
@@ -173,7 +173,7 @@ func TestService_CreateCase_EmptyTitle(t *testing.T) {
 	_, err := svc.CreateCase(context.Background(), CreateCaseInput{
 		ReferenceCode: "ICC-TST-2024",
 		Title:         "",
-	}, "user-1")
+	}, "user-1", "Test User")
 
 	if err == nil {
 		t.Fatal("expected error for empty title")
@@ -192,7 +192,7 @@ func TestService_CreateCase_TitleTooLong(t *testing.T) {
 	_, err := svc.CreateCase(context.Background(), CreateCaseInput{
 		ReferenceCode: "ICC-TST-2024",
 		Title:         strings.Repeat("a", MaxTitleLength+1),
-	}, "user-1")
+	}, "user-1", "Test User")
 
 	if err == nil {
 		t.Fatal("expected error for long title")
@@ -205,7 +205,7 @@ func TestService_CreateCase_DescriptionTooLong(t *testing.T) {
 		ReferenceCode: "ICC-TST-2024",
 		Title:         "Valid",
 		Description:   strings.Repeat("a", MaxDescriptionLength+1),
-	}, "user-1")
+	}, "user-1", "Test User")
 
 	if err == nil {
 		t.Fatal("expected error for long description")
@@ -218,7 +218,7 @@ func TestService_CreateCase_JurisdictionTooLong(t *testing.T) {
 		ReferenceCode: "ICC-TST-2024",
 		Title:         "Valid",
 		Jurisdiction:  strings.Repeat("a", MaxJurisdictionLen+1),
-	}, "user-1")
+	}, "user-1", "Test User")
 
 	if err == nil {
 		t.Fatal("expected error for long jurisdiction")
@@ -233,7 +233,7 @@ func TestService_CreateCase_InvalidReferenceCode(t *testing.T) {
 		_, err := svc.CreateCase(context.Background(), CreateCaseInput{
 			ReferenceCode: ref,
 			Title:         "Valid",
-		}, "user-1")
+		}, "user-1", "Test User")
 		if err == nil {
 			t.Errorf("expected error for reference code %q", ref)
 		}
@@ -244,7 +244,7 @@ func TestService_CreateCase_MissingReferenceCode(t *testing.T) {
 	svc, _, _ := newTestService(t)
 	_, err := svc.CreateCase(context.Background(), CreateCaseInput{
 		Title: "Valid",
-	}, "user-1")
+	}, "user-1", "Test User")
 	if err == nil {
 		t.Fatal("expected error for missing reference code")
 	}
@@ -446,7 +446,7 @@ func TestService_CreateCase_RepoError(t *testing.T) {
 	_, err := svc.CreateCase(context.Background(), CreateCaseInput{
 		ReferenceCode: "ICC-UKR-2024",
 		Title:         "Test",
-	}, "user-1")
+	}, "user-1", "Test User")
 
 	if err == nil {
 		t.Fatal("expected error from repo.Create, got nil")
@@ -659,5 +659,202 @@ func TestService_UpdateCase_StatusTransition_FindByIDError(t *testing.T) {
 	}
 	if !errors.Is(err, findErr) {
 		t.Errorf("error = %v, want %v", err, findErr)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SetLegalHold — archived case (L189)
+// ---------------------------------------------------------------------------
+
+func TestService_SetLegalHold_ArchivedCase(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Status: StatusArchived, LegalHold: false}
+
+	err := svc.SetLegalHold(context.Background(), id, true, "user-1")
+	if err == nil {
+		t.Fatal("expected error for archived case")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Errorf("expected ValidationError, got %T: %v", err, err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SetLegalHold — repo.SetLegalHold error (L196)
+// ---------------------------------------------------------------------------
+
+func TestService_SetLegalHold_RepoError(t *testing.T) {
+	inner := newMockRepo()
+	id := uuid.New()
+	inner.cases[id] = Case{ID: id, Status: StatusActive, LegalHold: false}
+	repo := &errRepo{mockRepo: inner, setLegalHoldErr: fmt.Errorf("db error on set")}
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	err := svc.SetLegalHold(context.Background(), id, true, "user-1")
+	if err == nil {
+		t.Fatal("expected error from repo.SetLegalHold")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SetLegalHold — nil custody logger (L205)
+// ---------------------------------------------------------------------------
+
+func TestService_SetLegalHold_NilCustody(t *testing.T) {
+	repo := newMockRepo()
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Status: StatusActive, LegalHold: false}
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	err := svc.SetLegalHold(context.Background(), id, true, "user-1")
+	if err != nil {
+		t.Fatalf("expected nil custody to be handled, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CreateCase — nil custody logger (L64)
+// ---------------------------------------------------------------------------
+
+func TestService_CreateCase_NilCustody(t *testing.T) {
+	repo := newMockRepo()
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	_, err := svc.CreateCase(context.Background(), CreateCaseInput{
+		ReferenceCode: "ICC-NCC-2024",
+		Title:         "No Custody",
+	}, "user-1", "Test User")
+
+	if err != nil {
+		t.Fatalf("expected nil custody to be handled, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// UpdateCase — nil custody logger (L133)
+// ---------------------------------------------------------------------------
+
+func TestService_UpdateCase_NilCustody(t *testing.T) {
+	repo := newMockRepo()
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Old", Status: StatusActive}
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	newTitle := "New"
+	_, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{Title: &newTitle}, "user-1")
+	if err != nil {
+		t.Fatalf("expected nil custody to be handled, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ArchiveCase — nil custody logger (L175)
+// ---------------------------------------------------------------------------
+
+func TestService_ArchiveCase_NilCustody(t *testing.T) {
+	repo := newMockRepo()
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Status: StatusClosed}
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	err := svc.ArchiveCase(context.Background(), id, "user-1")
+	if err != nil {
+		t.Fatalf("expected nil custody to be handled, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateUpdateInput — invalid status transition (non-archived case) (L266)
+// ---------------------------------------------------------------------------
+
+func TestService_UpdateCase_InvalidStatusTransition_ActiveToArchived(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Test", Status: StatusActive}
+
+	archived := StatusArchived
+	_, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{
+		Status: &archived,
+	}, "user-1")
+
+	if err == nil {
+		t.Fatal("expected error for invalid transition active→archived")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Errorf("expected ValidationError, got %T: %v", err, err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// UpdateCase — update an archived case (L107)
+// ---------------------------------------------------------------------------
+
+func TestService_UpdateCase_ArchivedCase(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Archived Case", Status: StatusArchived}
+
+	newTitle := "New Title"
+	_, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{Title: &newTitle}, "user-1")
+	if err == nil {
+		t.Fatal("expected error when updating archived case")
+	}
+	if !strings.Contains(err.Error(), "archived") {
+		t.Errorf("error = %q, want archived message", err.Error())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ListCases — repo error (L79)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// validateUpdateInput — FindByID error on second call (L262-L264)
+// The first FindByID at L102 succeeds (returns active case), but the second
+// FindByID inside validateUpdateInput at L262 fails.
+// ---------------------------------------------------------------------------
+
+func TestService_UpdateCase_ValidateStatusTransition_SecondFindByIDError(t *testing.T) {
+	repo := newMockRepo()
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Title: "Test", Status: StatusActive}
+
+	callCount := 0
+	findErr := fmt.Errorf("db timeout on second find")
+	repo.findByIDFn = func(_ context.Context, findID uuid.UUID) (Case, error) {
+		callCount++
+		if callCount <= 1 {
+			// First call succeeds (from UpdateCase L102)
+			return repo.cases[findID], nil
+		}
+		// Second call fails (from validateUpdateInput L262)
+		return Case{}, findErr
+	}
+
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	newStatus := StatusClosed
+	_, err := svc.UpdateCase(context.Background(), id, UpdateCaseInput{Status: &newStatus}, "user-1")
+	if err == nil {
+		t.Fatal("expected error from second FindByID, got nil")
+	}
+	if !errors.Is(err, findErr) {
+		t.Errorf("error = %v, want %v", err, findErr)
+	}
+}
+
+func TestService_ListCases_Error(t *testing.T) {
+	repo := newMockRepo()
+	repo.findAllFn = func(_ context.Context, _ CaseFilter, _ Pagination) ([]Case, int, error) {
+		return nil, 0, fmt.Errorf("db error")
+	}
+	svc, _ := NewService(repo, nil, `^[A-Z]+-[A-Z]+-\d{4}(-\d+)?$`)
+
+	_, err := svc.ListCases(context.Background(), CaseFilter{SystemAdmin: true}, Pagination{Limit: 10})
+	if err == nil {
+		t.Fatal("expected error from repo.FindAll")
 	}
 }

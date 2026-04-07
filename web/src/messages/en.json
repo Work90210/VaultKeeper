@@ -1,6 +1,7 @@
 {
   "common": {
     "appName": "VaultKeeper",
+    "tagline": "Sovereign Evidence Management",
     "loading": "Loading...",
     "error": "An error occurred",
     "save": "Save",
@@ -8,13 +9,36 @@
     "delete": "Delete",
     "edit": "Edit",
     "search": "Search",
-    "noResults": "No results found"
+    "noResults": "No results found",
+    "actions": "Actions",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "refresh": "Refresh",
+    "download": "Download",
+    "export": "Export",
+    "more": "More",
+    "yes": "Yes",
+    "no": "No",
+    "all": "All",
+    "none": "None",
+    "apply": "Apply",
+    "reset": "Reset",
+    "required": "Required",
+    "optional": "Optional",
+    "createdAt": "Created",
+    "updatedAt": "Updated"
   },
   "auth": {
     "login": "Sign In",
     "logout": "Sign Out",
     "loginTitle": "Sign in to VaultKeeper",
-    "loginDescription": "Sovereign evidence management platform"
+    "loginDescription": "Sovereign evidence management platform",
+    "sessionExpired": "Your session has expired",
+    "unauthorized": "You do not have permission to access this resource",
+    "forbidden": "Access denied"
   },
   "cases": {
     "title": "Cases",
@@ -24,7 +48,18 @@
     "jurisdiction": "Jurisdiction",
     "active": "Active",
     "closed": "Closed",
-    "archived": "Archived"
+    "archived": "Archived",
+    "description": "Description",
+    "createdBy": "Created by",
+    "legalHold": "Legal Hold",
+    "settings": "Case Settings",
+    "roles": "Roles",
+    "assignRole": "Assign Role",
+    "exportCase": "Export Case",
+    "verifyIntegrity": "Verify Integrity",
+    "verifying": "Verifying integrity...",
+    "verificationComplete": "Integrity verification complete",
+    "verificationFailed": "Integrity verification found issues"
   },
   "evidence": {
     "title": "Evidence",
@@ -33,12 +68,94 @@
     "public": "Public",
     "restricted": "Restricted",
     "confidential": "Confidential",
-    "exParte": "Ex Parte"
+    "exParte": "Ex Parte",
+    "evidenceNumber": "Evidence Number",
+    "filename": "Filename",
+    "fileSize": "File Size",
+    "mimeType": "File Type",
+    "hash": "SHA-256 Hash",
+    "uploadedBy": "Uploaded by",
+    "version": "Version",
+    "tags": "Tags",
+    "description": "Description",
+    "custody": "Chain of Custody",
+    "versions": "Version History",
+    "download": "Download File",
+    "destroy": "Destroy Evidence",
+    "destroyReason": "Reason for destruction",
+    "timestampStatus": "Timestamp Status"
+  },
+  "custody": {
+    "title": "Chain of Custody",
+    "action": "Action",
+    "actor": "Actor",
+    "timestamp": "Timestamp",
+    "hash": "Hash",
+    "detail": "Detail",
+    "exportPdf": "Export PDF"
+  },
+  "search": {
+    "title": "Search Evidence",
+    "placeholder": "Search evidence...",
+    "clear": "Clear",
+    "recentSearches": "Recent Searches",
+    "noResults": "No results found",
+    "noResultsHint": "No evidence matching \"{query}\" was found. Try different keywords or adjust your filters.",
+    "resultsCount": "{count} results ({time}ms)",
+    "filters": "Filters",
+    "clearAll": "Clear all",
+    "filterCase": "Case",
+    "allCases": "All Cases",
+    "filterType": "File Type",
+    "fileType": {
+      "documents": "Documents",
+      "images": "Images",
+      "video": "Video",
+      "audio": "Audio"
+    },
+    "filterDateRange": "Date Range",
+    "dateFrom": "From date",
+    "dateTo": "To date",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "viewAll": "View all notifications",
+    "empty": "No notifications",
+    "all": "All",
+    "unread": "Unread",
+    "loadMore": "Load more",
+    "evidenceUploaded": "New evidence uploaded",
+    "userAddedToCase": "Added to case",
+    "integrityWarning": "Integrity warning",
+    "legalHoldChanged": "Legal hold changed",
+    "backupFailed": "Backup failed"
+  },
+  "health": {
+    "title": "System Health",
+    "healthy": "Healthy",
+    "degraded": "Degraded",
+    "unhealthy": "Unhealthy",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "postgres": "PostgreSQL",
+    "minio": "Object Storage",
+    "meilisearch": "Search Engine",
+    "keycloak": "Identity Provider"
   },
   "settings": {
     "title": "Settings",
     "profile": "Profile",
     "security": "Security",
     "notifications": "Notifications"
+  },
+  "errors": {
+    "notFound": "Not found",
+    "forbidden": "Access denied",
+    "serverError": "An unexpected error occurred",
+    "networkError": "Unable to connect to the server",
+    "validationError": "Please check your input"
   }
 }
