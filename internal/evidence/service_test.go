@@ -19,13 +19,15 @@ import (
 // --- Mocks ---
 
 type mockRepo struct {
-	items            map[uuid.UUID]EvidenceItem
-	counter          int
-	createFn         func(ctx context.Context, input CreateEvidenceInput) (EvidenceItem, error)
-	findByIDFn       func(ctx context.Context, id uuid.UUID) (EvidenceItem, error)
-	updateFn         func(ctx context.Context, id uuid.UUID, updates EvidenceUpdate) (EvidenceItem, error)
-	markDestroyedFn  func(ctx context.Context, id uuid.UUID, reason, destroyedBy string) error
-	findByCaseFn     func(ctx context.Context, filter EvidenceFilter, page Pagination) ([]EvidenceItem, int, error)
+	items                 map[uuid.UUID]EvidenceItem
+	counter               int
+	createFn              func(ctx context.Context, input CreateEvidenceInput) (EvidenceItem, error)
+	findByIDFn            func(ctx context.Context, id uuid.UUID) (EvidenceItem, error)
+	updateFn              func(ctx context.Context, id uuid.UUID, updates EvidenceUpdate) (EvidenceItem, error)
+	markDestroyedFn       func(ctx context.Context, id uuid.UUID, reason, destroyedBy string) error
+	findByCaseFn          func(ctx context.Context, filter EvidenceFilter, page Pagination) ([]EvidenceItem, int, error)
+	updateVersionFieldsFn func(ctx context.Context, id uuid.UUID, parentID uuid.UUID, version int) error
+	markNonCurrentFn      func(ctx context.Context, id uuid.UUID) error
 }
 
 func newMockRepo() *mockRepo {
@@ -160,7 +162,23 @@ func (m *mockRepo) MarkPreviousVersions(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
-func (m *mockRepo) UpdateVersionFields(_ context.Context, id uuid.UUID, parentID uuid.UUID, version int) error {
+func (m *mockRepo) MarkNonCurrent(ctx context.Context, id uuid.UUID) error {
+	if m.markNonCurrentFn != nil {
+		return m.markNonCurrentFn(ctx, id)
+	}
+	item, ok := m.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	item.IsCurrent = false
+	m.items[id] = item
+	return nil
+}
+
+func (m *mockRepo) UpdateVersionFields(ctx context.Context, id uuid.UUID, parentID uuid.UUID, version int) error {
+	if m.updateVersionFieldsFn != nil {
+		return m.updateVersionFieldsFn(ctx, id, parentID, version)
+	}
 	item, ok := m.items[id]
 	if !ok {
 		return ErrNotFound
@@ -1637,9 +1655,9 @@ func TestService_UploadNewVersion_MarkPreviousVersionsError(t *testing.T) {
 		UploadedBy:     "user-1",
 	})
 
-	// Should still succeed even if MarkPreviousVersions fails (it just logs)
-	if err != nil {
-		t.Fatalf("expected success despite MarkPreviousVersions error, got: %v", err)
+	// MarkPreviousVersions failure should now fail the request (fail-fast, not best-effort)
+	if err == nil {
+		t.Fatal("expected error when MarkPreviousVersions fails, got nil")
 	}
 }
 

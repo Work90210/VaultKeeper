@@ -1,5 +1,5 @@
 import { authenticatedFetch, type ApiResponse } from '@/lib/api';
-import type { EvidenceItem } from '@/types';
+import type { EvidenceItem, RedactionDraft, RedactionManagementView, RedactionPurpose } from '@/types';
 
 export interface EvidenceListParams {
   q?: string;
@@ -58,4 +58,62 @@ export async function getEvidenceVersions(
   id: string
 ): Promise<ApiResponse<EvidenceItem[]>> {
   return authenticatedFetch<EvidenceItem[]>(`/api/evidence/${id}/versions`);
+}
+
+export interface RedactionArea {
+  page_number: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  reason: string;
+}
+
+export interface RedactedResult {
+  new_evidence_id: string;
+  original_id: string;
+  redaction_count: number;
+  new_hash: string;
+}
+
+export async function applyRedactions(
+  evidenceId: string,
+  redactions: RedactionArea[]
+): Promise<ApiResponse<RedactedResult>> {
+  return authenticatedFetch<RedactedResult>(`/api/evidence/${evidenceId}/redact`, {
+    method: 'POST',
+    body: JSON.stringify({ redactions }),
+  });
+}
+
+// --- Multi-draft API ---
+
+export async function createRedactionDraft(
+  evidenceId: string,
+  name: string,
+  purpose: RedactionPurpose
+): Promise<ApiResponse<RedactionDraft>> {
+  return authenticatedFetch<RedactionDraft>(
+    `/api/evidence/${evidenceId}/redact/drafts`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ name, purpose }),
+    }
+  );
+}
+
+export async function listRedactionDrafts(
+  evidenceId: string
+): Promise<ApiResponse<RedactionDraft[]>> {
+  return authenticatedFetch<RedactionDraft[]>(
+    `/api/evidence/${evidenceId}/redact/drafts`
+  );
+}
+
+export async function getRedactionManagementView(
+  evidenceId: string
+): Promise<ApiResponse<RedactionManagementView>> {
+  return authenticatedFetch<RedactionManagementView>(
+    `/api/evidence/${evidenceId}/redactions`
+  );
 }

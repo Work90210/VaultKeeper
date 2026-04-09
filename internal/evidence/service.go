@@ -421,22 +421,20 @@ func (s *Service) UploadNewVersion(ctx context.Context, parentID uuid.UUID, inpu
 		rootID = *parent.ParentID
 	}
 	if err := s.repo.MarkPreviousVersions(ctx, rootID); err != nil {
-		s.logger.Error("failed to mark previous versions", "parent_id", rootID, "error", err)
+		return EvidenceItem{}, fmt.Errorf("mark previous versions: %w", err)
 	}
 
 	// Update the new evidence to point to the root parent and correct version
 	newVersion := parent.Version + 1
-	updates := EvidenceUpdate{}
-	// We need to update parent_id and version directly — use raw update
-	s.setVersionFields(ctx, evidence.ID, rootID, newVersion)
+	if err := s.setVersionFields(ctx, evidence.ID, rootID, newVersion); err != nil {
+		return EvidenceItem{}, err
+	}
 
 	s.recordCustodyEvent(ctx, parent.CaseID, evidence.ID, "new_version_uploaded", input.UploadedBy, map[string]string{
 		"parent_id":        parent.ID.String(),
 		"previous_version": fmt.Sprintf("%d", parent.Version),
 		"new_version":      fmt.Sprintf("%d", newVersion),
 	})
-
-	_ = updates // suppress unused warning
 	return s.repo.FindByID(ctx, evidence.ID)
 }
 
@@ -445,10 +443,11 @@ func (s *Service) GetVersionHistory(ctx context.Context, evidenceID uuid.UUID) (
 	return s.repo.FindVersionHistory(ctx, evidenceID)
 }
 
-func (s *Service) setVersionFields(ctx context.Context, id, parentID uuid.UUID, version int) {
+func (s *Service) setVersionFields(ctx context.Context, id, parentID uuid.UUID, version int) error {
 	if err := s.repo.UpdateVersionFields(ctx, id, parentID, version); err != nil {
-		s.logger.Error("failed to set version fields", "id", id, "error", err)
+		return fmt.Errorf("set version fields: %w", err)
 	}
+	return nil
 }
 
 func (s *Service) validateUploadInput(input UploadInput) error {

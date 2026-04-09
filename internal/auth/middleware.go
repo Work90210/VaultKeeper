@@ -61,8 +61,10 @@ func NewMiddleware(jwks *JWKSFetcher, keycloakURL, realm, clientID string, logge
 
 func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth for health check and CORS preflight
-		if r.URL.Path == "/health" || r.Method == http.MethodOptions {
+		// Skip auth for health check, CORS preflight, and WebSocket upgrade requests
+		// (WebSocket endpoints do their own token auth via query param)
+		isWSUpgrade := strings.EqualFold(r.Header.Get("Upgrade"), "websocket") && strings.HasSuffix(r.URL.Path, "/redact/collaborate")
+		if r.URL.Path == "/health" || r.Method == http.MethodOptions || isWSUpgrade {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -222,6 +224,12 @@ func extractSystemRole(roles []string) (SystemRole, bool) {
 		return RoleNone, false
 	}
 	return highest, true
+}
+
+// ValidateToken validates a raw JWT string and returns the auth context.
+// Use this for WebSocket connections where the token is passed via query param.
+func (m *Middleware) ValidateToken(ctx context.Context, rawToken string) (AuthContext, error) {
+	return m.validateAndExtract(ctx, rawToken)
 }
 
 func isUpstreamError(err error) bool {

@@ -1,7 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import type { EvidenceItem, CustodyEntry } from '@/types';
+import { RedactionEditor } from '@/components/redaction/redaction-editor';
+import { CollaborativeEditor } from '@/components/redaction/collaborative-editor';
+import { DraftPicker } from '@/components/redaction/draft-picker';
+import { RedactedVersions } from '@/components/evidence/redacted-versions';
+import type { RedactionDraft } from '@/types';
 import {
   formatFileSize,
   mimeIcon,
@@ -35,10 +41,25 @@ function tsaStatusLabel(
 export function EvidenceDetail({
   evidence,
   canEdit,
+  accessToken,
+  username,
 }: {
   evidence: EvidenceItem;
   canEdit: boolean;
+  accessToken?: string;
+  username?: string;
 }) {
+  const router = useRouter();
+  const params = useParams();
+  const locale = (params?.locale as string) || 'en';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showRedactor, setShowRedactor] = useState(false);
+  const [showDraftPicker, setShowDraftPicker] = useState(false);
+  const [selectedDraft, setSelectedDraft] = useState<RedactionDraft | null>(null);
+  const [totalPages, setTotalPages] = useState<number | null>(null);
+
   const clsStyle =
     CLASSIFICATION_STYLES[evidence.classification] ||
     CLASSIFICATION_STYLES.restricted;
@@ -47,6 +68,44 @@ export function EvidenceDetail({
   const exif = evidence.metadata?.exif as
     | Record<string, unknown>
     | undefined;
+
+  const handleVersionUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !accessToken) return;
+
+    setUploading(true);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('classification', evidence.classification);
+
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+      const res = await fetch(`${API_BASE}/api/evidence/${evidence.id}/version`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setUploadError(data?.error || 'Upload failed');
+      } else {
+        const newEvidence = await res.json().catch(() => null);
+        if (newEvidence?.data?.id) {
+          router.push(`/${locale}/evidence/${newEvidence.data.id}`);
+        } else {
+          router.refresh();
+        }
+      }
+    } catch {
+      setUploadError('An unexpected error occurred.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [accessToken, evidence.id, evidence.classification, router]);
 
   return (
     <div
@@ -91,13 +150,139 @@ export function EvidenceDetail({
             </span>
           )}
         </div>
-        <h1
-          className="font-[family-name:var(--font-heading)] text-2xl leading-tight text-balance"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {evidence.title || evidence.filename}
-        </h1>
+        <div className="flex items-start justify-between gap-[var(--space-md)]">
+          <h1
+            className="font-[family-name:var(--font-heading)] text-2xl leading-tight text-balance"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            {evidence.title || evidence.filename}
+          </h1>
+          {canEdit && evidence.is_current && !evidence.destroyed_at && accessToken && (
+            <div className="shrink-0 flex gap-[var(--space-sm)]">
+              {(evidence.mime_type.startsWith('image/') || evidence.mime_type === 'application/pdf') && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (evidence.mime_type === 'application/pdf') {
+                      // PDF: show draft picker for named multi-draft workflow
+                      setShowDraftPicker(true);
+                    } else {
+                      // Image: direct redaction (legacy single-shot)
+                      setShowRedactor(true);
+                    }
+                  }}
+                  className="btn-secondary text-xs"
+                >
+                  Redact
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleVersionUpload}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="btn-secondary text-xs"
+              >
+                {uploading ? 'Uploading\u2026' : 'Upload new version'}
+              </button>
+            </div>
+          )}
+        </div>
+        {uploadError && (
+          <div className="banner-error mt-[var(--space-sm)]">{uploadError}</div>
+        )}
       </div>
+
+      {/* Draft picker dialog */}
+      {showDraftPicker && accessToken && (
+        <DraftPicker
+          evidenceId={evidence.id}
+          accessToken={accessToken}
+          onSelect={async (draft) => {
+            setShowDraftPicker(false);
+            setSelectedDraft(draft);
+            // Fetch page count for PDF
+            try {
+              const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+              const res = await fetch(`${API_BASE}/api/evidence/${evidence.id}/page-count`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              if (res.ok) {
+                const json = await res.json();
+                setTotalPages(json.data?.page_count ?? 1);
+              } else {
+                setTotalPages(1);
+              }
+            } catch {
+              setTotalPages(1);
+            }
+            setShowRedactor(true);
+          }}
+          onClose={() => setShowDraftPicker(false)}
+        />
+      )}
+
+      {showRedactor && accessToken && evidence.mime_type === 'application/pdf' && totalPages !== null && selectedDraft && (
+        <CollaborativeEditor
+          evidenceId={evidence.id}
+          draftId={selectedDraft.id}
+          draftName={selectedDraft.name}
+          draftPurpose={selectedDraft.purpose}
+          totalPages={totalPages}
+          accessToken={accessToken}
+          username={username || 'User'}
+          onClose={() => {
+            setShowRedactor(false);
+            setSelectedDraft(null);
+          }}
+          onApplied={(newEvidenceId) => {
+            setShowRedactor(false);
+            setSelectedDraft(null);
+            router.push(`/${locale}/evidence/${newEvidenceId}`);
+          }}
+        />
+      )}
+
+      {showRedactor && accessToken && evidence.mime_type !== 'application/pdf' && (
+        <RedactionEditor
+          evidenceId={evidence.id}
+          imageUrl={`/api/evidence/${evidence.id}/download`}
+          mimeType={evidence.mime_type}
+          accessToken={accessToken}
+          onApply={async (redactions) => {
+            const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+            const res = await fetch(`${API_BASE}/api/evidence/${evidence.id}/redact`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                redactions: redactions.map((r) => ({
+                  page_number: r.pageNumber,
+                  x: r.x,
+                  y: r.y,
+                  width: r.width,
+                  height: r.height,
+                  reason: r.reason,
+                })),
+              }),
+            });
+            if (!res.ok) {
+              const body = await res.json().catch(() => null);
+              throw new Error(body?.error || 'Redaction failed');
+            }
+            setShowRedactor(false);
+            router.refresh();
+          }}
+          onClose={() => setShowRedactor(false)}
+        />
+      )}
 
       {/* Metadata card */}
       <div className="card-inset grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-lg)] p-[var(--space-md)]">
@@ -294,7 +479,7 @@ export function EvidenceDetail({
         </a>
         {canEdit && (
           <a
-            href={`/en/evidence/${evidence.id}`}
+            href={`/${locale}/evidence/${evidence.id}`}
             className="btn-secondary"
           >
             Edit metadata
@@ -307,6 +492,33 @@ export function EvidenceDetail({
       >
         This download will be logged in the chain of custody.
       </p>
+
+      {/* Redacted Versions panel — only for PDFs with edit access */}
+      {canEdit && accessToken && evidence.mime_type === 'application/pdf' && !evidence.destroyed_at && (
+        <RedactedVersions
+          evidenceId={evidence.id}
+          accessToken={accessToken}
+          onResumeDraft={async (draft) => {
+            setSelectedDraft(draft);
+            try {
+              const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+              const res = await fetch(`${API_BASE}/api/evidence/${evidence.id}/page-count`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              if (res.ok) {
+                const json = await res.json();
+                setTotalPages(json.data?.page_count ?? 1);
+              } else {
+                setTotalPages(1);
+              }
+            } catch {
+              setTotalPages(1);
+            }
+            setShowRedactor(true);
+          }}
+          onNewDraft={() => setShowDraftPicker(true)}
+        />
+      )}
 
       {/* Custody Log & Version History tabs */}
       <EvidenceHistoryTabs evidenceId={evidence.id} />
@@ -393,6 +605,8 @@ interface VersionEntry {
   readonly size_bytes: number;
   readonly created_at: string;
   readonly uploaded_by: string;
+  readonly is_current?: boolean;
+  readonly sha256_hash?: string;
 }
 
 function EvidenceHistoryTabs({ evidenceId }: { evidenceId: string }) {
@@ -406,7 +620,7 @@ function EvidenceHistoryTabs({ evidenceId }: { evidenceId: string }) {
   const [custodyError, setCustodyError] = useState<string | null>(null);
   const [versionsError, setVersionsError] = useState<string | null>(null);
 
-  const loadCustody = async () => {
+  const loadCustody = useCallback(async () => {
     if (custodyLoaded) return;
     try {
       const res = await fetch(`/api/evidence/${evidenceId}/custody`);
@@ -420,9 +634,9 @@ function EvidenceHistoryTabs({ evidenceId }: { evidenceId: string }) {
       setCustodyError('Failed to load custody log');
     }
     setCustodyLoaded(true);
-  };
+  }, [evidenceId, custodyLoaded]);
 
-  const loadVersions = async () => {
+  const loadVersions = useCallback(async () => {
     if (versionsLoaded) return;
     try {
       const res = await fetch(`/api/evidence/${evidenceId}/versions`);
@@ -436,21 +650,21 @@ function EvidenceHistoryTabs({ evidenceId }: { evidenceId: string }) {
       setVersionsError('Failed to load version history');
     }
     setVersionsLoaded(true);
-  };
+  }, [evidenceId, versionsLoaded]);
 
-  const handleTabChange = (tab: HistoryTab) => {
+  const handleTabChange = useCallback((tab: HistoryTab) => {
     setActiveTab(tab);
     if (tab === 'custody') {
       loadCustody();
     } else {
       loadVersions();
     }
-  };
+  }, [loadCustody, loadVersions]);
 
-  // Load custody on initial render
-  if (!custodyLoaded) {
+  // Load custody on initial mount
+  useEffect(() => {
     loadCustody();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="card overflow-hidden">
@@ -595,6 +809,9 @@ function VersionHistoryPanel({
   loaded: boolean;
   error: string | null;
 }) {
+  const router = useRouter();
+  const params = useParams();
+  const locale = (params?.locale as string) || 'en';
   if (!loaded) {
     return (
       <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
@@ -620,40 +837,73 @@ function VersionHistoryPanel({
   }
 
   return (
-    <div className="space-y-[var(--space-sm)]">
-      {versions.map((v) => (
-        <div
-          key={v.id}
-          className="flex items-center justify-between py-[var(--space-sm)]"
-          style={{ borderBottom: '1px solid var(--border-subtle)' }}
-        >
-          <div>
-            <span
-              className="text-sm font-medium font-[family-name:var(--font-mono)]"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              v{v.version}
-            </span>
-            <span
-              className="text-xs ml-[var(--space-sm)]"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {v.filename}
-            </span>
-          </div>
-          <span
-            className="text-xs tabular-nums"
-            style={{ color: 'var(--text-tertiary)' }}
+    <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+      <thead>
+        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+          <th className="text-left py-[var(--space-xs)] pr-[var(--space-md)] text-xs uppercase tracking-wider font-semibold" style={{ color: 'var(--text-tertiary)', width: '3.5rem' }}>Ver</th>
+          <th className="text-left py-[var(--space-xs)] pr-[var(--space-md)] text-xs uppercase tracking-wider font-semibold" style={{ color: 'var(--text-tertiary)' }}>File</th>
+          <th className="text-left py-[var(--space-xs)] pr-[var(--space-md)] text-xs uppercase tracking-wider font-semibold" style={{ color: 'var(--text-tertiary)', width: '9rem' }}>Hash</th>
+          <th className="text-right py-[var(--space-xs)] text-xs uppercase tracking-wider font-semibold" style={{ color: 'var(--text-tertiary)', width: '7rem' }}>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {versions.map((v) => (
+          <tr
+            key={v.id}
+            className="table-row"
+            onClick={() => router.push(`/${locale}/evidence/${v.id}`)}
+            style={{ borderBottom: '1px solid var(--border-subtle)' }}
           >
-            {new Date(v.created_at).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })}
-          </span>
-        </div>
-      ))}
-    </div>
+            <td className="py-[var(--space-sm)] pr-[var(--space-md)]">
+              <span
+                className="font-[family-name:var(--font-mono)] font-semibold"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                v{v.version}
+              </span>
+            </td>
+            <td className="py-[var(--space-sm)] pr-[var(--space-md)]">
+              <div className="flex items-center gap-[var(--space-sm)]">
+                {v.is_current && (
+                  <span
+                    className="badge shrink-0"
+                    style={{
+                      backgroundColor: 'var(--status-active-bg)',
+                      color: 'var(--status-active)',
+                    }}
+                  >
+                    Current
+                  </span>
+                )}
+                <span className="truncate" style={{ color: 'var(--text-secondary)' }}>
+                  {v.filename}
+                </span>
+              </div>
+            </td>
+            <td className="py-[var(--space-sm)] pr-[var(--space-md)]">
+              <span
+                className="font-[family-name:var(--font-mono)] text-xs"
+                style={{ color: 'var(--text-tertiary)' }}
+              >
+                {v.sha256_hash?.slice(0, 12)}{'\u2026'}
+              </span>
+            </td>
+            <td className="py-[var(--space-sm)] text-right">
+              <span
+                className="text-xs tabular-nums"
+                style={{ color: 'var(--text-tertiary)' }}
+              >
+                {new Date(v.created_at).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -670,7 +920,7 @@ function MetaField({
     <div>
       <dt className="field-label">{label}</dt>
       <dd
-        className={`mt-[var(--space-xs)] text-sm ${mono ? 'font-[family-name:var(--font-mono)]' : ''}`}
+        className={`mt-[var(--space-xs)] text-sm break-all ${mono ? 'font-[family-name:var(--font-mono)]' : ''}`}
         style={{ color: 'var(--text-primary)' }}
       >
         {value}

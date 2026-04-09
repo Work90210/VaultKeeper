@@ -893,6 +893,42 @@ func TestRequireSystemRole_AuditLogged(t *testing.T) {
 	}
 }
 
+// TestValidateToken_Success and TestValidateToken_Error exercise the public
+// ValidateToken method, which is the WebSocket entry-point for JWT validation.
+// All branching logic lives in validateAndExtract; these tests confirm the
+// delegation works and bring ValidateToken from 0% to 100%.
+func TestValidateToken_Success(t *testing.T) {
+	builder := newTestJWTBuilder(t)
+	mw, jwksSrv := setupMiddleware(t, builder)
+
+	issuer := jwksSrv.URL + "/realms/test-realm"
+	token := builder.validToken(issuer, "test-client")
+
+	ac, err := mw.ValidateToken(context.Background(), token)
+	if err != nil {
+		t.Fatalf("ValidateToken returned unexpected error: %v", err)
+	}
+	if ac.UserID != "user-123" {
+		t.Errorf("UserID = %q, want %q", ac.UserID, "user-123")
+	}
+	if ac.Email != "test@example.com" {
+		t.Errorf("Email = %q, want %q", ac.Email, "test@example.com")
+	}
+	if ac.SystemRole != RoleCaseAdmin {
+		t.Errorf("SystemRole = %v, want %v", ac.SystemRole, RoleCaseAdmin)
+	}
+}
+
+func TestValidateToken_InvalidToken(t *testing.T) {
+	builder := newTestJWTBuilder(t)
+	mw, _ := setupMiddleware(t, builder)
+
+	_, err := mw.ValidateToken(context.Background(), "not.a.valid.jwt.token")
+	if err == nil {
+		t.Fatal("ValidateToken expected error for malformed token, got nil")
+	}
+}
+
 func assertResponseError(t *testing.T, rr *httptest.ResponseRecorder, wantError string) {
 	t.Helper()
 	var body map[string]any

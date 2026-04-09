@@ -62,6 +62,11 @@ func corsMiddleware(origins []string, appURL string) func(http.Handler) http.Han
 					"Upload-Length",
 					"Upload-Offset",
 					"Tus-Resumable",
+					"Upgrade",
+					"Connection",
+					"Sec-WebSocket-Key",
+					"Sec-WebSocket-Version",
+					"Sec-WebSocket-Protocol",
 				}, ", "))
 				w.Header().Set("Access-Control-Expose-Headers", strings.Join([]string{
 					"Content-Disposition",

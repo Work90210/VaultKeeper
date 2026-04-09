@@ -79,7 +79,7 @@ export function SearchBar({
         router.push(`/${locale}/search?q=${encodeURIComponent(trimmed)}`);
       }
     },
-    [value, onSearch, router]
+    [value, onSearch, router, locale]
   );
 
   const handleClear = () => {

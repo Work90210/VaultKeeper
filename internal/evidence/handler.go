@@ -28,6 +28,7 @@ type CustodyReader interface {
 // Handler provides HTTP endpoints for evidence operations.
 type Handler struct {
 	service   *Service
+	redaction *RedactionService
 	custody   CustodyReader
 	audit     auth.AuditLogger
 	maxUpload int64
@@ -41,6 +42,11 @@ func NewHandler(service *Service, custodyReader CustodyReader, audit auth.AuditL
 		audit:     audit,
 		maxUpload: maxUploadSize,
 	}
+}
+
+// SetRedactionService sets the redaction service on the handler.
+func (h *Handler) SetRedactionService(rs *RedactionService) {
+	h.redaction = rs
 }
 
 // RegisterRoutes mounts evidence routes on the given router.
@@ -60,6 +66,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/custody", h.GetCustodyLog)
 		r.Patch("/", h.UpdateMetadata)
 		r.Delete("/", h.Destroy)
+		r.Post("/version", h.UploadNewVersion)
+		r.Post("/redact", h.ApplyRedactions)
+		r.Post("/redact/preview", h.PreviewRedactions)
 	})
 }
 
@@ -409,6 +418,151 @@ func splitTags(s string) []string {
 		}
 	}
 	return tags
+}
+
+func (h *Handler) UploadNewVersion(w http.ResponseWriter, r *http.Request) {
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	parentID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxUpload+10<<20)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid multipart form")
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "file field is required")
+		return
+	}
+	defer file.Close()
+
+	classification := r.FormValue("classification")
+	if classification == "" {
+		classification = ClassificationRestricted
+	}
+
+	description := r.FormValue("description")
+	source := r.FormValue("source")
+
+	var sourceDate *time.Time
+	if sd := r.FormValue("source_date"); sd != "" {
+		if t, err := time.Parse(time.RFC3339, sd); err == nil {
+			sourceDate = &t
+		} else if t, err := time.Parse("2006-01-02", sd); err == nil {
+			sourceDate = &t
+		}
+	}
+
+	var tags []string
+	if tagsStr := r.FormValue("tags"); tagsStr != "" {
+		if err := json.Unmarshal([]byte(tagsStr), &tags); err != nil {
+			tags = splitTags(tagsStr)
+		}
+	}
+
+	input := UploadInput{
+		File:           file,
+		Filename:       header.Filename,
+		SizeBytes:      header.Size,
+		Classification: classification,
+		Description:    description,
+		Tags:           tags,
+		UploadedBy:     ac.UserID,
+		UploadedByName: ac.Username,
+		Source:         source,
+		SourceDate:     sourceDate,
+	}
+
+	evidence, err := h.service.UploadNewVersion(r.Context(), parentID, input)
+	if err != nil {
+		slog.Error("evidence version upload failed", "error", err, "parent_id", parentID)
+		respondServiceError(w, err)
+		return
+	}
+
+	httputil.RespondJSON(w, http.StatusCreated, evidence)
+}
+
+func (h *Handler) ApplyRedactions(w http.ResponseWriter, r *http.Request) {
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	if h.redaction == nil {
+		httputil.RespondError(w, http.StatusServiceUnavailable, "redaction service not available")
+		return
+	}
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+
+	var body struct {
+		Redactions []RedactionArea `json:"redactions"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	result, err := h.redaction.ApplyRedactions(r.Context(), id, body.Redactions, ac.UserID)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+
+	httputil.RespondJSON(w, http.StatusCreated, result)
+}
+
+func (h *Handler) PreviewRedactions(w http.ResponseWriter, r *http.Request) {
+	if _, ok := auth.GetAuthContext(r.Context()); !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	if h.redaction == nil {
+		httputil.RespondError(w, http.StatusServiceUnavailable, "redaction service not available")
+		return
+	}
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+
+	var body struct {
+		Redactions []RedactionArea `json:"redactions"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	reader, mimeType, err := h.redaction.PreviewRedactions(r.Context(), id, body.Redactions)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	defer reader.Close()
+
+	w.Header().Set("Content-Type", mimeType)
+	w.WriteHeader(http.StatusOK)
+	io.Copy(w, reader) //nolint:errcheck
 }
 
 func respondServiceError(w http.ResponseWriter, err error) {

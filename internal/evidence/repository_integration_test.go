@@ -598,9 +598,9 @@ func TestIntegration_UpdateVersionFields_And_FindVersionHistory(t *testing.T) {
 		t.Fatalf("create original: %v", err)
 	}
 
-	// Create version 2
+	// Create version 2 (production generates unique evidence numbers per version)
 	v2, err := repo.Create(ctx, CreateEvidenceInput{
-		CaseID: caseID, EvidenceNumber: "E1", Filename: "v2.pdf", OriginalName: "v2.pdf",
+		CaseID: caseID, EvidenceNumber: "E1-V2", Filename: "v2.pdf", OriginalName: "v2.pdf",
 		StorageKey: "k2", MimeType: "application/pdf", SizeBytes: 200,
 		SHA256Hash: strings.Repeat("2", 64), Classification: ClassificationPublic, Tags: []string{},
 		UploadedBy: "00000000-0000-4000-8000-000000000001", TSAStatus: TSAStatusPending,

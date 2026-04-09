@@ -2,7 +2,7 @@
 
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 const ERROR_MESSAGES: Record<string, string> = {
   OAuthSignin: 'Unable to start sign in. Please try again.',
@@ -27,33 +27,42 @@ export default function LoginPage() {
   const error = searchParams.get('error');
   const raw = searchParams.get('callbackUrl') || '';
   const callbackUrl = isSafeCallbackUrl(raw) ? raw : '/en/cases';
+  const [redirectFailed, setRedirectFailed] = useState(false);
 
   const errorMessage = error
     ? ERROR_MESSAGES[error] || ERROR_MESSAGES.Default
     : null;
 
-  // No error → skip this page entirely, go straight to Keycloak
   useEffect(() => {
     if (!error) {
+      const timeout = setTimeout(() => setRedirectFailed(true), 8000);
       signIn('keycloak', { callbackUrl });
+      return () => clearTimeout(timeout);
     }
   }, [error, callbackUrl]);
 
-  // While redirecting (no error), show a minimal loading state
-  if (!error) {
+  if (!error && !redirectFailed) {
     return (
       <div
         className="flex min-h-screen items-center justify-center"
         style={{ backgroundColor: 'var(--bg-primary)' }}
       >
-        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-          Redirecting to sign in...
-        </p>
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+            style={{
+              borderColor: 'var(--amber-accent)',
+              borderTopColor: 'transparent',
+            }}
+          />
+          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+            Connecting to identity provider...
+          </p>
+        </div>
       </div>
     );
   }
 
-  // Error state → show the error with a retry button
   return (
     <div
       className="flex min-h-screen items-center justify-center px-[var(--space-lg)]"
@@ -75,10 +84,11 @@ export default function LoginPage() {
               fill="none"
             />
             <path
-              d="M11 7v6m0 2.5v.5"
+              d="M8 12l2.5 2.5L15 9"
               stroke="var(--amber-accent)"
               strokeWidth="1.5"
               strokeLinecap="round"
+              strokeLinejoin="round"
             />
           </svg>
           <h1
@@ -91,21 +101,31 @@ export default function LoginPage() {
 
         <div
           className="card p-[var(--space-xl)]"
-          style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}
+          style={{
+            animation: 'fade-in var(--duration-slow) var(--ease-out-expo)',
+          }}
         >
           <h2
             className="font-[family-name:var(--font-heading)] text-xl"
             style={{ color: 'var(--text-primary)' }}
           >
-            Sign in failed
+            {redirectFailed
+              ? 'Unable to connect'
+              : 'Sign in failed'}
           </h2>
 
           <div className="banner-error mt-[var(--space-md)]">
-            {errorMessage}
+            {redirectFailed
+              ? 'Could not reach the identity provider. Please check that the SSO service is running and try again.'
+              : errorMessage}
           </div>
 
           <button
-            onClick={() => signIn('keycloak', { callbackUrl })}
+            onClick={() => {
+              setRedirectFailed(false);
+              signIn('keycloak', { callbackUrl });
+              setTimeout(() => setRedirectFailed(true), 8000);
+            }}
             className="btn-primary w-full mt-[var(--space-lg)]"
             type="button"
           >

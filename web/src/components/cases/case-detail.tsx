@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EvidencePageClient } from '@/components/evidence/evidence-page-client';
-import type { EvidenceItem } from '@/types';
+import { WitnessList } from '@/components/witnesses/witness-list';
+import { DisclosureList } from '@/components/disclosures/disclosure-list';
+import type { EvidenceItem, Witness, Disclosure } from '@/types';
 
 interface CaseData {
   id: string;
@@ -25,11 +27,13 @@ const STATUS_STYLES: Record<string, { color: string; bg: string }> = {
   archived: { color: 'var(--status-archived)', bg: 'var(--status-archived-bg)' },
 };
 
-type TabKey = 'overview' | 'evidence' | 'settings';
+type TabKey = 'overview' | 'evidence' | 'witnesses' | 'disclosures' | 'settings';
 
 const TABS: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'evidence', label: 'Evidence' },
+  { key: 'witnesses', label: 'Witnesses' },
+  { key: 'disclosures', label: 'Disclosures' },
   { key: 'settings', label: 'Settings', adminOnly: true },
 ];
 
@@ -43,6 +47,9 @@ export function CaseDetail({
   evidenceHasMore,
   canUpload,
   initialTab,
+  witnesses = [],
+  disclosures = [],
+  isProsecutor = false,
 }: {
   caseData: CaseData;
   canEdit: boolean;
@@ -53,6 +60,9 @@ export function CaseDetail({
   evidenceHasMore: boolean;
   canUpload: boolean;
   initialTab?: TabKey;
+  witnesses?: Witness[];
+  disclosures?: Disclosure[];
+  isProsecutor?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab || 'overview');
   const status = STATUS_STYLES[caseData.status] || STATUS_STYLES.archived;
@@ -166,6 +176,24 @@ export function CaseDetail({
           />
         )}
 
+        {activeTab === 'witnesses' && (
+          <WitnessList
+            witnesses={witnesses}
+            onSelect={(id) => window.location.href = `/en/witnesses/${id}`}
+            onAddNew={canUpload ? () => window.location.href = `/en/cases/${caseData.id}/witnesses/new` : undefined}
+            canEdit={canUpload}
+          />
+        )}
+
+        {activeTab === 'disclosures' && (
+          <DisclosureList
+            disclosures={disclosures}
+            onSelect={(id) => window.location.href = `/en/disclosures/${id}`}
+            onCreateNew={isProsecutor ? () => window.location.href = `/en/cases/${caseData.id}/disclosures/new` : undefined}
+            canCreate={isProsecutor}
+          />
+        )}
+
         {activeTab === 'settings' && canEdit && (
           <SettingsPanel caseData={caseData} accessToken={accessToken} />
         )}
@@ -253,35 +281,84 @@ function OverviewPanel({
             </p>
           </div>
         ) : (
-          <div className="space-y-px">
-            {recentEvidence.map((item) => (
-              <a
-                key={item.id}
-                href={`/en/cases/${caseData.id}/evidence?highlight=${item.id}`}
-                className="table-row flex items-center gap-[var(--space-md)] p-[var(--space-sm)] rounded-[var(--radius-md)]"
-                style={{ textDecoration: 'none' }}
-              >
-                <span
-                  className="font-[family-name:var(--font-mono)] text-xs shrink-0"
-                  style={{ color: 'var(--text-tertiary)', minWidth: '5rem' }}
+          <div
+            className="card-inset overflow-hidden"
+            style={{ padding: 0 }}
+          >
+            <table className="w-full text-sm" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '35%' }} />
+                <col style={{ width: '25%' }} />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '20%' }} />
+              </colgroup>
+              <thead>
+                <tr
+                  style={{ borderBottom: '1px solid var(--border-subtle)' }}
                 >
-                  {item.evidence_number}
-                </span>
-                <span
-                  className="text-sm truncate"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  {item.title || item.original_name}
-                </span>
-                <ClassificationBadge classification={item.classification} />
-                <span
-                  className="text-xs ml-auto shrink-0"
-                  style={{ color: 'var(--text-tertiary)' }}
-                >
-                  {formatDate(item.created_at)}
-                </span>
-              </a>
-            ))}
+                  <th
+                    className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs font-semibold uppercase tracking-[0.06em]"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
+                    File
+                  </th>
+                  <th
+                    className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs font-semibold uppercase tracking-[0.06em]"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
+                    Reference
+                  </th>
+                  <th
+                    className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs font-semibold uppercase tracking-[0.06em]"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
+                    Classification
+                  </th>
+                  <th
+                    className="text-right px-[var(--space-md)] py-[var(--space-sm)] text-xs font-semibold uppercase tracking-[0.06em]"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
+                    Date
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentEvidence.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="table-row"
+                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                    onClick={() => window.location.href = `/en/evidence/${item.id}`}
+                  >
+                    <td
+                      className="px-[var(--space-md)] py-[var(--space-sm)]"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      <span className="block truncate max-w-[280px]">
+                        {item.title || item.original_name}
+                      </span>
+                    </td>
+                    <td
+                      className="px-[var(--space-md)] py-[var(--space-sm)] font-[family-name:var(--font-mono)] text-xs"
+                      style={{ color: 'var(--text-tertiary)' }}
+                    >
+                      <span className="block truncate max-w-[200px]">
+                        {item.evidence_number}
+                      </span>
+                    </td>
+                    <td className="px-[var(--space-md)] py-[var(--space-sm)]">
+                      <ClassificationBadge classification={item.classification} />
+                    </td>
+                    <td
+                      className="px-[var(--space-md)] py-[var(--space-sm)] text-xs text-right"
+                      style={{ color: 'var(--text-tertiary)' }}
+                    >
+                      {formatDate(item.created_at)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

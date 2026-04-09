@@ -18,6 +18,38 @@ const (
 	ClassificationExParte      = "ex_parte"
 )
 
+// RedactionPurpose defines the legal purpose of a redacted version.
+type RedactionPurpose string
+
+const (
+	PurposeDisclosureDefence     RedactionPurpose = "disclosure_defence"
+	PurposeDisclosureProsecution RedactionPurpose = "disclosure_prosecution"
+	PurposePublicRelease         RedactionPurpose = "public_release"
+	PurposeCourtSubmission       RedactionPurpose = "court_submission"
+	PurposeWitnessProtection     RedactionPurpose = "witness_protection"
+	PurposeInternalReview        RedactionPurpose = "internal_review"
+)
+
+// ValidPurposes is the set of allowed redaction purpose values.
+var ValidPurposes = map[RedactionPurpose]bool{
+	PurposeDisclosureDefence:     true,
+	PurposeDisclosureProsecution: true,
+	PurposePublicRelease:         true,
+	PurposeCourtSubmission:       true,
+	PurposeWitnessProtection:     true,
+	PurposeInternalReview:        true,
+}
+
+// PurposeCode maps a redaction purpose to its evidence number suffix code.
+var PurposeCode = map[RedactionPurpose]string{
+	PurposeDisclosureDefence:     "DEFENCE",
+	PurposeDisclosureProsecution: "PROSECUTION",
+	PurposePublicRelease:         "PUBLIC",
+	PurposeCourtSubmission:       "COURT",
+	PurposeWitnessProtection:     "WITNESS",
+	PurposeInternalReview:        "INTERNAL",
+}
+
 // TSA status values.
 const (
 	TSAStatusPending  = "pending"
@@ -82,6 +114,13 @@ type EvidenceItem struct {
 	DestroyedBy    *string    `json:"destroyed_by,omitempty"`
 	DestroyReason  *string    `json:"destroy_reason,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
+
+	// Redaction metadata (populated only for finalized redacted derivatives)
+	RedactionName        *string           `json:"redaction_name,omitempty"`
+	RedactionPurpose     *RedactionPurpose `json:"redaction_purpose,omitempty"`
+	RedactionAreaCount   *int              `json:"redaction_area_count,omitempty"`
+	RedactionAuthorID    *uuid.UUID        `json:"redaction_author_id,omitempty"`
+	RedactionFinalizedAt *time.Time        `json:"redaction_finalized_at,omitempty"`
 }
 
 // EvidenceFilter specifies query parameters for listing evidence.
@@ -125,6 +164,13 @@ type CreateEvidenceInput struct {
 	TSATimestamp   *time.Time
 	TSAStatus      string
 	ExifData       []byte
+
+	// Redaction metadata (set during finalize-from-draft)
+	RedactionName        *string
+	RedactionPurpose     *RedactionPurpose
+	RedactionAreaCount   *int
+	RedactionAuthorID    *uuid.UUID
+	RedactionFinalizedAt *time.Time
 }
 
 // DestroyInput holds the parameters for destroying evidence.
@@ -193,4 +239,45 @@ func ClampPagination(p Pagination) Pagination {
 // StorageObjectKey builds the MinIO key for an evidence file.
 func StorageObjectKey(caseID, evidenceID uuid.UUID, version int, filename string) string {
 	return fmt.Sprintf("evidence/%s/%s/%d/%s", caseID, evidenceID, version, filename)
+}
+
+// RedactionDraft represents a named redaction draft in progress.
+type RedactionDraft struct {
+	ID          uuid.UUID        `json:"id"`
+	EvidenceID  uuid.UUID        `json:"evidence_id"`
+	CaseID      uuid.UUID        `json:"case_id"`
+	Name        string           `json:"name"`
+	Purpose     RedactionPurpose `json:"purpose"`
+	AreaCount   int              `json:"area_count"`
+	CreatedBy   string           `json:"created_by"`
+	Status      string           `json:"status"`
+	LastSavedAt time.Time        `json:"last_saved_at"`
+	CreatedAt   time.Time        `json:"created_at"`
+}
+
+// FinalizedRedaction represents a finalized redacted evidence derivative.
+type FinalizedRedaction struct {
+	ID             uuid.UUID        `json:"id"`
+	EvidenceNumber string           `json:"evidence_number"`
+	Name           string           `json:"name"`
+	Purpose        RedactionPurpose `json:"purpose"`
+	AreaCount      int              `json:"area_count"`
+	Author         string           `json:"author"`
+	FinalizedAt    time.Time        `json:"finalized_at"`
+}
+
+// RedactionManagementView combines finalized versions and active drafts.
+type RedactionManagementView struct {
+	Finalized []FinalizedRedaction `json:"finalized"`
+	Drafts    []RedactionDraft     `json:"drafts"`
+}
+
+// FinalizeInput holds the parameters for finalizing a draft into a permanent redacted copy.
+type FinalizeInput struct {
+	EvidenceID     uuid.UUID
+	DraftID        uuid.UUID
+	Description    string
+	Classification string
+	ActorID        string
+	ActorName      string
 }

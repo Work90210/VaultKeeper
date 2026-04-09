@@ -35,6 +35,7 @@ type Repository interface {
 	FindVersionHistory(ctx context.Context, evidenceID uuid.UUID) ([]EvidenceItem, error)
 	MarkPreviousVersions(ctx context.Context, parentID uuid.UUID) error
 	UpdateVersionFields(ctx context.Context, id uuid.UUID, parentID uuid.UUID, version int) error
+	MarkNonCurrent(ctx context.Context, id uuid.UUID) error
 }
 
 type dbPool interface {
@@ -58,7 +59,8 @@ const evidenceColumns = `id, case_id, evidence_number, filename, original_name, 
 	thumbnail_key, mime_type, size_bytes, sha256_hash, classification, description,
 	tags, uploaded_by, uploaded_by_name, is_current, version, parent_id, tsa_token, tsa_name, tsa_timestamp,
 	tsa_status, tsa_retry_count, tsa_last_retry, exif_data, source, source_date,
-	destroyed_at, destroyed_by, destroy_reason, created_at`
+	destroyed_at, destroyed_by, destroy_reason, created_at,
+	redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at`
 
 func scanEvidence(row pgx.Row) (EvidenceItem, error) {
 	var e EvidenceItem
@@ -70,6 +72,7 @@ func scanEvidence(row pgx.Row) (EvidenceItem, error) {
 		&e.TSALastRetry, &e.ExifData, &e.Source, &e.SourceDate,
 		&e.DestroyedAt, &e.DestroyedBy, &e.DestroyReason,
 		&e.CreatedAt,
+		&e.RedactionName, &e.RedactionPurpose, &e.RedactionAreaCount, &e.RedactionAuthorID, &e.RedactionFinalizedAt,
 	)
 	if e.Tags == nil {
 		e.Tags = []string{}
@@ -89,6 +92,7 @@ func scanEvidenceRows(rows pgx.Rows) ([]EvidenceItem, error) {
 			&e.TSALastRetry, &e.ExifData, &e.Source, &e.SourceDate,
 			&e.DestroyedAt, &e.DestroyedBy, &e.DestroyReason,
 			&e.CreatedAt,
+			&e.RedactionName, &e.RedactionPurpose, &e.RedactionAreaCount, &e.RedactionAuthorID, &e.RedactionFinalizedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan evidence row: %w", err)
@@ -105,8 +109,10 @@ func (r *PGRepository) Create(ctx context.Context, input CreateEvidenceInput) (E
 	query := fmt.Sprintf(`INSERT INTO evidence_items
 		(case_id, evidence_number, filename, original_name, storage_key, mime_type, size_bytes,
 		 sha256_hash, classification, description, tags, uploaded_by, uploaded_by_name, tsa_token, tsa_name,
-		 tsa_timestamp, tsa_status, exif_data, source, source_date)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		 tsa_timestamp, tsa_status, exif_data, source, source_date,
+		 redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+		        $21, $22, $23, $24, $25)
 		RETURNING %s`, evidenceColumns)
 
 	row := r.pool.QueryRow(ctx, query,
@@ -115,6 +121,7 @@ func (r *PGRepository) Create(ctx context.Context, input CreateEvidenceInput) (E
 		input.Classification, input.Description, input.Tags, input.UploadedBy,
 		input.UploadedByName, input.TSAToken, input.TSAName, input.TSATimestamp, input.TSAStatus, input.ExifData,
 		input.Source, input.SourceDate,
+		input.RedactionName, input.RedactionPurpose, input.RedactionAreaCount, input.RedactionAuthorID, input.RedactionFinalizedAt,
 	)
 
 	return scanEvidence(row)
@@ -145,6 +152,9 @@ func (r *PGRepository) FindByCase(ctx context.Context, filter EvidenceFilter, pa
 
 	if filter.CurrentOnly {
 		conditions = append(conditions, "e.is_current = true")
+		// Exclude redacted copies from the main grid — they're accessed through
+		// the original's detail page or via disclosure to defence
+		conditions = append(conditions, "NOT (e.tags @> '{redacted}')")
 	}
 
 	if !filter.IncludeDestroyed {
@@ -187,10 +197,15 @@ func (r *PGRepository) FindByCase(ctx context.Context, filter EvidenceFilter, pa
 		argIdx++
 	}
 
-	// Defence role: only show disclosed evidence
+	// Defence role: only show disclosed evidence.
+	// When a disclosure has redacted=true, prefer the redacted copy (parent_id = original)
+	// over the original. Non-redacted disclosures show the original directly.
 	joinClause := ""
 	if filter.UserRole == "defence" {
-		joinClause = " JOIN disclosures d ON d.evidence_id = e.id AND d.case_id = e.case_id"
+		joinClause = ` JOIN disclosures d ON d.case_id = e.case_id AND (
+			(d.redacted = false AND d.evidence_id = e.id) OR
+			(d.redacted = true AND e.parent_id = d.evidence_id)
+		)`
 	}
 
 	where := "WHERE " + strings.Join(conditions, " AND ")
@@ -441,6 +456,15 @@ func (r *PGRepository) MarkPreviousVersions(ctx context.Context, parentID uuid.U
 	return nil
 }
 
+func (r *PGRepository) MarkNonCurrent(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE evidence_items SET is_current = false WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("mark non-current: %w", err)
+	}
+	return nil
+}
+
 // ListByCaseForExport returns all current, non-destroyed evidence items for case export.
 // When userRole is "defence", only disclosed evidence is returned.
 func (r *PGRepository) ListByCaseForExport(ctx context.Context, caseID uuid.UUID, userRole string) ([]EvidenceItem, error) {
@@ -546,6 +570,285 @@ func decodeCursor(cursor string) (uuid.UUID, error) {
 
 func encodeCursor(id uuid.UUID) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(id.String()))
+}
+
+// --- Multi-draft CRUD ---
+
+// CreateDraft creates a new named redaction draft for an evidence item.
+func (r *PGRepository) CreateDraft(ctx context.Context, evidenceID, caseID uuid.UUID, name string, purpose RedactionPurpose, createdBy string) (RedactionDraft, error) {
+	var d RedactionDraft
+	err := r.pool.QueryRow(ctx,
+		`INSERT INTO redaction_drafts (id, evidence_id, case_id, name, purpose, created_by, yjs_state, status, last_saved_at, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, NULL, 'draft', NOW(), NOW())
+		 RETURNING id, evidence_id, case_id, name, purpose, area_count, created_by, status, last_saved_at, created_at`,
+		uuid.New(), evidenceID, caseID, name, purpose, createdBy,
+	).Scan(&d.ID, &d.EvidenceID, &d.CaseID, &d.Name, &d.Purpose, &d.AreaCount, &d.CreatedBy, &d.Status, &d.LastSavedAt, &d.CreatedAt)
+	if err != nil {
+		return RedactionDraft{}, fmt.Errorf("create redaction draft: %w", err)
+	}
+	return d, nil
+}
+
+// FindDraftByID loads a draft by ID, scoped to the given evidence item.
+func (r *PGRepository) FindDraftByID(ctx context.Context, draftID, evidenceID uuid.UUID) (RedactionDraft, []byte, error) {
+	var d RedactionDraft
+	var yjsState []byte
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, evidence_id, case_id, name, purpose, area_count, created_by, status, last_saved_at, created_at, yjs_state
+		 FROM redaction_drafts WHERE id = $1 AND evidence_id = $2`,
+		draftID, evidenceID,
+	).Scan(&d.ID, &d.EvidenceID, &d.CaseID, &d.Name, &d.Purpose, &d.AreaCount, &d.CreatedBy, &d.Status, &d.LastSavedAt, &d.CreatedAt, &yjsState)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return RedactionDraft{}, nil, ErrNotFound
+		}
+		return RedactionDraft{}, nil, fmt.Errorf("find draft by id: %w", err)
+	}
+	return d, yjsState, nil
+}
+
+// ListDrafts returns all non-discarded drafts for an evidence item.
+func (r *PGRepository) ListDrafts(ctx context.Context, evidenceID uuid.UUID) ([]RedactionDraft, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, evidence_id, case_id, name, purpose, area_count, created_by, status, last_saved_at, created_at
+		 FROM redaction_drafts WHERE evidence_id = $1 AND status != 'discarded'
+		 ORDER BY last_saved_at DESC`,
+		evidenceID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list drafts: %w", err)
+	}
+	defer rows.Close()
+
+	var drafts []RedactionDraft
+	for rows.Next() {
+		var d RedactionDraft
+		if err := rows.Scan(&d.ID, &d.EvidenceID, &d.CaseID, &d.Name, &d.Purpose, &d.AreaCount, &d.CreatedBy, &d.Status, &d.LastSavedAt, &d.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan draft row: %w", err)
+		}
+		drafts = append(drafts, d)
+	}
+	if drafts == nil {
+		drafts = []RedactionDraft{}
+	}
+	return drafts, rows.Err()
+}
+
+// UpdateDraft saves areas and optionally updates name/purpose on a draft.
+// The evidenceID parameter prevents cross-evidence IDOR attacks.
+func (r *PGRepository) UpdateDraft(ctx context.Context, draftID, evidenceID uuid.UUID, yjsState []byte, areaCount int, name *string, purpose *RedactionPurpose) (RedactionDraft, error) {
+	var sets []string
+	var args []any
+	argIdx := 1
+
+	sets = append(sets, fmt.Sprintf("yjs_state = $%d", argIdx))
+	args = append(args, yjsState)
+	argIdx++
+
+	sets = append(sets, fmt.Sprintf("area_count = $%d", argIdx))
+	args = append(args, areaCount)
+	argIdx++
+
+	sets = append(sets, "last_saved_at = NOW()")
+
+	if name != nil {
+		sets = append(sets, fmt.Sprintf("name = $%d", argIdx))
+		args = append(args, *name)
+		argIdx++
+	}
+	if purpose != nil {
+		sets = append(sets, fmt.Sprintf("purpose = $%d", argIdx))
+		args = append(args, *purpose)
+		argIdx++
+	}
+
+	args = append(args, draftID)
+	argIdx++
+	args = append(args, evidenceID)
+	query := fmt.Sprintf(
+		`UPDATE redaction_drafts SET %s WHERE id = $%d AND evidence_id = $%d AND status = 'draft'
+		 RETURNING id, evidence_id, case_id, name, purpose, area_count, created_by, status, last_saved_at, created_at`,
+		strings.Join(sets, ", "), argIdx-1, argIdx,
+	)
+
+	var d RedactionDraft
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
+		&d.ID, &d.EvidenceID, &d.CaseID, &d.Name, &d.Purpose, &d.AreaCount, &d.CreatedBy, &d.Status, &d.LastSavedAt, &d.CreatedAt,
+	)
+	if err != nil {
+		return RedactionDraft{}, fmt.Errorf("update draft: %w", err)
+	}
+	return d, nil
+}
+
+// DiscardDraft soft-deletes a draft (status → discarded).
+// The evidenceID parameter prevents cross-evidence IDOR attacks.
+func (r *PGRepository) DiscardDraft(ctx context.Context, draftID, evidenceID uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE redaction_drafts SET status = 'discarded' WHERE id = $1 AND evidence_id = $2 AND status = 'draft'`,
+		draftID, evidenceID,
+	)
+	if err != nil {
+		return fmt.Errorf("discard draft: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// LockDraftForFinalize acquires a row-level lock on the draft within a transaction.
+func (r *PGRepository) LockDraftForFinalize(ctx context.Context, tx pgx.Tx, draftID uuid.UUID) (RedactionDraft, []byte, error) {
+	var d RedactionDraft
+	var yjsState []byte
+	err := tx.QueryRow(ctx,
+		`SELECT id, evidence_id, case_id, name, purpose, area_count, created_by, status, last_saved_at, created_at, yjs_state
+		 FROM redaction_drafts WHERE id = $1 FOR UPDATE`,
+		draftID,
+	).Scan(&d.ID, &d.EvidenceID, &d.CaseID, &d.Name, &d.Purpose, &d.AreaCount, &d.CreatedBy, &d.Status, &d.LastSavedAt, &d.CreatedAt, &yjsState)
+	if err != nil {
+		return RedactionDraft{}, nil, fmt.Errorf("lock draft for finalize: %w", err)
+	}
+	return d, yjsState, nil
+}
+
+// MarkDraftApplied sets draft status to 'applied' within a transaction.
+func (r *PGRepository) MarkDraftApplied(ctx context.Context, tx pgx.Tx, draftID, evidenceID uuid.UUID) error {
+	_, err := tx.Exec(ctx,
+		`UPDATE redaction_drafts SET status = 'applied' WHERE id = $1 AND evidence_id = $2`,
+		draftID, evidenceID,
+	)
+	if err != nil {
+		return fmt.Errorf("mark draft applied: %w", err)
+	}
+	return nil
+}
+
+// ListFinalizedRedactions returns finalized redacted derivatives of an evidence item.
+func (r *PGRepository) ListFinalizedRedactions(ctx context.Context, evidenceID uuid.UUID) ([]FinalizedRedaction, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT e.id, COALESCE(e.evidence_number, ''), COALESCE(e.redaction_name, ''),
+		        COALESCE(e.redaction_purpose, 'internal_review'), COALESCE(e.redaction_area_count, 0),
+		        COALESCE(e.uploaded_by_name, e.uploaded_by::text), COALESCE(e.redaction_finalized_at, e.created_at)
+		 FROM evidence_items e
+		 WHERE e.parent_id = $1 AND e.redaction_name IS NOT NULL
+		 ORDER BY e.created_at DESC`,
+		evidenceID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list finalized redactions: %w", err)
+	}
+	defer rows.Close()
+
+	var items []FinalizedRedaction
+	for rows.Next() {
+		var f FinalizedRedaction
+		if err := rows.Scan(&f.ID, &f.EvidenceNumber, &f.Name, &f.Purpose, &f.AreaCount, &f.Author, &f.FinalizedAt); err != nil {
+			return nil, fmt.Errorf("scan finalized redaction: %w", err)
+		}
+		items = append(items, f)
+	}
+	if items == nil {
+		items = []FinalizedRedaction{}
+	}
+	return items, rows.Err()
+}
+
+// GetManagementView returns both finalized versions and active drafts for an evidence item.
+// Uses a REPEATABLE READ transaction to guarantee a consistent point-in-time snapshot.
+func (r *PGRepository) GetManagementView(ctx context.Context, evidenceID uuid.UUID) (RedactionManagementView, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return RedactionManagementView{}, fmt.Errorf("begin management view tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	finalized, err := r.ListFinalizedRedactions(ctx, evidenceID)
+	if err != nil {
+		return RedactionManagementView{}, err
+	}
+
+	drafts, err := r.ListDrafts(ctx, evidenceID)
+	if err != nil {
+		return RedactionManagementView{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return RedactionManagementView{}, fmt.Errorf("commit management view tx: %w", err)
+	}
+
+	return RedactionManagementView{
+		Finalized: finalized,
+		Drafts:    drafts,
+	}, nil
+}
+
+// CheckEvidenceNumberExists checks if an evidence number is already in use.
+func (r *PGRepository) CheckEvidenceNumberExists(ctx context.Context, number string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM evidence_items WHERE evidence_number = $1)`,
+		number,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check evidence number exists: %w", err)
+	}
+	return exists, nil
+}
+
+// CreateWithTx creates an evidence item within an existing transaction.
+func (r *PGRepository) CreateWithTx(ctx context.Context, tx pgx.Tx, input CreateEvidenceInput) (EvidenceItem, error) {
+	query := fmt.Sprintf(`INSERT INTO evidence_items
+		(case_id, evidence_number, filename, original_name, storage_key, mime_type, size_bytes,
+		 sha256_hash, classification, description, tags, uploaded_by, uploaded_by_name, tsa_token, tsa_name,
+		 tsa_timestamp, tsa_status, exif_data, source, source_date,
+		 redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+		        $21, $22, $23, $24, $25)
+		RETURNING %s`, evidenceColumns)
+
+	row := tx.QueryRow(ctx, query,
+		input.CaseID, input.EvidenceNumber, input.Filename, input.OriginalName,
+		input.StorageKey, input.MimeType, input.SizeBytes, input.SHA256Hash,
+		input.Classification, input.Description, input.Tags, input.UploadedBy,
+		input.UploadedByName, input.TSAToken, input.TSAName, input.TSATimestamp, input.TSAStatus, input.ExifData,
+		input.Source, input.SourceDate,
+		input.RedactionName, input.RedactionPurpose, input.RedactionAreaCount, input.RedactionAuthorID, input.RedactionFinalizedAt,
+	)
+
+	return scanEvidence(row)
+}
+
+// MarkNonCurrentWithTx marks an evidence item as non-current within a transaction.
+func (r *PGRepository) MarkNonCurrentWithTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
+	_, err := tx.Exec(ctx,
+		`UPDATE evidence_items SET is_current = false WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("mark non-current (tx): %w", err)
+	}
+	return nil
+}
+
+// UpdateVersionFieldsWithTx sets parent_id and version within a transaction.
+func (r *PGRepository) UpdateVersionFieldsWithTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, parentID uuid.UUID, version int) error {
+	_, err := tx.Exec(ctx,
+		`UPDATE evidence_items SET parent_id = $1, version = $2, is_current = true WHERE id = $3`,
+		parentID, version, id)
+	if err != nil {
+		return fmt.Errorf("update version fields (tx): %w", err)
+	}
+	return nil
+}
+
+// SetDerivativeParentWithTx sets parent_id and marks a derivative as non-current in a single statement.
+func (r *PGRepository) SetDerivativeParentWithTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, parentID uuid.UUID) error {
+	_, err := tx.Exec(ctx,
+		`UPDATE evidence_items SET parent_id = $1, version = 1, is_current = false WHERE id = $2`,
+		parentID, id)
+	if err != nil {
+		return fmt.Errorf("set derivative parent: %w", err)
+	}
+	return nil
 }
 
 // prefixColumns adds a table alias prefix to a comma-separated column list.

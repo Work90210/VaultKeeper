@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/golang-migrate/migrate/v4"
+	migratedatabase "github.com/golang-migrate/migrate/v4/database"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -173,11 +175,55 @@ func TestDoMigrate_SourceURL(t *testing.T) {
 
 // --- pgx adapter types ---
 
+// stubRawPoolAcquirer implements rawPoolAcquirer without a real Postgres pool.
+type stubRawPoolAcquirer struct {
+	conn pgxAcquiredConn
+	err  error
+}
+
+func (s *stubRawPoolAcquirer) Acquire(_ context.Context) (pgxAcquiredConn, error) {
+	return s.conn, s.err
+}
+
+// TestPgxPool_AcquireSuccess exercises the pgxPool.Acquire success path using a
+// stub rawPoolAcquirer so no live Postgres connection is needed.
+func TestPgxPool_AcquireSuccess(t *testing.T) {
+	stub := &stubPgxAcquiredConn{}
+	p := &pgxPool{pool: &stubRawPoolAcquirer{conn: stub}}
+
+	conn, err := p.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if conn == nil {
+		t.Fatal("expected non-nil migrationConn")
+	}
+
+	// Verify the returned conn delegates correctly.
+	_, execErr := conn.Exec(context.Background(), "SELECT 1")
+	if execErr != nil {
+		t.Fatalf("Exec: %v", execErr)
+	}
+	conn.Release()
+	if !stub.released {
+		t.Fatal("Release was not forwarded")
+	}
+}
+
 func TestPgxPool_AcquireError(t *testing.T) {
-	p := &pgxPool{pool: dummyPool(t)}
+	want := errors.New("acquire-error")
+	p := &pgxPool{pool: &stubRawPoolAcquirer{err: want}}
+	_, err := p.Acquire(context.Background())
+	if !errors.Is(err, want) {
+		t.Fatalf("err = %v, want %v", err, want)
+	}
+}
+
+func TestPgxPool_AcquireError_LivePool(t *testing.T) {
+	p := prodMakePool(dummyPool(t))
 	_, err := p.Acquire(context.Background())
 	if err == nil {
-		t.Fatal("expected error")
+		t.Fatal("expected error from unreachable dummy pool")
 	}
 }
 
@@ -214,6 +260,81 @@ func TestProdMakeFactory_Error(t *testing.T) {
 	_, err := prodMakeFactory("file:///x", noopDB(t))
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+// TestProdMakeFactory_DriverSuccessNewInstanceError stubs makePostgresDriver to
+// succeed (bypassing the need for a live DB) so that the newMigrateInstance
+// call on line 88 of migrate.go is reached. This covers the previously 0%
+// success-path statement in prodMakeFactory.
+func TestProdMakeFactory_DriverSuccessNewInstanceError(t *testing.T) {
+	origDriver := makePostgresDriver
+	origInstance := newMigrateInstance
+	defer func() {
+		makePostgresDriver = origDriver
+		newMigrateInstance = origInstance
+	}()
+
+	wantErr := errors.New("new-instance-error")
+	makePostgresDriver = func(_ *sql.DB) (migratedatabase.Driver, error) {
+		return nil, nil // simulate success; drv value unused by newMigrateInstance stub
+	}
+	newMigrateInstance = func(src, dbname string, drv migratedatabase.Driver) (*migrate.Migrate, error) {
+		return nil, wantErr
+	}
+
+	_, err := prodMakeFactory("file:///x", noopDB(t))
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("err = %v, want %v", err, wantErr)
+	}
+}
+
+// --- wrapPgxConn ---
+
+// stubPgxAcquiredConn implements pgxAcquiredConn without a real Postgres connection.
+type stubPgxAcquiredConn struct {
+	tag      pgconn.CommandTag
+	execErr  error
+	released bool
+}
+
+func (s *stubPgxAcquiredConn) Exec(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+	return s.tag, s.execErr
+}
+func (s *stubPgxAcquiredConn) Release() { s.released = true }
+
+// TestWrapPgxConn_Exec confirms that wrapPgxConn delegates Exec to the underlying conn.
+func TestWrapPgxConn_Exec(t *testing.T) {
+	stub := &stubPgxAcquiredConn{}
+	conn := wrapPgxConn(stub)
+
+	_, err := conn.Exec(context.Background(), "SELECT 1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestWrapPgxConn_ExecError confirms that wrapPgxConn propagates errors from Exec.
+func TestWrapPgxConn_ExecError(t *testing.T) {
+	want := errors.New("exec failed")
+	stub := &stubPgxAcquiredConn{execErr: want}
+	conn := wrapPgxConn(stub)
+
+	_, err := conn.Exec(context.Background(), "SELECT 1")
+	if !errors.Is(err, want) {
+		t.Fatalf("err = %v, want %v", err, want)
+	}
+}
+
+// TestWrapPgxConn_Release confirms that wrapPgxConn delegates Release to the underlying conn.
+func TestWrapPgxConn_Release(t *testing.T) {
+	stub := &stubPgxAcquiredConn{}
+	conn := wrapPgxConn(stub)
+
+	conn.Release()
+
+	if !stub.released {
+		t.Fatal("Release was not forwarded to the underlying conn")
 	}
 }
 

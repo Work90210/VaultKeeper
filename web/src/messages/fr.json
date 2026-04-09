@@ -157,5 +157,269 @@
     "serverError": "Une erreur inattendue est survenue",
     "networkError": "Impossible de se connecter au serveur",
     "validationError": "Veuillez vérifier vos données"
+  },
+  "marketing": {
+    "nav": {
+      "features": "Fonctionnalités",
+      "pricing": "Tarifs",
+      "about": "À propos",
+      "contact": "Contact",
+      "signIn": "Se connecter",
+      "requestAccess": "Demander un accès pilote"
+    },
+    "hero": {
+      "badge": "Gestion souveraine des preuves",
+      "title": "Là où la chaîne de traçabilité, la provenance et la divulgation sont hors de question.",
+      "description": "VaultKeeper offre aux équipes d\u2019enquête un contrôle rigoureux sur les flux de travail liés aux preuves \u2014 de l\u2019acquisition sécurisée au suivi de la chaîne de traçabilité jusqu\u2019aux dossiers prêts pour le tribunal.",
+      "primaryCta": "Demander un accès pilote",
+      "secondaryCta": "Explorer les fonctionnalités",
+      "indicator1": "Chiffrement de bout en bout",
+      "indicator2": "Pistes d\u2019audit immuables",
+      "indicator3": "Exports prêts pour le tribunal"
+    },
+    "socialProof": {
+      "title": "Adopté par les équipes d\u2019enquête à travers le monde"
+    },
+    "stats": {
+      "title": "Conçu pour l\u2019échelle de la justice",
+      "subtitle": "VaultKeeper gère le volume, la vélocité et l\u2019examen minutieux que les enquêtes modernes exigent.",
+      "evidenceItemsLabel": "Éléments de preuve gérés",
+      "jurisdictionsLabel": "Juridictions desservies",
+      "uptimeLabel": "Disponibilité de la plateforme",
+      "auditEventsLabel": "Événements d\u2019audit enregistrés"
+    },
+    "features": {
+      "eyebrow": "Fonctionnalités",
+      "title": "Chaque maillon de la chaîne, vérifié",
+      "subtitle": "Du moment où la preuve entre dans le système jusqu\u2019à sa présentation au tribunal \u2014 VaultKeeper garantit que rien n\u2019est perdu, altéré ou mis en question.",
+      "intake": {
+        "title": "Acquisition sécurisée des preuves",
+        "description": "Téléchargez des preuves avec vérification automatique du hachage SHA-256 et horodatage de confiance RFC 3161. Chaque fichier est scellé dès son entrée dans le système."
+      },
+      "custody": {
+        "title": "Chaîne de traçabilité",
+        "description": "Chaque accès, transfert, modification et exportation est enregistré dans une piste d\u2019audit immuable. Provenance complète de l\u2019acquisition à la salle d\u2019audience."
+      },
+      "access": {
+        "title": "Contrôle d\u2019accès basé sur les rôles",
+        "description": "Permissions granulaires par affaire, rôle et niveau de classification. Enquêteurs, procureurs et avocats de la défense ne voient que ce qu\u2019ils sont autorisés à voir."
+      },
+      "disclosure": {
+        "title": "Gestion de la divulgation",
+        "description": "Flux de travail structurés pour les obligations de divulgation de la poursuite et de la défense. Générez des dossiers conformes avec documentation complète de la chaîne de traçabilité."
+      },
+      "redaction": {
+        "title": "Rédaction collaborative",
+        "description": "Rédaction collaborative de PDF en temps réel avec contrôle de version. Plusieurs réviseurs peuvent travailler simultanément avec des indicateurs de présence en direct."
+      },
+      "search": {
+        "title": "Recherche et intelligence",
+        "description": "Recherche plein texte sur toutes les preuves avec filtrage avancé par affaire, classification, plage de dates et type de fichier. Trouvez ce qui compte, rapidement."
+      }
+    },
+    "howItWorks": {
+      "eyebrow": "Processus",
+      "title": "De l\u2019acquisition au tribunal en quatre étapes",
+      "ingest": {
+        "title": "Acquérir",
+        "description": "Téléchargez des preuves avec vérification automatique de l\u2019intégrité et horodatage de confiance."
+      },
+      "organize": {
+        "title": "Organiser",
+        "description": "Classifiez, étiquetez et assignez aux affaires avec des pistes d\u2019audit complètes et un accès basé sur les rôles."
+      },
+      "collaborate": {
+        "title": "Collaborer",
+        "description": "Révisez, rédigez et préparez les preuves avec des outils collaboratifs en temps réel."
+      },
+      "disclose": {
+        "title": "Divulguer",
+        "description": "Générez des dossiers de divulgation prêts pour le tribunal avec preuve complète de la chaîne de traçabilité."
+      }
+    },
+    "pricing": {
+      "eyebrow": "Tarifs",
+      "title": "Des forfaits qui s\u2019adaptent à votre charge de travail",
+      "subtitle": "Commencez gratuitement avec le programme pilote. Évoluez vers une gestion souveraine des preuves à l\u2019échelle de l\u2019entreprise.",
+      "popular": "Le plus populaire",
+      "pilot": {
+        "name": "Pilote",
+        "description": "Pour les équipes évaluant la gestion souveraine des preuves.",
+        "price": "Gratuit",
+        "period": "",
+        "feature1": "Jusqu\u2019à 5 affaires actives",
+        "feature2": "10 Go de stockage de preuves",
+        "feature3": "3 membres d\u2019équipe",
+        "feature4": "Suivi de la chaîne de traçabilité",
+        "feature5": "Support communautaire",
+        "cta": "Démarrer le pilote"
+      },
+      "professional": {
+        "name": "Professionnel",
+        "description": "Pour les équipes d\u2019enquête avec des affaires en cours.",
+        "price": "49 \u20ac",
+        "period": "/utilisateur/mois",
+        "feature1": "Affaires illimitées",
+        "feature2": "1 To de stockage de preuves",
+        "feature3": "Membres d\u2019équipe illimités",
+        "feature4": "Gestion de la divulgation",
+        "feature5": "Support prioritaire et SLA",
+        "cta": "Contacter les ventes"
+      },
+      "enterprise": {
+        "name": "Entreprise",
+        "description": "Pour les institutions nécessitant une infrastructure souveraine.",
+        "price": "Sur mesure",
+        "period": "",
+        "feature1": "Infrastructure dédiée",
+        "feature2": "Stockage illimité",
+        "feature3": "SSO et RBAC avancé",
+        "feature4": "Forfaits de conformité",
+        "feature5": "Équipe de compte dédiée",
+        "cta": "Contacter les ventes"
+      }
+    },
+    "faq": {
+      "eyebrow": "FAQ",
+      "title": "Questions fréquemment posées",
+      "sovereignty": {
+        "question": "Où mes données sont-elles stockées ?",
+        "answer": "VaultKeeper prend en charge les options de déploiement souverain. Vos données de preuve peuvent être hébergées dans la juridiction de votre choix \u2014 sur site, dans un cloud privé ou dans un environnement géré verrouillé par région. Vous gardez le contrôle total sur la résidence des données."
+      },
+      "security": {
+        "question": "Quelles certifications de sécurité VaultKeeper détient-il ?",
+        "answer": "VaultKeeper est conçu pour répondre aux exigences de l\u2019ISO 27001, SOC 2 Type II et RGPD. Toutes les données sont chiffrées au repos (AES-256) et en transit (TLS 1.3). Nous faisons l\u2019objet d\u2019audits de sécurité réguliers par des tiers."
+      },
+      "integration": {
+        "question": "VaultKeeper peut-il s\u2019intégrer à nos systèmes existants ?",
+        "answer": "Oui. VaultKeeper fournit une API REST complète pour l\u2019intégration avec les systèmes de gestion des affaires, les plateformes de dépôt judiciaire et les outils médico-légaux. L\u2019intégration SSO via SAML 2.0 et OpenID Connect est prise en charge."
+      },
+      "pilot": {
+        "question": "Que comprend le programme pilote ?",
+        "answer": "Le programme pilote donne à votre équipe accès aux fonctionnalités principales de VaultKeeper gratuitement pendant 90 jours. Cela inclut l\u2019acquisition de preuves, le suivi de la chaîne de traçabilité, le contrôle d\u2019accès basé sur les rôles et la recherche de base. Notre équipe vous aidera à intégrer et évaluer la plateforme."
+      },
+      "pricing": {
+        "question": "Comment fonctionne la tarification ?",
+        "answer": "Les forfaits professionnels sont tarifés par utilisateur et par mois. Les forfaits entreprise sont établis sur devis en fonction du modèle de déploiement, des besoins de stockage et du niveau de support. Contactez notre équipe commerciale pour un devis détaillé adapté à votre organisation."
+      },
+      "languages": {
+        "question": "VaultKeeper prend-il en charge plusieurs langues ?",
+        "answer": "Oui. VaultKeeper prend actuellement en charge l\u2019anglais et le français, avec d\u2019autres langues dans la feuille de route. L\u2019interface, les notifications et les exports peuvent tous être configurés par locale utilisateur."
+      },
+      "training": {
+        "question": "Quelle formation et quel accompagnement sont disponibles ?",
+        "answer": "Tous les forfaits incluent de la documentation et des tutoriels vidéo. Les forfaits professionnels incluent des sessions d\u2019intégration guidées. Les forfaits entreprise incluent des programmes de formation personnalisés, des spécialistes d\u2019intégration dédiés et un support continu."
+      },
+      "migration": {
+        "question": "Pouvons-nous migrer les données de notre système de preuves existant ?",
+        "answer": "Oui. VaultKeeper prend en charge l\u2019importation en masse de preuves avec vérification automatique du hachage pour garantir l\u2019intégrité pendant la migration. Notre équipe fournit une planification et une exécution de la migration pour les clients Professionnel et Entreprise."
+      }
+    },
+    "cta": {
+      "title": "Prêt à sécuriser vos flux de travail liés aux preuves ?",
+      "description": "Rejoignez les équipes d\u2019enquête qui font confiance à VaultKeeper pour la gestion souveraine des preuves. Commencez avec un pilote gratuit \u2014 sans engagement.",
+      "primaryCta": "Demander un accès pilote",
+      "secondaryCta": "Voir les fonctionnalités",
+      "badge1": "ISO 27001 Ready",
+      "badge2": "SOC 2 Type II",
+      "badge3": "Conforme au RGPD"
+    },
+    "footer": {
+      "description": "Gestion souveraine des preuves pour les enquêtes judiciaires et pénales. Acquisition sécurisée, chaîne de traçabilité et divulgation prête pour le tribunal.",
+      "productTitle": "Produit",
+      "features": "Fonctionnalités",
+      "pricing": "Tarifs",
+      "security": "Sécurité",
+      "documentation": "Documentation",
+      "companyTitle": "Entreprise",
+      "about": "À propos",
+      "contact": "Contact",
+      "pilot": "Programme pilote",
+      "legalTitle": "Juridique",
+      "privacy": "Politique de confidentialité",
+      "terms": "Conditions d\u2019utilisation",
+      "compliance": "Conformité",
+      "rights": "Tous droits réservés.",
+      "systemOperational": "Tous les systèmes opérationnels"
+    },
+    "featuresPage": {
+      "eyebrow": "Fonctionnalités",
+      "title": "Tout ce dont vous avez besoin pour gérer les preuves avec autorité",
+      "description": "Une suite complète pour l\u2019acquisition sécurisée des preuves, le suivi de la traçabilité, la révision collaborative et la divulgation prête pour le tribunal."
+    },
+    "pricingPage": {
+      "eyebrow": "Tarifs",
+      "title": "Tarification transparente pour chaque taille d\u2019équipe",
+      "description": "Commencez gratuitement avec le programme pilote. Évoluez en toute fluidité selon vos besoins d\u2019enquête."
+    },
+    "aboutPage": {
+      "eyebrow": "Notre mission",
+      "title": "L\u2019intégrité des preuves est le fondement de la justice.",
+      "description": "VaultKeeper est né d\u2019une conviction unique : les systèmes qui gèrent les preuves pénales doivent être aussi rigoureux, transparents et dignes de confiance que les processus juridiques qu\u2019ils servent. Nous construisons des outils sur lesquels enquêteurs, procureurs et avocats de la défense peuvent compter \u2014 sous serment, sous examen et sous pression.",
+      "mission": "Chaque élément de preuve raconte une histoire. Notre mission est de garantir que cette histoire arrive au tribunal exactement telle qu\u2019elle s\u2019est produite \u2014 inaltérée, incontestée et complète.",
+      "principlesTitle": "Nos principes",
+      "principles": {
+        "sovereignty": {
+          "title": "Souveraineté des données",
+          "description": "Vos preuves, votre juridiction. VaultKeeper peut être déployé sur site, dans un cloud privé ou dans un environnement géré verrouillé par région. Vous choisissez où vos données résident."
+        },
+        "transparency": {
+          "title": "Transparence radicale",
+          "description": "Chaque accès, transfert et modification est enregistré dans une piste d\u2019audit immuable. Rien n\u2019arrive à vos preuves sans un enregistrement clair et vérifiable."
+        },
+        "integrity": {
+          "title": "Intégrité sans compromis",
+          "description": "La vérification du hachage SHA-256 et les horodatages de confiance RFC 3161 garantissent que l\u2019intégrité des preuves peut être prouvée à tout moment \u2014 de l\u2019acquisition à la présentation au tribunal."
+        },
+        "security": {
+          "title": "Sécurité par conception",
+          "description": "Chiffrement de bout en bout, contrôle d\u2019accès basé sur les rôles et audits réguliers par des tiers. La sécurité n\u2019est pas une fonctionnalité \u2014 c\u2019est le fondement sur lequel tout le reste est construit."
+        }
+      }
+    },
+    "contact": {
+      "eyebrow": "Programme pilote",
+      "title": "Inscrivez-vous pour un accès pilote",
+      "description": "Rejoignez le programme pilote de VaultKeeper et découvrez la gestion souveraine des preuves de première main. Notre équipe travaillera avec vous pour évaluer la plateforme selon vos besoins spécifiques.",
+      "info": {
+        "response": {
+          "title": "Réponse sous 24 heures",
+          "description": "Notre équipe examine chaque candidature personnellement."
+        },
+        "security": {
+          "title": "Vos données sont sécurisées",
+          "description": "Traitées avec le même soin que nous apportons aux preuves."
+        },
+        "email": {
+          "title": "pilot@vaultkeeper.io",
+          "description": "Pour les demandes urgentes, contactez-nous directement."
+        }
+      },
+      "form": {
+        "heading": "Parlez-nous de votre équipe",
+        "name": "Nom complet",
+        "namePlaceholder": "Votre nom complet",
+        "email": "Courriel professionnel",
+        "emailPlaceholder": "vous@organisation.gouv",
+        "organization": "Organisation",
+        "organizationPlaceholder": "Votre organisation ou institution",
+        "role": "Rôle",
+        "roles": {
+          "investigator": "Enquêteur",
+          "prosecutor": "Procureur",
+          "defense": "Avocat de la défense",
+          "analyst": "Analyste médico-légal",
+          "court_admin": "Administrateur judiciaire",
+          "other": "Autre"
+        },
+        "message": "Décrivez votre cas d\u2019utilisation",
+        "messagePlaceholder": "Décrivez vos défis actuels en matière de gestion des preuves et ce que vous recherchez dans une solution...",
+        "submit": "Soumettre la candidature",
+        "submitting": "Envoi en cours...",
+        "successTitle": "Candidature reçue",
+        "successDescription": "Merci de votre intérêt pour VaultKeeper. Notre équipe examinera votre candidature et vous répondra dans les 24 heures.",
+        "disclaimer": "Vos informations sont traitées avec le même soin que nous apportons à la gestion des preuves. Nous ne partagerons jamais vos données avec des tiers."
+      }
+    }
   }
 }

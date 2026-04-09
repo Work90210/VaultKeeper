@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 )
@@ -36,6 +38,24 @@ type migrateRunner interface {
 
 type migrateFactory func(sourceURL string, db *sql.DB) (migrateRunner, error)
 
+// pgxAcquiredConn is the subset of pgxpool.Conn used when wrapping into a
+// migrationConn. The Exec return type matches pgxpool.Conn exactly so the
+// interface is satisfied without an adapter layer.
+type pgxAcquiredConn interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Release()
+}
+
+// wrapPgxConn adapts a pgxAcquiredConn (satisfied by *pgxpool.Conn) into a
+// migrationConn. Extracted as a named function so the wrapping logic is
+// independently testable without a live pool.
+func wrapPgxConn(c pgxAcquiredConn) migrationConn {
+	return &funcConn{
+		execFn:    func(ctx context.Context, s string, a ...any) (any, error) { return c.Exec(ctx, s, a...) },
+		releaseFn: c.Release,
+	}
+}
+
 // hooks replaced in tests to avoid needing a live Postgres connection.
 var (
 	makePool    = prodMakePool
@@ -43,29 +63,55 @@ var (
 	makeFactory = prodMakeFactory
 )
 
-func prodMakePool(pool *pgxpool.Pool) migrationPool    { return &pgxPool{pool: pool} }
+func prodMakePool(pool *pgxpool.Pool) migrationPool { return &pgxPool{pool: &pgxPoolAdapter{pool: pool}} }
 func prodMakeOpener(pool *pgxpool.Pool) dbOpener        { return &pgxOpener{pool: pool} }
+// pgPostgresDriver is a subset of what postgres.WithInstance produces,
+// allowing the call to be replaced in tests.
+type pgPostgresDriver interface {
+	database.Driver
+}
+
+// makePostgresDriver and newMigrateInstance are vars so the two steps inside
+// prodMakeFactory can be exercised independently in unit tests.
+var (
+	makePostgresDriver = func(db *sql.DB) (database.Driver, error) {
+		return postgres.WithInstance(db, &postgres.Config{})
+	}
+	newMigrateInstance = migrate.NewWithDatabaseInstance
+)
+
 func prodMakeFactory(src string, db *sql.DB) (migrateRunner, error) {
-	drv, err := postgres.WithInstance(db, &postgres.Config{})
+	drv, err := makePostgresDriver(db)
 	if err != nil {
 		return nil, fmt.Errorf("create postgres migration driver: %w", err)
 	}
-	return migrate.NewWithDatabaseInstance(src, "postgres", drv)
+	return newMigrateInstance(src, "postgres", drv)
 }
 
 // --- pgx adapter types (named methods = coverable) ---
 
-type pgxPool struct{ pool *pgxpool.Pool }
+// rawPoolAcquirer is the subset of pgxpool.Pool used by pgxPool.Acquire.
+// It returns pgxAcquiredConn so both *pgxpool.Pool and test stubs satisfy it.
+type rawPoolAcquirer interface {
+	Acquire(ctx context.Context) (pgxAcquiredConn, error)
+}
+
+type pgxPool struct{ pool rawPoolAcquirer }
 
 func (p *pgxPool) Acquire(ctx context.Context) (migrationConn, error) {
 	c, err := p.pool.Acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &funcConn{
-		execFn:    func(ctx context.Context, s string, a ...any) (any, error) { return c.Exec(ctx, s, a...) },
-		releaseFn: c.Release,
-	}, nil
+	return wrapPgxConn(c), nil
+}
+
+// pgxPoolAdapter wraps *pgxpool.Pool to satisfy rawPoolAcquirer.
+// The adapter converts the concrete *pgxpool.Conn return to pgxAcquiredConn.
+type pgxPoolAdapter struct{ pool *pgxpool.Pool }
+
+func (a *pgxPoolAdapter) Acquire(ctx context.Context) (pgxAcquiredConn, error) {
+	return a.pool.Acquire(ctx)
 }
 
 type pgxOpener struct{ pool *pgxpool.Pool }

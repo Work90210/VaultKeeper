@@ -38,6 +38,67 @@ export interface EvidenceItem {
   metadata: Record<string, unknown>;
   storage_key: string;
   thumbnail_key: string | null;
+
+  // Redaction metadata (populated only for finalized redacted derivatives)
+  redaction_name?: string;
+  redaction_purpose?: RedactionPurpose;
+  redaction_area_count?: number;
+  redaction_author_id?: string;
+  redaction_finalized_at?: string;
+}
+
+export type RedactionPurpose =
+  | 'disclosure_defence'
+  | 'disclosure_prosecution'
+  | 'public_release'
+  | 'court_submission'
+  | 'witness_protection'
+  | 'internal_review';
+
+export const REDACTION_PURPOSE_LABELS: Record<RedactionPurpose, string> = {
+  disclosure_defence: 'Disclosure to Defence',
+  disclosure_prosecution: 'Disclosure to Prosecution',
+  public_release: 'Public Release',
+  court_submission: 'Court Submission',
+  witness_protection: 'Witness Protection',
+  internal_review: 'Internal Review',
+};
+
+export const REDACTION_PURPOSE_CODES: Record<RedactionPurpose, string> = {
+  disclosure_defence: 'DEFENCE',
+  disclosure_prosecution: 'PROSECUTION',
+  public_release: 'PUBLIC',
+  court_submission: 'COURT',
+  witness_protection: 'WITNESS',
+  internal_review: 'INTERNAL',
+};
+
+export interface RedactionDraft {
+  id: string;
+  evidence_id: string;
+  case_id: string;
+  name: string;
+  purpose: RedactionPurpose;
+  area_count: number;
+  created_by: string;
+  status: 'draft' | 'applied' | 'discarded';
+  last_saved_at: string;
+  created_at: string;
+}
+
+export interface FinalizedRedaction {
+  id: string;
+  evidence_number: string;
+  name: string;
+  purpose: RedactionPurpose;
+  area_count: number;
+  author: string;
+  finalized_at: string;
+}
+
+export interface RedactionManagementView {
+  finalized: FinalizedRedaction[];
+  drafts: RedactionDraft[];
 }
 
 export interface CustodyEntry {
@@ -55,8 +116,14 @@ export interface CustodyEntry {
 export interface Witness {
   id: string;
   case_id: string;
-  pseudonym: string;
+  witness_code: string;
+  full_name: string | null;
+  contact_info: string | null;
+  location: string | null;
   protection_status: 'standard' | 'protected' | 'high_risk';
+  statement_summary: string;
+  related_evidence: string[];
+  identity_visible: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -73,11 +140,12 @@ export interface CaseRole {
 export interface Disclosure {
   id: string;
   case_id: string;
-  evidence_id: string;
+  evidence_ids: string[];
   disclosed_to: string;
   disclosed_by: string;
   disclosed_at: string;
   notes: string;
+  redacted: boolean;
 }
 
 export interface Notification {

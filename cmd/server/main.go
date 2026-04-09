@@ -17,9 +17,11 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/auth"
 	"github.com/vaultkeeper/vaultkeeper/internal/backup"
 	"github.com/vaultkeeper/vaultkeeper/internal/cases"
+	"github.com/vaultkeeper/vaultkeeper/internal/collaboration"
 	"github.com/vaultkeeper/vaultkeeper/internal/config"
 	"github.com/vaultkeeper/vaultkeeper/internal/custody"
 	"github.com/vaultkeeper/vaultkeeper/internal/database"
+	"github.com/vaultkeeper/vaultkeeper/internal/disclosures"
 	"github.com/vaultkeeper/vaultkeeper/internal/evidence"
 	"github.com/vaultkeeper/vaultkeeper/internal/integrity"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
@@ -27,6 +29,7 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/reports"
 	"github.com/vaultkeeper/vaultkeeper/internal/search"
 	"github.com/vaultkeeper/vaultkeeper/internal/server"
+	"github.com/vaultkeeper/vaultkeeper/internal/witnesses"
 )
 
 var version = "dev"
@@ -123,6 +126,23 @@ func run() error {
 	)
 	evidenceHandler := evidence.NewHandler(evidenceSvc, custodyRepo, auditLogger, cfg.MaxUploadSize)
 
+	// Redaction service
+	redactionSvc := evidence.NewRedactionService(evidenceSvc, minioStorage, tsaClient, custodyLogger, logger)
+	evidenceHandler.SetRedactionService(redactionSvc)
+
+	// Witness subsystem
+	witnessEncKey := []byte(cfg.WitnessEncryptionKey)
+	if len(witnessEncKey) == 0 {
+		return fmt.Errorf("WITNESS_ENCRYPTION_KEY is required")
+	}
+	witnessEncryptor, err := witnesses.NewEncryptor(witnesses.EncryptionKey{Version: 1, Key: witnessEncKey})
+	if err != nil {
+		return fmt.Errorf("create witness encryptor: %w", err)
+	}
+	witnessRepo := witnesses.NewRepository(pool)
+	witnessSvc := witnesses.NewService(witnessRepo, witnessEncryptor, custodyLogger, logger)
+	witnessHandler := witnesses.NewHandler(witnessSvc, roleRepo, auditLogger)
+
 	// Start TSA retry job
 	tsaRetryJob := integrity.NewTSARetryJob(tsaClient, evidenceRepo, evidenceRepo, custodyLogger, logger)
 	tsaCtx, tsaCancel := context.WithCancel(ctx)
@@ -141,6 +161,12 @@ func run() error {
 	// Passing nil disables email; in-app notifications still work.
 	notifService := notifications.NewService(notifRepo, emailSender, nil, logger, cfg.AdminUserIDs)
 	notifHandler := notifications.NewHandler(notifService)
+
+	// Disclosure subsystem (depends on notification service)
+	disclosureRepo := disclosures.NewRepository(pool)
+	disclosureNotifier := &disclosureNotificationAdapter{notifService: notifService}
+	disclosureSvc := disclosures.NewService(disclosureRepo, custodyLogger, disclosureNotifier, logger)
+	disclosureHandler := disclosures.NewHandler(disclosureSvc, roleRepo, auditLogger)
 
 	// Search subsystem
 	caseIDLoader := search.NewCaseIDsLoader(pool)
@@ -213,6 +239,22 @@ func run() error {
 	reportGen := reports.NewCustodyReportGenerator(custodyRepo, evidenceRepo, caseReportAdapter)
 	reportHandler := reports.NewHandler(reportGen, auditLogger)
 
+	// PDF page renderer
+	pagesHandler := evidence.NewPagesHandler(pool, minioStorage, roleRepo, logger)
+
+	// Redaction draft CRUD (multi-draft)
+	draftHandler := evidence.NewDraftHandler(pool, roleRepo, custodyLogger, logger)
+	draftHandler.SetRedactionService(redactionSvc)
+
+	// Collaboration subsystem (WebSocket hub for real-time redaction editing)
+	draftStore := collaboration.NewPostgresDraftStore(pool)
+	collabHub := collaboration.NewHub(draftStore, logger)
+	collabCtx, collabCancel := context.WithCancel(ctx)
+	defer collabCancel()
+	go collabHub.Run(collabCtx)
+	wsTokenValidator := auth.NewMiddleware(jwks, cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, logger, auditLogger)
+	collabHandler := collaboration.NewHandler(collabHub, pool, wsTokenValidator, roleRepo, auditLogger, logger, cfg.CORSOrigins)
+
 	healthHandler := server.NewHealthHandler(
 		pool, minioStorage, cfg.MinIOBucket,
 		cfg.MeilisearchURL, cfg.KeycloakURL, cfg.KeycloakRealm,
@@ -222,7 +264,8 @@ func run() error {
 
 	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, healthHandler,
 		caseHandler, roleHandler, evidenceHandler, notifHandler, searchHandler, integrityHandler,
-		backupHandler, exportHandler, reportHandler,
+		backupHandler, exportHandler, reportHandler, witnessHandler, disclosureHandler,
+		pagesHandler, draftHandler, collabHandler,
 	)
 
 	serverErr := make(chan error, 1)
@@ -272,4 +315,18 @@ func (a *caseReportSourceAdapter) FindByID(ctx context.Context, id uuid.UUID) (r
 		Jurisdiction:  c.Jurisdiction,
 		Status:        c.Status,
 	}, nil
+}
+
+// disclosureNotificationAdapter bridges disclosure notifications to the notification service.
+type disclosureNotificationAdapter struct {
+	notifService *notifications.Service
+}
+
+func (a *disclosureNotificationAdapter) NotifyDisclosure(ctx context.Context, caseID uuid.UUID, disclosedTo, title, body string) error {
+	return a.notifService.Notify(ctx, notifications.NotificationEvent{
+		Type:   "evidence_disclosed",
+		CaseID: caseID,
+		Title:  title,
+		Body:   body,
+	})
 }
