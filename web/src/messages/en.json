@@ -83,7 +83,102 @@
     "download": "Download File",
     "destroy": "Destroy Evidence",
     "destroyReason": "Reason for destruction",
-    "timestampStatus": "Timestamp Status"
+    "timestampStatus": "Timestamp Status",
+    "classificationSelector": {
+      "label": "Classification level",
+      "helpText": "Controls who may view this evidence.",
+      "public": "Public",
+      "restricted": "Restricted",
+      "confidential": "Confidential",
+      "exParte": "Ex parte",
+      "publicDescription": "Unrestricted disclosure permitted.",
+      "restrictedDescription": "Limited to case members.",
+      "confidentialDescription": "Sensitive — named personnel only.",
+      "exParteDescription": "One-party filing; counter-party excluded.",
+      "sideLabel": "Ex parte side",
+      "prosecution": "Prosecution",
+      "defence": "Defence",
+      "sideRequiredError": "An ex parte side is required when classification is ex parte."
+    },
+    "legalHoldControl": {
+      "label": "Legal hold",
+      "statusOn": "On hold",
+      "statusOff": "Not on hold",
+      "place": "Place on legal hold",
+      "release": "Release legal hold",
+      "dialogTitlePlace": "Place evidence on legal hold",
+      "dialogTitleRelease": "Release legal hold",
+      "currentState": "Current state",
+      "willChangeTo": "Will change to",
+      "reasonLabel": "Reason",
+      "reasonPlaceholder": "Provide justification for this change…",
+      "reasonRequiredError": "A reason is required.",
+      "notificationPreview": "Notification preview",
+      "notificationHelp": "The reason you enter below will be included in the notification delivered to all case members. It is not stored as a separate audit field — the custody chain records the toggle itself.",
+      "notificationPlaceText": "This evidence has been placed on legal hold. Deletion and destruction are suspended until the hold is released.",
+      "notificationReleaseText": "The legal hold on this evidence has been released. Standard retention rules now apply.",
+      "confirmPlace": "Place on hold",
+      "confirmRelease": "Release hold",
+      "warningPlace": "While on hold, this evidence cannot be destroyed or have its retention shortened.",
+      "warningRelease": "Releasing the hold restores normal retention and destruction rules."
+    },
+    "retentionDatePicker": {
+      "label": "Retention until",
+      "noExpiry": "No expiry (retain indefinitely)",
+      "pastHint": "The retention period has already expired.",
+      "helpText": "Date after which this evidence is eligible for destruction."
+    },
+    "destructionDialog": {
+      "title": "Destroy evidence",
+      "step": "Step {current} of {total}",
+      "step1Title": "This action is permanent",
+      "step1Body": "Destruction removes the file bytes permanently. The evidence number, SHA-256 hash, metadata, and chain-of-custody history will be preserved for legal integrity. The raw file cannot be recovered.",
+      "step1Continue": "I understand — continue",
+      "step2Title": "Destruction authority",
+      "step2Body": "Enter the court order reference or legal basis authorising this destruction. This will be recorded immutably in the custody chain.",
+      "step2Placeholder": "e.g. Court Order 2026-CV-4821 · Retention schedule §14(b)",
+      "step2MinLengthError": "Authority must be at least 10 characters.",
+      "step3Title": "Final confirmation",
+      "step3Body": "You are about to destroy the following evidence. Review carefully — this cannot be undone.",
+      "step3EvidenceNumberLabel": "Evidence number",
+      "step3HashLabel": "SHA-256",
+      "step3FullHashHint": "Hover to view full hash",
+      "step3Confirm": "Destroy permanently",
+      "step3Loading": "Destroying…",
+      "step4Title": "Evidence destroyed",
+      "step4Body": "The file has been destroyed. The following records remain intact:",
+      "step4ItemHash": "SHA-256 hash and TSA timestamp",
+      "step4ItemMetadata": "Title, description, tags, and classification",
+      "step4ItemCustody": "Complete chain of custody with destruction entry",
+      "step4Done": "Done",
+      "errorGeneric": "Destruction failed. Please try again."
+    },
+    "tagInput": {
+      "placeholder": "Add a tag…",
+      "empty": "No tags",
+      "createHint": "Press Enter to create \"{query}\"",
+      "invalidChars": "Tags may contain letters, numbers, hyphens and underscores only.",
+      "tooLong": "Tag must be 100 characters or fewer.",
+      "tooMany": "Maximum of 50 tags reached.",
+      "duplicate": "Tag already added.",
+      "remove": "Remove tag {tag}",
+      "suggestionsLoading": "Loading suggestions…",
+      "noSuggestions": "No suggestions"
+    },
+    "integrity": {
+      "hashingLabel": "Computing integrity fingerprint…",
+      "hashingProgress": "{bytes} of {total}",
+      "hashingCancel": "Cancel",
+      "receiptTitle": "Integrity receipt",
+      "receiptExplanation": "This is the cryptographic fingerprint of your file. Save this value — you can verify it later against the server-stored hash to confirm nothing was altered in transit.",
+      "receiptCopy": "Copy fingerprint",
+      "receiptCopied": "Copied",
+      "verifiedLabel": "Integrity verified",
+      "mismatchTitle": "Upload failed integrity check",
+      "mismatchBody": "The file that reached our server does not match the file on your device. This is usually caused by a flaky connection or antivirus interference. Your original file is untouched.",
+      "mismatchRetry": "Retry upload",
+      "mismatchDownload": "Download diagnostic report"
+    }
   },
   "custody": {
     "title": "Chain of Custody",
@@ -116,8 +211,27 @@
     "filterDateRange": "Date Range",
     "dateFrom": "From date",
     "dateTo": "To date",
+    "filterTags": "Tags",
+    "tagPlaceholder": "Add a tag…",
+    "addTag": "Add tag",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "subtitle": "Full-text search across indexed evidence. Typos tolerated, filters refine.",
+    "activeFilters": "Active:",
+    "reset": "Reset",
+    "idle": "Awaiting query",
+    "searching": "Searching…",
+    "errorLabel": "Error",
+    "liveResults": "{count} hits · {time}ms",
+    "errorTitle": "Search service unavailable",
+    "retry": "Retry",
+    "idleTitle": "Start searching",
+    "idleHint": "Query by keyword, or refine with filters. Supports highlighting, facets, and typo tolerance.",
+    "sortRelevance": "Sorted by relevance",
+    "evidenceNumber": "№",
+    "type": "Type",
+    "uploaded": "Uploaded",
+    "untitled": "Untitled evidence"
   },
   "notifications": {
     "title": "Notifications",
@@ -170,7 +284,7 @@
     "hero": {
       "badge": "Sovereign Evidence Management",
       "title": "Where custody, provenance, and disclosure are beyond question.",
-      "description": "VaultKeeper gives investigation teams authoritative control over evidence workflows \u2014 from secure intake and chain-of-custody tracking to court-ready disclosure packages.",
+      "description": "VaultKeeper gives investigation teams authoritative control over evidence workflows — from secure intake and chain-of-custody tracking to court-ready disclosure packages.",
       "primaryCta": "Request Pilot Access",
       "secondaryCta": "Explore Capabilities",
       "indicator1": "End-to-end encryption",
@@ -191,7 +305,7 @@
     "features": {
       "eyebrow": "Capabilities",
       "title": "Every link in the chain, accounted for",
-      "subtitle": "From the moment evidence enters the system to the moment it\u2019s presented in court \u2014 VaultKeeper ensures nothing is lost, altered, or questioned.",
+      "subtitle": "From the moment evidence enters the system to the moment it’s presented in court — VaultKeeper ensures nothing is lost, altered, or questioned.",
       "intake": {
         "title": "Secure Evidence Intake",
         "description": "Upload evidence with automated SHA-256 hash verification and RFC 3161 trusted timestamping. Every file is integrity-sealed from the moment it enters the system."
@@ -202,7 +316,7 @@
       },
       "access": {
         "title": "Role-Based Access Control",
-        "description": "Granular permissions by case, role, and classification level. Investigators, prosecutors, and defence counsel see only what they\u2019re authorized to see."
+        "description": "Granular permissions by case, role, and classification level. Investigators, prosecutors, and defence counsel see only what they’re authorized to see."
       },
       "disclosure": {
         "title": "Disclosure Management",
@@ -284,7 +398,7 @@
       "title": "Frequently asked questions",
       "sovereignty": {
         "question": "Where is my data stored?",
-        "answer": "VaultKeeper supports sovereign deployment options. Your evidence data can be hosted in your jurisdiction of choice \u2014 on-premises, in a private cloud, or in a region-locked managed environment. You retain full control over data residency."
+        "answer": "VaultKeeper supports sovereign deployment options. Your evidence data can be hosted in your jurisdiction of choice — on-premises, in a private cloud, or in a region-locked managed environment. You retain full control over data residency."
       },
       "security": {
         "question": "What security certifications does VaultKeeper hold?",
@@ -317,7 +431,7 @@
     },
     "cta": {
       "title": "Ready to secure your evidence workflows?",
-      "description": "Join investigation teams that trust VaultKeeper for sovereign evidence management. Start with a free pilot \u2014 no commitment required.",
+      "description": "Join investigation teams that trust VaultKeeper for sovereign evidence management. Start with a free pilot — no commitment required.",
       "primaryCta": "Request Pilot Access",
       "secondaryCta": "View Features",
       "badge1": "ISO 27001 Ready",
@@ -355,8 +469,8 @@
     "aboutPage": {
       "eyebrow": "Our Mission",
       "title": "Evidence integrity is the foundation of justice.",
-      "description": "VaultKeeper was built from a single conviction: that the systems handling criminal evidence must be as rigorous, transparent, and trustworthy as the legal processes they serve. We build tools that investigators, prosecutors, and defence counsel can rely on \u2014 under oath, under scrutiny, and under pressure.",
-      "mission": "Every piece of evidence tells a story. Our job is to ensure that story reaches the courtroom exactly as it happened \u2014 unaltered, unquestioned, and complete.",
+      "description": "VaultKeeper was built from a single conviction: that the systems handling criminal evidence must be as rigorous, transparent, and trustworthy as the legal processes they serve. We build tools that investigators, prosecutors, and defence counsel can rely on — under oath, under scrutiny, and under pressure.",
+      "mission": "Every piece of evidence tells a story. Our job is to ensure that story reaches the courtroom exactly as it happened — unaltered, unquestioned, and complete.",
       "principlesTitle": "Our Principles",
       "principles": {
         "sovereignty": {
@@ -369,11 +483,11 @@
         },
         "integrity": {
           "title": "Uncompromising Integrity",
-          "description": "SHA-256 hash verification and RFC 3161 trusted timestamps ensure that evidence integrity can be proven at any point \u2014 from intake to courtroom presentation."
+          "description": "SHA-256 hash verification and RFC 3161 trusted timestamps ensure that evidence integrity can be proven at any point — from intake to courtroom presentation."
         },
         "security": {
           "title": "Security by Design",
-          "description": "End-to-end encryption, role-based access control, and regular third-party audits. Security is not a feature \u2014 it\u2019s the foundation everything else is built on."
+          "description": "End-to-end encryption, role-based access control, and regular third-party audits. Security is not a feature — it’s the foundation everything else is built on."
         }
       }
     },
@@ -413,7 +527,7 @@
           "other": "Other"
         },
         "message": "Tell us about your use case",
-        "messagePlaceholder": "Describe your current evidence management challenges and what you\u2019re looking for in a solution...",
+        "messagePlaceholder": "Describe your current evidence management challenges and what you’re looking for in a solution...",
         "submit": "Submit Application",
         "submitting": "Submitting...",
         "successTitle": "Application received",

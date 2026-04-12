@@ -83,7 +83,102 @@
     "download": "Télécharger le fichier",
     "destroy": "Détruire la preuve",
     "destroyReason": "Motif de destruction",
-    "timestampStatus": "État de l'horodatage"
+    "timestampStatus": "État de l'horodatage",
+    "classificationSelector": {
+      "label": "Niveau de classification",
+      "helpText": "Détermine qui peut consulter cette preuve.",
+      "public": "Public",
+      "restricted": "Restreint",
+      "confidential": "Confidentiel",
+      "exParte": "Ex parte",
+      "publicDescription": "Divulgation sans restriction autorisée.",
+      "restrictedDescription": "Limité aux membres du dossier.",
+      "confidentialDescription": "Sensible — personnel désigné uniquement.",
+      "exParteDescription": "Dépôt unilatéral ; partie adverse exclue.",
+      "sideLabel": "Partie ex parte",
+      "prosecution": "Poursuite",
+      "defence": "Défense",
+      "sideRequiredError": "Une partie ex parte est requise lorsque la classification est ex parte."
+    },
+    "legalHoldControl": {
+      "label": "Mise sous séquestre",
+      "statusOn": "Sous séquestre",
+      "statusOff": "Pas sous séquestre",
+      "place": "Placer sous séquestre",
+      "release": "Lever le séquestre",
+      "dialogTitlePlace": "Placer la preuve sous séquestre",
+      "dialogTitleRelease": "Lever le séquestre",
+      "currentState": "État actuel",
+      "willChangeTo": "Sera modifié en",
+      "reasonLabel": "Motif",
+      "reasonPlaceholder": "Justifiez ce changement…",
+      "reasonRequiredError": "Un motif est requis.",
+      "notificationPreview": "Aperçu de la notification",
+      "notificationHelp": "Le motif saisi ci-dessous sera inclus dans la notification envoyée à tous les membres du dossier. Il n’est pas conservé comme champ d’audit distinct — la chaîne de traçabilité enregistre uniquement le changement d’état.",
+      "notificationPlaceText": "Cette preuve a été placée sous séquestre judiciaire. Toute suppression ou destruction est suspendue jusqu’à la levée du séquestre.",
+      "notificationReleaseText": "Le séquestre judiciaire sur cette preuve a été levé. Les règles de conservation standard s’appliquent désormais.",
+      "confirmPlace": "Placer sous séquestre",
+      "confirmRelease": "Lever le séquestre",
+      "warningPlace": "Sous séquestre, cette preuve ne peut être détruite ni voir sa durée de conservation réduite.",
+      "warningRelease": "La levée du séquestre rétablit les règles normales de conservation et de destruction."
+    },
+    "retentionDatePicker": {
+      "label": "Conserver jusqu’au",
+      "noExpiry": "Sans expiration (conservation indéfinie)",
+      "pastHint": "La période de conservation a déjà expiré.",
+      "helpText": "Date à partir de laquelle cette preuve peut être détruite."
+    },
+    "destructionDialog": {
+      "title": "Détruire la preuve",
+      "step": "Étape {current} sur {total}",
+      "step1Title": "Cette action est irréversible",
+      "step1Body": "La destruction supprime définitivement les octets du fichier. Le numéro de preuve, l’empreinte SHA-256, les métadonnées et l’historique de la chaîne de traçabilité seront conservés pour garantir l’intégrité juridique. Le fichier brut ne peut pas être récupéré.",
+      "step1Continue": "Je comprends — continuer",
+      "step2Title": "Autorité de destruction",
+      "step2Body": "Indiquez la référence de l’ordonnance judiciaire ou la base légale autorisant cette destruction. Cette information sera inscrite de façon immuable dans la chaîne de traçabilité.",
+      "step2Placeholder": "ex. Ordonnance 2026-CV-4821 · Calendrier de conservation §14(b)",
+      "step2MinLengthError": "L’autorité doit comporter au moins 10 caractères.",
+      "step3Title": "Confirmation finale",
+      "step3Body": "Vous êtes sur le point de détruire la preuve suivante. Vérifiez attentivement — cette action est irréversible.",
+      "step3EvidenceNumberLabel": "Numéro de preuve",
+      "step3HashLabel": "SHA-256",
+      "step3FullHashHint": "Survolez pour voir l’empreinte complète",
+      "step3Confirm": "Détruire définitivement",
+      "step3Loading": "Destruction en cours…",
+      "step4Title": "Preuve détruite",
+      "step4Body": "Le fichier a été détruit. Les enregistrements suivants demeurent intacts :",
+      "step4ItemHash": "Empreinte SHA-256 et horodatage TSA",
+      "step4ItemMetadata": "Titre, description, étiquettes et classification",
+      "step4ItemCustody": "Chaîne de traçabilité complète avec l’entrée de destruction",
+      "step4Done": "Terminé",
+      "errorGeneric": "Échec de la destruction. Veuillez réessayer."
+    },
+    "tagInput": {
+      "placeholder": "Ajouter une étiquette…",
+      "empty": "Aucune étiquette",
+      "createHint": "Appuyez sur Entrée pour créer « {query} »",
+      "invalidChars": "Les étiquettes ne peuvent contenir que des lettres, chiffres, tirets et soulignements.",
+      "tooLong": "L’étiquette doit comporter 100 caractères ou moins.",
+      "tooMany": "Maximum de 50 étiquettes atteint.",
+      "duplicate": "Étiquette déjà ajoutée.",
+      "remove": "Supprimer l’étiquette {tag}",
+      "suggestionsLoading": "Chargement des suggestions…",
+      "noSuggestions": "Aucune suggestion"
+    },
+    "integrity": {
+      "hashingLabel": "Calcul de l’empreinte d’intégrité…",
+      "hashingProgress": "{bytes} sur {total}",
+      "hashingCancel": "Annuler",
+      "receiptTitle": "Reçu d’intégrité",
+      "receiptExplanation": "Ceci est l’empreinte cryptographique de votre fichier. Conservez cette valeur — vous pourrez la vérifier plus tard avec l’empreinte stockée sur le serveur pour confirmer qu’aucune altération n’a eu lieu en transit.",
+      "receiptCopy": "Copier l’empreinte",
+      "receiptCopied": "Copié",
+      "verifiedLabel": "Intégrité vérifiée",
+      "mismatchTitle": "La vérification d’intégrité a échoué",
+      "mismatchBody": "Le fichier reçu par notre serveur ne correspond pas au fichier sur votre appareil. Cela est généralement dû à une connexion instable ou à une interférence d’antivirus. Votre fichier d’origine n’a pas été modifié.",
+      "mismatchRetry": "Réessayer l’envoi",
+      "mismatchDownload": "Télécharger le rapport diagnostic"
+    }
   },
   "custody": {
     "title": "Chaîne de traçabilité",
@@ -116,8 +211,27 @@
     "filterDateRange": "Période",
     "dateFrom": "Date de début",
     "dateTo": "Date de fin",
+    "filterTags": "Étiquettes",
+    "tagPlaceholder": "Ajouter une étiquette…",
+    "addTag": "Ajouter",
     "previous": "Précédent",
-    "next": "Suivant"
+    "next": "Suivant",
+    "subtitle": "Recherche plein texte sur toutes les preuves indexées. Tolérance aux fautes, filtres précis.",
+    "activeFilters": "Actifs :",
+    "reset": "Réinitialiser",
+    "idle": "En attente",
+    "searching": "Recherche…",
+    "errorLabel": "Erreur",
+    "liveResults": "{count} résultats · {time} ms",
+    "errorTitle": "Service de recherche indisponible",
+    "retry": "Réessayer",
+    "idleTitle": "Commencez à rechercher",
+    "idleHint": "Interrogez par mot-clé ou affinez avec les filtres. Surlignage, facettes et tolérance aux fautes.",
+    "sortRelevance": "Tri par pertinence",
+    "evidenceNumber": "№",
+    "type": "Type",
+    "uploaded": "Versé",
+    "untitled": "Sans titre"
   },
   "notifications": {
     "title": "Notifications",
@@ -170,39 +284,39 @@
     "hero": {
       "badge": "Gestion souveraine des preuves",
       "title": "Là où la chaîne de traçabilité, la provenance et la divulgation sont hors de question.",
-      "description": "VaultKeeper offre aux équipes d\u2019enquête un contrôle rigoureux sur les flux de travail liés aux preuves \u2014 de l\u2019acquisition sécurisée au suivi de la chaîne de traçabilité jusqu\u2019aux dossiers prêts pour le tribunal.",
+      "description": "VaultKeeper offre aux équipes d’enquête un contrôle rigoureux sur les flux de travail liés aux preuves — de l’acquisition sécurisée au suivi de la chaîne de traçabilité jusqu’aux dossiers prêts pour le tribunal.",
       "primaryCta": "Demander un accès pilote",
       "secondaryCta": "Explorer les fonctionnalités",
       "indicator1": "Chiffrement de bout en bout",
-      "indicator2": "Pistes d\u2019audit immuables",
+      "indicator2": "Pistes d’audit immuables",
       "indicator3": "Exports prêts pour le tribunal"
     },
     "socialProof": {
-      "title": "Adopté par les équipes d\u2019enquête à travers le monde"
+      "title": "Adopté par les équipes d’enquête à travers le monde"
     },
     "stats": {
-      "title": "Conçu pour l\u2019échelle de la justice",
-      "subtitle": "VaultKeeper gère le volume, la vélocité et l\u2019examen minutieux que les enquêtes modernes exigent.",
+      "title": "Conçu pour l’échelle de la justice",
+      "subtitle": "VaultKeeper gère le volume, la vélocité et l’examen minutieux que les enquêtes modernes exigent.",
       "evidenceItemsLabel": "Éléments de preuve gérés",
       "jurisdictionsLabel": "Juridictions desservies",
       "uptimeLabel": "Disponibilité de la plateforme",
-      "auditEventsLabel": "Événements d\u2019audit enregistrés"
+      "auditEventsLabel": "Événements d’audit enregistrés"
     },
     "features": {
       "eyebrow": "Fonctionnalités",
       "title": "Chaque maillon de la chaîne, vérifié",
-      "subtitle": "Du moment où la preuve entre dans le système jusqu\u2019à sa présentation au tribunal \u2014 VaultKeeper garantit que rien n\u2019est perdu, altéré ou mis en question.",
+      "subtitle": "Du moment où la preuve entre dans le système jusqu’à sa présentation au tribunal — VaultKeeper garantit que rien n’est perdu, altéré ou mis en question.",
       "intake": {
         "title": "Acquisition sécurisée des preuves",
         "description": "Téléchargez des preuves avec vérification automatique du hachage SHA-256 et horodatage de confiance RFC 3161. Chaque fichier est scellé dès son entrée dans le système."
       },
       "custody": {
         "title": "Chaîne de traçabilité",
-        "description": "Chaque accès, transfert, modification et exportation est enregistré dans une piste d\u2019audit immuable. Provenance complète de l\u2019acquisition à la salle d\u2019audience."
+        "description": "Chaque accès, transfert, modification et exportation est enregistré dans une piste d’audit immuable. Provenance complète de l’acquisition à la salle d’audience."
       },
       "access": {
-        "title": "Contrôle d\u2019accès basé sur les rôles",
-        "description": "Permissions granulaires par affaire, rôle et niveau de classification. Enquêteurs, procureurs et avocats de la défense ne voient que ce qu\u2019ils sont autorisés à voir."
+        "title": "Contrôle d’accès basé sur les rôles",
+        "description": "Permissions granulaires par affaire, rôle et niveau de classification. Enquêteurs, procureurs et avocats de la défense ne voient que ce qu’ils sont autorisés à voir."
       },
       "disclosure": {
         "title": "Gestion de la divulgation",
@@ -219,14 +333,14 @@
     },
     "howItWorks": {
       "eyebrow": "Processus",
-      "title": "De l\u2019acquisition au tribunal en quatre étapes",
+      "title": "De l’acquisition au tribunal en quatre étapes",
       "ingest": {
         "title": "Acquérir",
-        "description": "Téléchargez des preuves avec vérification automatique de l\u2019intégrité et horodatage de confiance."
+        "description": "Téléchargez des preuves avec vérification automatique de l’intégrité et horodatage de confiance."
       },
       "organize": {
         "title": "Organiser",
-        "description": "Classifiez, étiquetez et assignez aux affaires avec des pistes d\u2019audit complètes et un accès basé sur les rôles."
+        "description": "Classifiez, étiquetez et assignez aux affaires avec des pistes d’audit complètes et un accès basé sur les rôles."
       },
       "collaborate": {
         "title": "Collaborer",
@@ -239,29 +353,29 @@
     },
     "pricing": {
       "eyebrow": "Tarifs",
-      "title": "Des forfaits qui s\u2019adaptent à votre charge de travail",
-      "subtitle": "Commencez gratuitement avec le programme pilote. Évoluez vers une gestion souveraine des preuves à l\u2019échelle de l\u2019entreprise.",
+      "title": "Des forfaits qui s’adaptent à votre charge de travail",
+      "subtitle": "Commencez gratuitement avec le programme pilote. Évoluez vers une gestion souveraine des preuves à l’échelle de l’entreprise.",
       "popular": "Le plus populaire",
       "pilot": {
         "name": "Pilote",
         "description": "Pour les équipes évaluant la gestion souveraine des preuves.",
         "price": "Gratuit",
         "period": "",
-        "feature1": "Jusqu\u2019à 5 affaires actives",
+        "feature1": "Jusqu’à 5 affaires actives",
         "feature2": "10 Go de stockage de preuves",
-        "feature3": "3 membres d\u2019équipe",
+        "feature3": "3 membres d’équipe",
         "feature4": "Suivi de la chaîne de traçabilité",
         "feature5": "Support communautaire",
         "cta": "Démarrer le pilote"
       },
       "professional": {
         "name": "Professionnel",
-        "description": "Pour les équipes d\u2019enquête avec des affaires en cours.",
-        "price": "49 \u20ac",
+        "description": "Pour les équipes d’enquête avec des affaires en cours.",
+        "price": "49 €",
         "period": "/utilisateur/mois",
         "feature1": "Affaires illimitées",
         "feature2": "1 To de stockage de preuves",
-        "feature3": "Membres d\u2019équipe illimités",
+        "feature3": "Membres d’équipe illimités",
         "feature4": "Gestion de la divulgation",
         "feature5": "Support prioritaire et SLA",
         "cta": "Contacter les ventes"
@@ -284,19 +398,19 @@
       "title": "Questions fréquemment posées",
       "sovereignty": {
         "question": "Où mes données sont-elles stockées ?",
-        "answer": "VaultKeeper prend en charge les options de déploiement souverain. Vos données de preuve peuvent être hébergées dans la juridiction de votre choix \u2014 sur site, dans un cloud privé ou dans un environnement géré verrouillé par région. Vous gardez le contrôle total sur la résidence des données."
+        "answer": "VaultKeeper prend en charge les options de déploiement souverain. Vos données de preuve peuvent être hébergées dans la juridiction de votre choix — sur site, dans un cloud privé ou dans un environnement géré verrouillé par région. Vous gardez le contrôle total sur la résidence des données."
       },
       "security": {
         "question": "Quelles certifications de sécurité VaultKeeper détient-il ?",
-        "answer": "VaultKeeper est conçu pour répondre aux exigences de l\u2019ISO 27001, SOC 2 Type II et RGPD. Toutes les données sont chiffrées au repos (AES-256) et en transit (TLS 1.3). Nous faisons l\u2019objet d\u2019audits de sécurité réguliers par des tiers."
+        "answer": "VaultKeeper est conçu pour répondre aux exigences de l’ISO 27001, SOC 2 Type II et RGPD. Toutes les données sont chiffrées au repos (AES-256) et en transit (TLS 1.3). Nous faisons l’objet d’audits de sécurité réguliers par des tiers."
       },
       "integration": {
-        "question": "VaultKeeper peut-il s\u2019intégrer à nos systèmes existants ?",
-        "answer": "Oui. VaultKeeper fournit une API REST complète pour l\u2019intégration avec les systèmes de gestion des affaires, les plateformes de dépôt judiciaire et les outils médico-légaux. L\u2019intégration SSO via SAML 2.0 et OpenID Connect est prise en charge."
+        "question": "VaultKeeper peut-il s’intégrer à nos systèmes existants ?",
+        "answer": "Oui. VaultKeeper fournit une API REST complète pour l’intégration avec les systèmes de gestion des affaires, les plateformes de dépôt judiciaire et les outils médico-légaux. L’intégration SSO via SAML 2.0 et OpenID Connect est prise en charge."
       },
       "pilot": {
         "question": "Que comprend le programme pilote ?",
-        "answer": "Le programme pilote donne à votre équipe accès aux fonctionnalités principales de VaultKeeper gratuitement pendant 90 jours. Cela inclut l\u2019acquisition de preuves, le suivi de la chaîne de traçabilité, le contrôle d\u2019accès basé sur les rôles et la recherche de base. Notre équipe vous aidera à intégrer et évaluer la plateforme."
+        "answer": "Le programme pilote donne à votre équipe accès aux fonctionnalités principales de VaultKeeper gratuitement pendant 90 jours. Cela inclut l’acquisition de preuves, le suivi de la chaîne de traçabilité, le contrôle d’accès basé sur les rôles et la recherche de base. Notre équipe vous aidera à intégrer et évaluer la plateforme."
       },
       "pricing": {
         "question": "Comment fonctionne la tarification ?",
@@ -304,20 +418,20 @@
       },
       "languages": {
         "question": "VaultKeeper prend-il en charge plusieurs langues ?",
-        "answer": "Oui. VaultKeeper prend actuellement en charge l\u2019anglais et le français, avec d\u2019autres langues dans la feuille de route. L\u2019interface, les notifications et les exports peuvent tous être configurés par locale utilisateur."
+        "answer": "Oui. VaultKeeper prend actuellement en charge l’anglais et le français, avec d’autres langues dans la feuille de route. L’interface, les notifications et les exports peuvent tous être configurés par locale utilisateur."
       },
       "training": {
         "question": "Quelle formation et quel accompagnement sont disponibles ?",
-        "answer": "Tous les forfaits incluent de la documentation et des tutoriels vidéo. Les forfaits professionnels incluent des sessions d\u2019intégration guidées. Les forfaits entreprise incluent des programmes de formation personnalisés, des spécialistes d\u2019intégration dédiés et un support continu."
+        "answer": "Tous les forfaits incluent de la documentation et des tutoriels vidéo. Les forfaits professionnels incluent des sessions d’intégration guidées. Les forfaits entreprise incluent des programmes de formation personnalisés, des spécialistes d’intégration dédiés et un support continu."
       },
       "migration": {
         "question": "Pouvons-nous migrer les données de notre système de preuves existant ?",
-        "answer": "Oui. VaultKeeper prend en charge l\u2019importation en masse de preuves avec vérification automatique du hachage pour garantir l\u2019intégrité pendant la migration. Notre équipe fournit une planification et une exécution de la migration pour les clients Professionnel et Entreprise."
+        "answer": "Oui. VaultKeeper prend en charge l’importation en masse de preuves avec vérification automatique du hachage pour garantir l’intégrité pendant la migration. Notre équipe fournit une planification et une exécution de la migration pour les clients Professionnel et Entreprise."
       }
     },
     "cta": {
       "title": "Prêt à sécuriser vos flux de travail liés aux preuves ?",
-      "description": "Rejoignez les équipes d\u2019enquête qui font confiance à VaultKeeper pour la gestion souveraine des preuves. Commencez avec un pilote gratuit \u2014 sans engagement.",
+      "description": "Rejoignez les équipes d’enquête qui font confiance à VaultKeeper pour la gestion souveraine des preuves. Commencez avec un pilote gratuit — sans engagement.",
       "primaryCta": "Demander un accès pilote",
       "secondaryCta": "Voir les fonctionnalités",
       "badge1": "ISO 27001 Ready",
@@ -337,7 +451,7 @@
       "pilot": "Programme pilote",
       "legalTitle": "Juridique",
       "privacy": "Politique de confidentialité",
-      "terms": "Conditions d\u2019utilisation",
+      "terms": "Conditions d’utilisation",
       "compliance": "Conformité",
       "rights": "Tous droits réservés.",
       "systemOperational": "Tous les systèmes opérationnels"
@@ -345,18 +459,18 @@
     "featuresPage": {
       "eyebrow": "Fonctionnalités",
       "title": "Tout ce dont vous avez besoin pour gérer les preuves avec autorité",
-      "description": "Une suite complète pour l\u2019acquisition sécurisée des preuves, le suivi de la traçabilité, la révision collaborative et la divulgation prête pour le tribunal."
+      "description": "Une suite complète pour l’acquisition sécurisée des preuves, le suivi de la traçabilité, la révision collaborative et la divulgation prête pour le tribunal."
     },
     "pricingPage": {
       "eyebrow": "Tarifs",
-      "title": "Tarification transparente pour chaque taille d\u2019équipe",
-      "description": "Commencez gratuitement avec le programme pilote. Évoluez en toute fluidité selon vos besoins d\u2019enquête."
+      "title": "Tarification transparente pour chaque taille d’équipe",
+      "description": "Commencez gratuitement avec le programme pilote. Évoluez en toute fluidité selon vos besoins d’enquête."
     },
     "aboutPage": {
       "eyebrow": "Notre mission",
-      "title": "L\u2019intégrité des preuves est le fondement de la justice.",
-      "description": "VaultKeeper est né d\u2019une conviction unique : les systèmes qui gèrent les preuves pénales doivent être aussi rigoureux, transparents et dignes de confiance que les processus juridiques qu\u2019ils servent. Nous construisons des outils sur lesquels enquêteurs, procureurs et avocats de la défense peuvent compter \u2014 sous serment, sous examen et sous pression.",
-      "mission": "Chaque élément de preuve raconte une histoire. Notre mission est de garantir que cette histoire arrive au tribunal exactement telle qu\u2019elle s\u2019est produite \u2014 inaltérée, incontestée et complète.",
+      "title": "L’intégrité des preuves est le fondement de la justice.",
+      "description": "VaultKeeper est né d’une conviction unique : les systèmes qui gèrent les preuves pénales doivent être aussi rigoureux, transparents et dignes de confiance que les processus juridiques qu’ils servent. Nous construisons des outils sur lesquels enquêteurs, procureurs et avocats de la défense peuvent compter — sous serment, sous examen et sous pression.",
+      "mission": "Chaque élément de preuve raconte une histoire. Notre mission est de garantir que cette histoire arrive au tribunal exactement telle qu’elle s’est produite — inaltérée, incontestée et complète.",
       "principlesTitle": "Nos principes",
       "principles": {
         "sovereignty": {
@@ -365,15 +479,15 @@
         },
         "transparency": {
           "title": "Transparence radicale",
-          "description": "Chaque accès, transfert et modification est enregistré dans une piste d\u2019audit immuable. Rien n\u2019arrive à vos preuves sans un enregistrement clair et vérifiable."
+          "description": "Chaque accès, transfert et modification est enregistré dans une piste d’audit immuable. Rien n’arrive à vos preuves sans un enregistrement clair et vérifiable."
         },
         "integrity": {
           "title": "Intégrité sans compromis",
-          "description": "La vérification du hachage SHA-256 et les horodatages de confiance RFC 3161 garantissent que l\u2019intégrité des preuves peut être prouvée à tout moment \u2014 de l\u2019acquisition à la présentation au tribunal."
+          "description": "La vérification du hachage SHA-256 et les horodatages de confiance RFC 3161 garantissent que l’intégrité des preuves peut être prouvée à tout moment — de l’acquisition à la présentation au tribunal."
         },
         "security": {
           "title": "Sécurité par conception",
-          "description": "Chiffrement de bout en bout, contrôle d\u2019accès basé sur les rôles et audits réguliers par des tiers. La sécurité n\u2019est pas une fonctionnalité \u2014 c\u2019est le fondement sur lequel tout le reste est construit."
+          "description": "Chiffrement de bout en bout, contrôle d’accès basé sur les rôles et audits réguliers par des tiers. La sécurité n’est pas une fonctionnalité — c’est le fondement sur lequel tout le reste est construit."
         }
       }
     },
@@ -412,7 +526,7 @@
           "court_admin": "Administrateur judiciaire",
           "other": "Autre"
         },
-        "message": "Décrivez votre cas d\u2019utilisation",
+        "message": "Décrivez votre cas d’utilisation",
         "messagePlaceholder": "Décrivez vos défis actuels en matière de gestion des preuves et ce que vous recherchez dans une solution...",
         "submit": "Soumettre la candidature",
         "submitting": "Envoi en cours...",

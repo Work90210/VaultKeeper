@@ -18,6 +18,7 @@ type ObjectStorage interface {
 	GetObject(ctx context.Context, key string) (io.ReadCloser, int64, string, error)
 	DeleteObject(ctx context.Context, key string) error
 	StatObject(ctx context.Context, key string) (int64, error)
+	BucketName() string
 }
 
 // minioClient abstracts the minio.Client methods used by MinIOStorage,
@@ -83,6 +84,11 @@ func initStorage(ctx context.Context, client minioClient, bucket string) (*MinIO
 		bucket: bucket,
 		sse:    sse,
 	}, nil
+}
+
+// BucketName returns the configured bucket name.
+func (s *MinIOStorage) BucketName() string {
+	return s.bucket
 }
 
 // BucketExists checks whether the given bucket exists in MinIO.

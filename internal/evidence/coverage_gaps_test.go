@@ -1,3 +1,5 @@
+//go:build integration
+
 package evidence
 
 // coverage_gaps_test.go — targeted tests for branches identified as uncovered.
@@ -58,20 +60,23 @@ func TestHandler_UploadNewVersion_EmptyClassification(t *testing.T) {
 	}
 
 	// Build multipart without a "classification" field.
+	const vContent = "file content for empty classification test"
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	part, err := mw.CreateFormFile("file", "v2.pdf")
 	if err != nil {
 		t.Fatalf("create form file: %v", err)
 	}
-	if _, err := part.Write([]byte("file content for empty classification test")); err != nil {
+	if _, err := part.Write([]byte(vContent)); err != nil {
 		t.Fatalf("write part: %v", err)
 	}
 	// Deliberately omit classification so the default branch is hit.
+	mw.WriteField("client_sha256", sha256Hex(vContent))
 	mw.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+parentID.String()+"/version", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(vContent))
 	req = withAuthContext(req)
 
 	w := httptest.NewRecorder()

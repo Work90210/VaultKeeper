@@ -3,7 +3,10 @@ package evidence
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -11,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/vaultkeeper/vaultkeeper/internal/integrity"
 	"github.com/vaultkeeper/vaultkeeper/internal/search"
@@ -28,6 +32,18 @@ type mockRepo struct {
 	findByCaseFn          func(ctx context.Context, filter EvidenceFilter, page Pagination) ([]EvidenceItem, int, error)
 	updateVersionFieldsFn func(ctx context.Context, id uuid.UUID, parentID uuid.UUID, version int) error
 	markNonCurrentFn      func(ctx context.Context, id uuid.UUID) error
+	findVersionHistoryFn  func(ctx context.Context, id uuid.UUID) ([]EvidenceItem, error)
+	// Sprint 9 tag taxonomy hooks.
+	tagAutocomplete       []string
+	tagAutocompleteErr    error
+	lastAutocompleteLimit int
+	tagRenameResult       int64
+	tagRenameErr          error
+	tagMergeResult        int64
+	tagMergeErr           error
+	lastMergeSources      []string
+	tagDeleteResult       int64
+	tagDeleteErr          error
 }
 
 func newMockRepo() *mockRepo {
@@ -110,6 +126,28 @@ func (m *mockRepo) Update(ctx context.Context, id uuid.UUID, updates EvidenceUpd
 	return item, nil
 }
 
+// DestroyWithAuthority implements the Sprint 9 audited destruction path.
+// Preserves metadata, nulls the storage key, sets destruction authority.
+func (m *mockRepo) DestroyWithAuthority(_ context.Context, id uuid.UUID, authority, destroyedBy string) error {
+	item, ok := m.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	now := time.Now()
+	item.DestroyedAt = &now
+	item.DestroyedBy = &destroyedBy
+	item.DestructionAuthority = &authority
+	item.StorageKey = nil
+	m.items[id] = item
+	return nil
+}
+
+// GetCaseRetention satisfies CaseRetentionReader for DestroyEvidence tests.
+// The mock has no case retention state, so it always returns nil.
+func (m *mockRepo) GetCaseRetention(_ context.Context, _ uuid.UUID) (*time.Time, error) {
+	return nil, nil
+}
+
 func (m *mockRepo) MarkDestroyed(ctx context.Context, id uuid.UUID, reason, destroyedBy string) error {
 	if m.markDestroyedFn != nil {
 		return m.markDestroyedFn(ctx, id, reason, destroyedBy)
@@ -150,7 +188,10 @@ func (m *mockRepo) UpdateThumbnailKey(_ context.Context, _ uuid.UUID, _ string) 
 	return nil
 }
 
-func (m *mockRepo) FindVersionHistory(_ context.Context, id uuid.UUID) ([]EvidenceItem, error) {
+func (m *mockRepo) FindVersionHistory(ctx context.Context, id uuid.UUID) ([]EvidenceItem, error) {
+	if m.findVersionHistoryFn != nil {
+		return m.findVersionHistoryFn(ctx, id)
+	}
 	item, ok := m.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -173,6 +214,36 @@ func (m *mockRepo) MarkNonCurrent(ctx context.Context, id uuid.UUID) error {
 	item.IsCurrent = false
 	m.items[id] = item
 	return nil
+}
+
+func (m *mockRepo) ListDistinctTags(_ context.Context, _ uuid.UUID, _ string, limit int) ([]string, error) {
+	m.lastAutocompleteLimit = limit
+	if m.tagAutocompleteErr != nil {
+		return nil, m.tagAutocompleteErr
+	}
+	return m.tagAutocomplete, nil
+}
+
+func (m *mockRepo) RenameTagInCase(_ context.Context, _ uuid.UUID, _, _ string) (int64, error) {
+	if m.tagRenameErr != nil {
+		return 0, m.tagRenameErr
+	}
+	return m.tagRenameResult, nil
+}
+
+func (m *mockRepo) MergeTagsInCase(_ context.Context, _ uuid.UUID, sources []string, _ string) (int64, error) {
+	m.lastMergeSources = sources
+	if m.tagMergeErr != nil {
+		return 0, m.tagMergeErr
+	}
+	return m.tagMergeResult, nil
+}
+
+func (m *mockRepo) DeleteTagFromCase(_ context.Context, _ uuid.UUID, _ string) (int64, error) {
+	if m.tagDeleteErr != nil {
+		return 0, m.tagDeleteErr
+	}
+	return m.tagDeleteResult, nil
 }
 
 func (m *mockRepo) UpdateVersionFields(ctx context.Context, id uuid.UUID, parentID uuid.UUID, version int) error {
@@ -237,6 +308,10 @@ func (m *mockStorage) StatObject(_ context.Context, key string) (int64, error) {
 	return int64(len(data)), nil
 }
 
+func (m *mockStorage) BucketName() string {
+	return "test-evidence"
+}
+
 type mockCustody struct {
 	events []string
 }
@@ -247,12 +322,16 @@ func (m *mockCustody) RecordEvidenceEvent(_ context.Context, _, _ uuid.UUID, act
 }
 
 type mockCaseLookup struct {
-	legalHold     bool
-	referenceCode string
-	status        string
+	legalHold       bool
+	getLegalHoldErr error
+	referenceCode   string
+	status          string
 }
 
 func (m *mockCaseLookup) GetLegalHold(_ context.Context, _ uuid.UUID) (bool, error) {
+	if m.getLegalHoldErr != nil {
+		return false, m.getLegalHoldErr
+	}
 	return m.legalHold, nil
 }
 
@@ -403,9 +482,11 @@ func TestService_Upload_InvalidClassification(t *testing.T) {
 func TestService_Upload_TooManyTags(t *testing.T) {
 	svc, _, _, _ := newTestService(t)
 
+	// Sprint 9: NormalizeTags dedupes before counting, so the test must use
+	// distinct tag values — otherwise all 51 "tag" entries collapse to one.
 	tags := make([]string, MaxTagCount+1)
 	for i := range tags {
-		tags[i] = "tag"
+		tags[i] = fmt.Sprintf("tag-%d", i)
 	}
 
 	_, err := svc.Upload(context.Background(), UploadInput{
@@ -957,7 +1038,11 @@ func TestService_UpdateMetadata_ClassificationAndTags(t *testing.T) {
 	if result.Classification != ClassificationConfidential {
 		t.Errorf("Classification = %q", result.Classification)
 	}
-	if len(custody.events) != 1 || custody.events[0] != "metadata_updated" {
+	// Sprint 9: classification changes emit a dedicated custody event in
+	// addition to the generic metadata_updated entry.
+	if len(custody.events) != 2 ||
+		custody.events[0] != "metadata_updated" ||
+		custody.events[1] != "classification_changed" {
 		t.Errorf("custody events = %v", custody.events)
 	}
 }
@@ -2072,6 +2157,215 @@ func TestService_Destroy_GetStatusError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "case status") {
 		t.Errorf("error = %q, expected case status mention", err.Error())
+	}
+}
+
+// --- Sprint 11.5: hash verification tests ---
+
+// mockAttemptRepo is a minimal in-process UploadAttemptRepository for testing.
+// It satisfies the full interface (Record, RecordEvent, RecordEventTx) and
+// captures every event so tests can assert on them without a live database.
+type mockAttemptRepo struct {
+	events []struct {
+		attemptID uuid.UUID
+		eventType string
+		payload   map[string]any
+	}
+}
+
+func (m *mockAttemptRepo) Record(_ context.Context, _ UploadAttempt) (uuid.UUID, error) {
+	return uuid.New(), nil
+}
+
+func (m *mockAttemptRepo) RecordEvent(_ context.Context, attemptID uuid.UUID, eventType string, payload map[string]any) error {
+	m.events = append(m.events, struct {
+		attemptID uuid.UUID
+		eventType string
+		payload   map[string]any
+	}{attemptID, eventType, payload})
+	return nil
+}
+
+func (m *mockAttemptRepo) RecordEventTx(_ context.Context, _ pgx.Tx, attemptID uuid.UUID, eventType string, payload map[string]any) error {
+	return m.RecordEvent(context.Background(), attemptID, eventType, payload)
+}
+
+// hasAttemptEvent reports whether mockAttemptRepo captured an event with the
+// given type for the given attempt ID.
+func (m *mockAttemptRepo) hasAttemptEvent(attemptID uuid.UUID, eventType string) bool {
+	for _, e := range m.events {
+		if e.attemptID == attemptID && e.eventType == eventType {
+			return true
+		}
+	}
+	return false
+}
+
+// TestService_Upload_HashMatch verifies that uploading with a correct
+// ExpectedSHA256 succeeds, creates an evidence row, and records a "stored"
+// attempt event.
+func TestService_Upload_HashMatch(t *testing.T) {
+	svc, repo, _, custody := newTestService(t)
+
+	content := []byte("test file content")
+	h := sha256.Sum256(content)
+	correctHash := hex.EncodeToString(h[:])
+
+	attemptID := uuid.New()
+	attemptRepo := &mockAttemptRepo{}
+	svc.WithUploadAttemptRepository(attemptRepo)
+
+	caseID := uuid.New()
+	input := UploadInput{
+		CaseID:         caseID,
+		File:           bytes.NewReader(content),
+		Filename:       "evidence.pdf",
+		SizeBytes:      int64(len(content)),
+		Classification: ClassificationRestricted,
+		UploadedBy:     "user-1",
+		ExpectedSHA256: correctHash,
+		AttemptID:      attemptID,
+	}
+
+	result, err := svc.Upload(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Upload with correct hash returned error: %v", err)
+	}
+
+	// Evidence row must be created.
+	if result.ID == uuid.Nil {
+		t.Error("expected non-nil evidence ID")
+	}
+	if _, ok := repo.items[result.ID]; !ok {
+		t.Error("expected evidence row to exist in repo")
+	}
+	if result.SHA256Hash != correctHash {
+		t.Errorf("SHA256Hash = %q, want %q", result.SHA256Hash, correctHash)
+	}
+
+	// Custody event must be evidence_uploaded.
+	found := false
+	for _, ev := range custody.events {
+		if ev == "evidence_uploaded" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected evidence_uploaded custody event, got %v", custody.events)
+	}
+
+	// Attempt event "stored" must be recorded.
+	if !attemptRepo.hasAttemptEvent(attemptID, "stored") {
+		t.Errorf("expected 'stored' attempt event for attemptID %s, got events: %+v", attemptID, attemptRepo.events)
+	}
+}
+
+// TestService_Upload_HashMismatch verifies that uploading with an incorrect
+// ExpectedSHA256 returns *HashMismatchError wrapping ErrHashMismatch, creates
+// no evidence row, and records a "hash_mismatch" attempt event plus an
+// "upload_hash_mismatch" custody event.
+func TestService_Upload_HashMismatch(t *testing.T) {
+	svc, repo, _, custody := newTestService(t)
+
+	actualContent := []byte("actual content")
+
+	wrongH := sha256.Sum256([]byte("wrong content"))
+	wrongHash := hex.EncodeToString(wrongH[:])
+
+	attemptID := uuid.New()
+	attemptRepo := &mockAttemptRepo{}
+	svc.WithUploadAttemptRepository(attemptRepo)
+
+	caseID := uuid.New()
+	input := UploadInput{
+		CaseID:         caseID,
+		File:           bytes.NewReader(actualContent),
+		Filename:       "evidence.pdf",
+		SizeBytes:      int64(len(actualContent)),
+		Classification: ClassificationRestricted,
+		UploadedBy:     "user-1",
+		ExpectedSHA256: wrongHash,
+		AttemptID:      attemptID,
+	}
+
+	_, err := svc.Upload(context.Background(), input)
+	if err == nil {
+		t.Fatal("expected error for hash mismatch, got nil")
+	}
+
+	// Must be *HashMismatchError via errors.As.
+	var hme *HashMismatchError
+	if !errors.As(err, &hme) {
+		t.Fatalf("expected *HashMismatchError via errors.As, got %T: %v", err, err)
+	}
+
+	// Must wrap ErrHashMismatch via errors.Is.
+	if !errors.Is(err, ErrHashMismatch) {
+		t.Errorf("expected errors.Is(err, ErrHashMismatch) = true")
+	}
+
+	// The error fields must carry the expected/actual hashes.
+	if hme.ExpectedSHA256 != wrongHash {
+		t.Errorf("HashMismatchError.ExpectedSHA256 = %q, want %q", hme.ExpectedSHA256, wrongHash)
+	}
+	actualH := sha256.Sum256(actualContent)
+	actualHash := hex.EncodeToString(actualH[:])
+	if hme.ActualSHA256 != actualHash {
+		t.Errorf("HashMismatchError.ActualSHA256 = %q, want %q", hme.ActualSHA256, actualHash)
+	}
+
+	// No evidence row must be created.
+	if len(repo.items) != 0 {
+		t.Errorf("expected no evidence rows to be created on hash mismatch, got %d", len(repo.items))
+	}
+
+	// Attempt event "hash_mismatch" must be recorded.
+	if !attemptRepo.hasAttemptEvent(attemptID, "hash_mismatch") {
+		t.Errorf("expected 'hash_mismatch' attempt event, got events: %+v", attemptRepo.events)
+	}
+
+	// Custody event "upload_hash_mismatch" must be recorded.
+	found := false
+	for _, ev := range custody.events {
+		if ev == "upload_hash_mismatch" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected upload_hash_mismatch custody event, got %v", custody.events)
+	}
+}
+
+// TestService_Upload_EmptyExpectedHash verifies that omitting ExpectedSHA256
+// (backward-compatible path) still succeeds without hash verification.
+func TestService_Upload_EmptyExpectedHash(t *testing.T) {
+	svc, repo, _, _ := newTestService(t)
+
+	content := []byte("test file content")
+	caseID := uuid.New()
+
+	input := UploadInput{
+		CaseID:         caseID,
+		File:           bytes.NewReader(content),
+		Filename:       "evidence.pdf",
+		SizeBytes:      int64(len(content)),
+		Classification: ClassificationRestricted,
+		UploadedBy:     "user-1",
+		ExpectedSHA256: "", // empty — hash check must be skipped
+	}
+
+	result, err := svc.Upload(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Upload with empty ExpectedSHA256 returned error: %v", err)
+	}
+
+	if result.ID == uuid.Nil {
+		t.Error("expected non-nil evidence ID")
+	}
+	if _, ok := repo.items[result.ID]; !ok {
+		t.Error("expected evidence row to exist in repo")
 	}
 }
 

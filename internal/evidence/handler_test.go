@@ -3,6 +3,8 @@ package evidence
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +25,12 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/integrity"
 	"github.com/vaultkeeper/vaultkeeper/internal/search"
 )
+
+// sha256Hex returns the lowercase hex-encoded SHA-256 digest of s.
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
 
 type mockAudit struct{}
 
@@ -52,9 +60,12 @@ func newTestHandler(t *testing.T) (*Handler, *mockRepo) {
 	return handler, repo
 }
 
+// testUserID is a stable UUID for test auth contexts.
+var testUserID = uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+
 func withAuthContext(r *http.Request) *http.Request {
 	ctx := auth.WithAuthContext(r.Context(), auth.AuthContext{
-		UserID:     "test-user",
+		UserID:     testUserID.String(),
 		SystemRole: auth.RoleSystemAdmin,
 	})
 	return r.WithContext(ctx)
@@ -139,20 +150,23 @@ func TestHandler_Upload(t *testing.T) {
 	})
 
 	// Build multipart form
+	const uploadContent = "test file content"
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", "evidence.pdf")
 	if err != nil {
 		t.Fatalf("create form file: %v", err)
 	}
-	part.Write([]byte("test file content"))
+	part.Write([]byte(uploadContent))
 	writer.WriteField("classification", "restricted")
 	writer.WriteField("description", "Test evidence upload")
+	writer.WriteField("client_sha256", sha256Hex(uploadContent))
 	writer.Close()
 
 	caseID := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(uploadContent))
 	req = withAuthContext(req)
 	w := httptest.NewRecorder()
 
@@ -275,7 +289,9 @@ func TestHandler_Destroy(t *testing.T) {
 		r.Delete("/", handler.Destroy)
 	})
 
-	body := `{"reason":"Court ordered destruction"}`
+	// Sprint 9: destruction requires an `authority` string (min 10 chars),
+	// not a free-form `reason`. Verifies the audited destruction path.
+	body := `{"authority":"Court Order ICC-2024-ORDER-005"}`
 	req := httptest.NewRequest(http.MethodDelete, "/api/evidence/"+id.String(), strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req = withAuthContext(req)
@@ -911,7 +927,17 @@ func TestHandler_ListByCase_ServiceError(t *testing.T) {
 }
 
 func TestHandler_UpdateMetadata_ServiceValidationError(t *testing.T) {
-	handler, _ := newTestHandler(t)
+	handler, repo := newTestHandler(t)
+	// Sprint 9: UpdateMetadata now access-checks before processing, so the
+	// item must exist in the repo. The test still validates the service
+	// layer returns a 400 for an invalid classification value.
+	id := uuid.New()
+	repo.items[id] = EvidenceItem{
+		ID:             id,
+		CaseID:         uuid.New(),
+		Classification: ClassificationRestricted,
+		Tags:           []string{},
+	}
 
 	r := chi.NewRouter()
 	r.Route("/api/evidence/{id}", func(r chi.Router) {
@@ -920,7 +946,7 @@ func TestHandler_UpdateMetadata_ServiceValidationError(t *testing.T) {
 
 	// Invalid classification should trigger service validation error
 	body := `{"classification":"top_secret"}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/evidence/"+uuid.NewString(), strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPatch, "/api/evidence/"+id.String(), strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req = withAuthContext(req)
 	w := httptest.NewRecorder()
@@ -1008,17 +1034,20 @@ func TestHandler_Upload_WithTags(t *testing.T) {
 		r.Post("/", handler.Upload)
 	})
 
+	const uploadContent = "test content"
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, _ := writer.CreateFormFile("file", "evidence.pdf")
-	part.Write([]byte("test content"))
+	part.Write([]byte(uploadContent))
 	writer.WriteField("classification", "restricted")
 	writer.WriteField("tags", `["tag1","tag2"]`)
+	writer.WriteField("client_sha256", sha256Hex(uploadContent))
 	writer.Close()
 
 	caseID := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(uploadContent))
 	req = withAuthContext(req)
 	w := httptest.NewRecorder()
 
@@ -1037,17 +1066,20 @@ func TestHandler_Upload_CommaSeparatedTags(t *testing.T) {
 		r.Post("/", handler.Upload)
 	})
 
+	const uploadContent = "test content"
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, _ := writer.CreateFormFile("file", "evidence.pdf")
-	part.Write([]byte("test content"))
+	part.Write([]byte(uploadContent))
 	writer.WriteField("classification", "restricted")
 	writer.WriteField("tags", "tag1,tag2,tag3") // comma-separated fallback
+	writer.WriteField("client_sha256", sha256Hex(uploadContent))
 	writer.Close()
 
 	caseID := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(uploadContent))
 	req = withAuthContext(req)
 	w := httptest.NewRecorder()
 
@@ -1066,16 +1098,19 @@ func TestHandler_Upload_NoClassification(t *testing.T) {
 		r.Post("/", handler.Upload)
 	})
 
+	const uploadContent = "test content"
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, _ := writer.CreateFormFile("file", "evidence.pdf")
-	part.Write([]byte("test content"))
+	part.Write([]byte(uploadContent))
 	// No classification field — should default to "restricted"
+	writer.WriteField("client_sha256", sha256Hex(uploadContent))
 	writer.Close()
 
 	caseID := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(uploadContent))
 	req = withAuthContext(req)
 	w := httptest.NewRecorder()
 
@@ -1323,16 +1358,19 @@ func TestHandler_Upload_SourceDateRFC3339(t *testing.T) {
 		r.Post("/", handler.Upload)
 	})
 
+	const uploadContent = "test content"
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, _ := writer.CreateFormFile("file", "evidence.pdf")
-	part.Write([]byte("test content"))
+	part.Write([]byte(uploadContent))
 	writer.WriteField("source_date", "2024-06-15T14:30:00Z")
+	writer.WriteField("client_sha256", sha256Hex(uploadContent))
 	writer.Close()
 
 	caseID := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(uploadContent))
 	req = withAuthContext(req)
 	w := httptest.NewRecorder()
 
@@ -1351,16 +1389,19 @@ func TestHandler_Upload_SourceDateDateOnly(t *testing.T) {
 		r.Post("/", handler.Upload)
 	})
 
+	const uploadContent = "test content"
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, _ := writer.CreateFormFile("file", "evidence.pdf")
-	part.Write([]byte("test content"))
+	part.Write([]byte(uploadContent))
 	writer.WriteField("source_date", "2024-06-15")
+	writer.WriteField("client_sha256", sha256Hex(uploadContent))
 	writer.Close()
 
 	caseID := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(uploadContent))
 	req = withAuthContext(req)
 	w := httptest.NewRecorder()
 
@@ -1379,16 +1420,19 @@ func TestHandler_Upload_SourceDateInvalid(t *testing.T) {
 		r.Post("/", handler.Upload)
 	})
 
+	const uploadContent = "test content"
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, _ := writer.CreateFormFile("file", "evidence.pdf")
-	part.Write([]byte("test content"))
+	part.Write([]byte(uploadContent))
 	writer.WriteField("source_date", "not-a-date")
+	writer.WriteField("client_sha256", sha256Hex(uploadContent))
 	writer.Close()
 
 	caseID := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/api/cases/"+caseID.String()+"/evidence", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(uploadContent))
 	req = withAuthContext(req)
 	w := httptest.NewRecorder()
 

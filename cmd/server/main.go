@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/vaultkeeper/vaultkeeper/internal/app"
 	"github.com/vaultkeeper/vaultkeeper/internal/audit"
 	"github.com/vaultkeeper/vaultkeeper/internal/auth"
 	"github.com/vaultkeeper/vaultkeeper/internal/backup"
@@ -23,8 +25,10 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/database"
 	"github.com/vaultkeeper/vaultkeeper/internal/disclosures"
 	"github.com/vaultkeeper/vaultkeeper/internal/evidence"
+	"github.com/vaultkeeper/vaultkeeper/internal/evidence/cleanup"
 	"github.com/vaultkeeper/vaultkeeper/internal/integrity"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
+	"github.com/vaultkeeper/vaultkeeper/internal/migration"
 	"github.com/vaultkeeper/vaultkeeper/internal/notifications"
 	"github.com/vaultkeeper/vaultkeeper/internal/reports"
 	"github.com/vaultkeeper/vaultkeeper/internal/search"
@@ -124,7 +128,87 @@ func run() error {
 		evidenceRepo, minioStorage, tsaClient, searchIndexer,
 		custodyLogger, caseLookup, thumbGen, logger, cfg.MaxUploadSize,
 	)
-	evidenceHandler := evidence.NewHandler(evidenceSvc, custodyRepo, auditLogger, cfg.MaxUploadSize)
+
+	// Sprint 9 wiring: inject the legal-hold adapter (bridges cases.Service),
+	// a logging retention notifier stub, and the GDPR erasure repository
+	// (satisfied by *evidence.PGRepository itself). All three are required
+	// for destruction, retention notification, and GDPR erasure to function
+	// in production — startup aborts below if any binding is missing.
+	legalHoldAdapter := &app.LegalHoldAdapter{Svc: caseSvc}
+	retentionNotifier := &app.LoggingRetentionNotifier{Logger: logger}
+	uploadAttemptRepo := evidence.NewUploadAttemptRepository(pool)
+	evidenceSvc = evidenceSvc.
+		WithLegalHoldChecker(legalHoldAdapter).
+		WithRetentionNotifier(retentionNotifier).
+		WithErasureRepo(evidenceRepo).
+		WithUploadAttemptRepository(uploadAttemptRepo).
+		WithOutboxPool(pool)
+	if legalHoldAdapter == nil || retentionNotifier == nil || evidenceRepo == nil {
+		logger.Error("sprint 9 wiring incomplete",
+			"legal_hold_checker", legalHoldAdapter != nil,
+			"retention_notifier", retentionNotifier != nil,
+			"erasure_repo", evidenceRepo != nil)
+		os.Exit(1)
+	}
+
+	evidenceHandler := evidence.NewHandler(evidenceSvc, custodyRepo, auditLogger, cfg.MaxUploadSize, uploadAttemptRepo)
+
+	// Sprint 10 — bulk ZIP upload subsystem.
+	bulkJobRepo := evidence.NewBulkJobRepository(pool)
+	bulkSvc := evidence.NewBulkService(bulkJobRepo, evidenceSvc, logger, cfg.MaxUploadSize)
+	bulkHandler := evidence.NewBulkHandler(bulkSvc, auditLogger, logger, cfg.MaxUploadSize)
+
+	// Sprint 10 — unified archive import endpoint. Accepts a ZIP via
+	// multipart upload, auto-detects manifest.csv (verified migration)
+	// vs bulk, and extracts to a server-owned temp dir. Operators
+	// never supply or see server paths.
+	importRunnerAdapter := &importMigrationAdapter{} // set after migrationSvc is built
+	importHandler := evidence.NewImportHandler(bulkSvc, importRunnerAdapter, auditLogger, logger, cfg.MaxUploadSize)
+
+	// Sprint 10 — migration subsystem. Signer loads from INSTANCE_ED25519_KEY;
+	// in production that env var is required (startup logs a warning when
+	// missing and falls back to an ephemeral key suitable only for dev).
+	// Sprint 9 wiring pattern: required secrets fail startup. Migration
+	// attestation certificates signed with an ephemeral key have zero
+	// verification value once the process restarts, so refuse to boot in
+	// production without the key. The dev override
+	// VAULTKEEPER_ALLOW_EPHEMERAL_SIGNING is flatly rejected in
+	// production (AppEnv=production) — the only way to run in prod is
+	// with a real key.
+	if err := migration.RequireConfiguredKey(); err != nil {
+		if cfg.AppEnv == "production" {
+			return fmt.Errorf("migration signing key: %w (set INSTANCE_ED25519_KEY; see `vaultkeeper-migrate genkey`)", err)
+		}
+		if os.Getenv("VAULTKEEPER_ALLOW_EPHEMERAL_SIGNING") != "1" {
+			return fmt.Errorf("migration signing key: %w (set INSTANCE_ED25519_KEY; see `vaultkeeper-migrate genkey`)", err)
+		}
+		logger.Error("MIGRATION SIGNING KEY NOT CONFIGURED — using ephemeral key (NON-PRODUCTION ONLY)",
+			"override", "VAULTKEEPER_ALLOW_EPHEMERAL_SIGNING=1",
+			"impact", "attestation certificates are not verifiable after server restart")
+	}
+	migrationSigner, err := migration.LoadOrGenerate()
+	if err != nil {
+		return fmt.Errorf("load migration signer: %w", err)
+	}
+	migrationRepo := migration.NewRepository(pool)
+	migrationWriter := &migrationEvidenceWriter{svc: evidenceSvc}
+	migrationIngester := migration.NewIngester(migrationWriter, migrationRepo)
+	migrationSvc := migration.NewService(migration.NewParser(), migrationIngester, migrationRepo, tsaClient, logger)
+	importRunnerAdapter.svc = migrationSvc
+	migrationHandler := migration.NewHandler(
+		migrationSvc,
+		&migrationCaseLookup{svc: caseSvc},
+		migrationSigner,
+		auditLogger,
+		version,
+		cfg.MigrationStagingRoot,
+		logger,
+	)
+	// Sprint 9: wire the case-role loader so the classification access
+	// matrix is enforced on list / get / download / thumbnail / update /
+	// destroy paths. Without this, reads bypass the matrix entirely.
+	evidenceHandler.SetCaseRoleLoader(roleRepo)
+	gdprRegistrar := &evidence.GDPRRouteRegistrar{Handler: evidenceHandler, Audit: auditLogger}
 
 	// Redaction service
 	redactionSvc := evidence.NewRedactionService(evidenceSvc, minioStorage, tsaClient, custodyLogger, logger)
@@ -173,6 +257,13 @@ func run() error {
 	var evidenceSearcher search.EvidenceSearcher
 	if cfg.MeilisearchURL != "" {
 		meiliClient := search.NewMeilisearchClient(cfg.MeilisearchURL, cfg.MeilisearchAPIKey)
+		// Ensure searchable/filterable/sortable attributes and typo tolerance
+		// are configured. Without this, faceted search fails with
+		// "invalid_search_facets" and the handler returns 503. Log & continue
+		// on error so Meilisearch outages don't block the rest of startup.
+		if err := meiliClient.ConfigureEvidenceIndex(ctx); err != nil {
+			logger.Warn("failed to configure evidence search index", "error", err)
+		}
 		evidenceSearcher = meiliClient
 	} else {
 		evidenceSearcher = &search.NoopEvidenceSearcher{}
@@ -230,6 +321,13 @@ func run() error {
 	defer backupCancel()
 	go backupRunner.StartScheduler(backupCtx, 3, 0)
 
+	// Start retention-expiry notification scheduler (daily). Fires
+	// NotifyExpiringRetention for items whose effective retention expires
+	// within the next 30 days so case admins have runway to review.
+	retentionCtx, retentionCancel := context.WithCancel(ctx)
+	defer retentionCancel()
+	go runRetentionScheduler(retentionCtx, evidenceSvc, logger)
+
 	// Case export
 	exportSvc := cases.NewExportService(evidenceRepo, custodyRepo, caseRepo, minioStorage, custodyLogger)
 	exportHandler := cases.NewExportHandler(exportSvc, auditLogger)
@@ -255,6 +353,12 @@ func run() error {
 	wsTokenValidator := auth.NewMiddleware(jwks, cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, logger, auditLogger)
 	collabHandler := collaboration.NewHandler(collabHub, pool, wsTokenValidator, roleRepo, auditLogger, logger, cfg.CORSOrigins)
 
+	// Sprint 11.5 — cleanup worker for notification_outbox processing.
+	cleanupWorker := cleanup.NewWorker(pool, nil, nil, logger, 30*time.Second)
+	cleanupCtx, cleanupCancel := context.WithCancel(ctx)
+	defer cleanupCancel()
+	go cleanupWorker.Run(cleanupCtx)
+
 	healthHandler := server.NewHealthHandler(
 		pool, minioStorage, cfg.MinIOBucket,
 		cfg.MeilisearchURL, cfg.KeycloakURL, cfg.KeycloakRealm,
@@ -263,9 +367,9 @@ func run() error {
 	)
 
 	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, healthHandler,
-		caseHandler, roleHandler, evidenceHandler, notifHandler, searchHandler, integrityHandler,
+		caseHandler, roleHandler, evidenceHandler, gdprRegistrar, notifHandler, searchHandler, integrityHandler,
 		backupHandler, exportHandler, reportHandler, witnessHandler, disclosureHandler,
-		pagesHandler, draftHandler, collabHandler,
+		pagesHandler, draftHandler, collabHandler, migrationHandler, bulkHandler, importHandler,
 	)
 
 	serverErr := make(chan error, 1)
@@ -314,6 +418,127 @@ func (a *caseReportSourceAdapter) FindByID(ctx context.Context, id uuid.UUID) (r
 		Title:         c.Title,
 		Jurisdiction:  c.Jurisdiction,
 		Status:        c.Status,
+	}, nil
+}
+
+// runRetentionScheduler runs NotifyExpiringRetention on a 24h ticker until
+// the provided context is cancelled. It fires once on startup so operators
+// see immediate output in the logs, then every 24h thereafter. Errors are
+// logged but do not terminate the loop.
+func runRetentionScheduler(ctx context.Context, svc *evidence.Service, logger *slog.Logger) {
+	const window = 30 * 24 * time.Hour
+	run := func() {
+		runCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+		count, err := svc.NotifyExpiringRetention(runCtx, window)
+		if err != nil {
+			logger.Error("retention scheduler run failed", "error", err)
+			return
+		}
+		logger.Info("retention scheduler run complete", "notified", count)
+	}
+
+	// Fire once on startup.
+	run()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
+// migrationEvidenceWriter adapts evidence.Service to migration.EvidenceWriter,
+// translating between the two packages' StoreInput/StoreResult types. The
+// migration package defines its own narrow interface so it does not depend
+// on the evidence package's full surface.
+type migrationEvidenceWriter struct {
+	svc *evidence.Service
+}
+
+func (w *migrationEvidenceWriter) StoreMigratedFile(ctx context.Context, in migration.StoreInput) (migration.StoreResult, error) {
+	res, err := w.svc.StoreMigratedFile(ctx, evidence.MigrationStoreInput{
+		CaseID:         in.CaseID,
+		Filename:       in.Filename,
+		OriginalName:   in.OriginalName,
+		Reader:         in.Reader,
+		SizeBytes:      in.SizeBytes,
+		ComputedHash:   in.ComputedHash,
+		SourceHash:     in.SourceHash,
+		Classification: in.Classification,
+		Description:    in.Description,
+		Tags:           in.Tags,
+		Source:         in.Source,
+		SourceDate:     in.SourceDate,
+		UploadedBy:     in.UploadedBy,
+		CustodyDetail:  in.CustodyDetail,
+	})
+	if err != nil {
+		return migration.StoreResult{}, err
+	}
+	return migration.StoreResult{EvidenceID: res.EvidenceID, SizeBytes: res.SizeBytes}, nil
+}
+
+// importMigrationAdapter bridges evidence.ImportRunner to migration.Service.
+// It lives in cmd/server so the evidence package never takes a
+// compile-time dependency on the migration package.
+type importMigrationAdapter struct {
+	svc *migration.Service
+}
+
+func (a *importMigrationAdapter) Run(ctx context.Context, in evidence.ImportRunInput) (evidence.ImportRunResult, error) {
+	mf, err := os.Open(in.ManifestPath) // #nosec G304 — path is inside the server-owned import temp dir
+	if err != nil {
+		return evidence.ImportRunResult{}, fmt.Errorf("open manifest: %w", err)
+	}
+	defer mf.Close()
+
+	res, err := a.svc.Run(ctx, migration.RunInput{
+		CaseID:         in.CaseID,
+		SourceSystem:   in.SourceSystem,
+		PerformedBy:    in.PerformedBy,
+		ManifestSource: mf,
+		ManifestFormat: migration.FormatCSV,
+		SourceRoot:     in.SourceRoot,
+		Options: migration.BatchOptions{
+			HaltOnMismatch: in.HaltOnMismatch,
+			DryRun:         in.DryRun,
+		},
+	})
+	if err != nil {
+		return evidence.ImportRunResult{}, err
+	}
+	return evidence.ImportRunResult{
+		MigrationID:     res.Record.ID,
+		TotalItems:      res.Record.TotalItems,
+		MatchedItems:    res.Record.MatchedItems,
+		MismatchedItems: res.Record.MismatchedItems,
+		Status:          string(res.Record.Status),
+		TSAName:         res.Record.TSAName,
+		TSATimestamp:    res.Record.TSATimestamp,
+	}, nil
+}
+
+// migrationCaseLookup adapts cases.Service to migration.CaseLookup. The
+// single-call interface avoids the dual DB round-trip pattern the
+// earlier two-method shape produced.
+type migrationCaseLookup struct {
+	svc *cases.Service
+}
+
+func (l *migrationCaseLookup) GetCaseInfo(ctx context.Context, id uuid.UUID) (migration.CaseInfo, error) {
+	c, err := l.svc.GetCase(ctx, id)
+	if err != nil {
+		return migration.CaseInfo{}, err
+	}
+	return migration.CaseInfo{
+		ReferenceCode: c.ReferenceCode,
+		Title:         c.Title,
 	}, nil
 }
 

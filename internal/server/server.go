@@ -59,6 +59,7 @@ func corsMiddleware(origins []string, appURL string) func(http.Handler) http.Han
 					"Content-Type",
 					"Content-Disposition",
 					"X-Request-ID",
+					"X-Content-SHA256",
 					"Upload-Length",
 					"Upload-Offset",
 					"Tus-Resumable",

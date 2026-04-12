@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -45,18 +46,51 @@ func (e *ValidationError) Error() string {
 // EXIFExtractor extracts EXIF data from an image.
 type EXIFExtractor func(reader io.Reader, mimeType string) ([]byte, error)
 
+// LegalHoldChecker is the narrow interface used by DestroyEvidence to consult
+// the legal-hold state of a case without dragging in the full cases.Service
+// surface. Production wiring should inject an adapter around cases.Service
+// via WithLegalHoldChecker (TODO: wire in cmd/vaultkeeper-api/main.go).
+type LegalHoldChecker interface {
+	EnsureNotOnHold(ctx context.Context, caseID uuid.UUID) error
+}
+
 // Service orchestrates the evidence upload pipeline.
 type Service struct {
-	repo        Repository
-	storage     ObjectStorage
-	tsa         integrity.TimestampAuthority
-	indexer     search.SearchIndexer
-	custody     CustodyRecorder
-	cases       CaseLookup
-	thumbGen    ThumbnailGenerator
-	exifExtract EXIFExtractor
-	logger      *slog.Logger
-	maxUpload   int64
+	repo              Repository
+	storage           ObjectStorage
+	tsa               integrity.TimestampAuthority
+	indexer           search.SearchIndexer
+	custody           CustodyRecorder
+	cases             CaseLookup
+	thumbGen          ThumbnailGenerator
+	exifExtract       EXIFExtractor
+	logger            *slog.Logger
+	maxUpload         int64
+	legalHoldChecker  LegalHoldChecker            // optional — set via WithLegalHoldChecker
+	retentionNotifier RetentionNotifier            // optional — set via WithRetentionNotifier
+	erasureRepo       ErasureRepository            // optional — set via WithErasureRepo
+	attempts          UploadAttemptRepository       // optional — Sprint 11.5 upload attempt tracking
+	outboxPool        execer                        // optional — for notification_outbox inserts
+}
+
+// WithLegalHoldChecker injects a legal-hold checker into the service.
+// Returns the service for chaining. Used by DestroyEvidence; if nil, the
+// legal-hold check is skipped (production must wire this).
+func (s *Service) WithLegalHoldChecker(checker LegalHoldChecker) *Service {
+	s.legalHoldChecker = checker
+	return s
+}
+
+// WithUploadAttemptRepository injects the upload attempt tracker (Sprint 11.5).
+func (s *Service) WithUploadAttemptRepository(repo UploadAttemptRepository) *Service {
+	s.attempts = repo
+	return s
+}
+
+// WithOutboxPool injects the DB pool for notification_outbox writes (Sprint 11.5).
+func (s *Service) WithOutboxPool(pool execer) *Service {
+	s.outboxPool = pool
+	return s
 }
 
 // NewService creates a new evidence service.
@@ -98,10 +132,24 @@ type UploadInput struct {
 	UploadedByName string
 	Source         string
 	SourceDate     *time.Time
+	ExpectedSHA256 string    // client-declared SHA-256 hex (Sprint 11.5)
+	AttemptID      uuid.UUID // upload_attempts_v1 row ID (Sprint 11.5)
 }
 
 // Upload processes a new evidence file through the complete upload pipeline.
 func (s *Service) Upload(ctx context.Context, input UploadInput) (EvidenceItem, error) {
+	// Sprint 9: normalize tags through the full Sprint 9 rules (regex,
+	// lowercase, dedupe, max count) before validation. Previously the
+	// inline length check was a backdoor that accepted uppercase and
+	// whitespace-containing tags.
+	if len(input.Tags) > 0 {
+		normalized, err := NormalizeTags(input.Tags)
+		if err != nil {
+			return EvidenceItem{}, err
+		}
+		input.Tags = normalized
+	}
+
 	if err := s.validateUploadInput(input); err != nil {
 		return EvidenceItem{}, err
 	}
@@ -129,6 +177,17 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (EvidenceItem, 
 	// SHA-256 hash
 	hashBytes := sha256.Sum256(data)
 	hashHex := hex.EncodeToString(hashBytes[:])
+
+	// Sprint 11.5: verify client-declared hash matches server-computed hash.
+	// Checked BEFORE MinIO write so no orphan objects on mismatch.
+	// Uses constant-time comparison to prevent timing side-channel attacks.
+	if input.ExpectedSHA256 != "" && subtle.ConstantTimeCompare([]byte(hashHex), []byte(strings.ToLower(input.ExpectedSHA256))) != 1 {
+		s.recordHashMismatch(ctx, input, hashHex, "")
+		return EvidenceItem{}, &HashMismatchError{
+			ExpectedSHA256: strings.ToLower(input.ExpectedSHA256),
+			ActualSHA256:   strings.ToLower(hashHex),
+		}
+	}
 
 	// MIME type detection
 	mimeType := http.DetectContentType(data)
@@ -224,10 +283,61 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (EvidenceItem, 
 		"mime_type":       mimeType,
 	})
 
+	// Sprint 11.5: record stored event for forensic audit trail.
+	if s.attempts != nil && input.AttemptID != uuid.Nil {
+		if err := s.attempts.RecordEvent(ctx, input.AttemptID, "stored", map[string]any{
+			"evidence_id": evidence.ID.String(),
+			"storage_key": storageKey,
+		}); err != nil {
+			s.logger.Warn("failed to record stored attempt event", "attempt_id", input.AttemptID, "error", err)
+		}
+	}
+
 	// Index in Meilisearch
 	s.indexEvidence(ctx, evidence)
 
 	return evidence, nil
+}
+
+// recordHashMismatch records mismatch events and queues cleanup actions.
+// No MinIO delete is performed inline — the outbox worker handles it.
+func (s *Service) recordHashMismatch(ctx context.Context, input UploadInput, actualHash, storageKey string) {
+	expected := strings.ToLower(input.ExpectedSHA256)
+	actual := strings.ToLower(actualHash)
+
+	if s.attempts != nil && input.AttemptID != uuid.Nil {
+		if err := s.attempts.RecordEvent(ctx, input.AttemptID, "hash_mismatch", map[string]any{
+			"expected_sha256": expected,
+			"actual_sha256":   actual,
+		}); err != nil {
+			s.logger.Warn("failed to record hash mismatch attempt event", "attempt_id", input.AttemptID, "error", err)
+		}
+	}
+	s.recordCustodyEvent(ctx, input.CaseID, uuid.Nil, "upload_hash_mismatch", input.UploadedBy, map[string]string{
+		"expected_sha256": expected,
+		"actual_sha256":   actual,
+	})
+	// Queue async MinIO object deletion and critical notification.
+	if s.outboxPool != nil && storageKey != "" {
+		if err := InsertOutboxItem(ctx, s.outboxPool, "minio_delete_object", map[string]any{
+			"bucket":     s.storageBucket(),
+			"object_key": storageKey,
+		}); err != nil {
+			s.logger.Error("failed to enqueue minio delete outbox item", "storage_key", storageKey, "error", err)
+		}
+		if err := InsertOutboxItem(ctx, s.outboxPool, "notification_send", map[string]any{
+			"severity": "critical",
+			"kind":     "upload_hash_mismatch",
+			"case_id":  input.CaseID.String(),
+			"user_id":  input.UploadedBy,
+		}); err != nil {
+			s.logger.Error("failed to enqueue mismatch notification outbox item", "error", err)
+		}
+	}
+}
+
+func (s *Service) storageBucket() string {
+	return s.storage.BucketName()
 }
 
 // Get retrieves evidence metadata by ID.
@@ -260,8 +370,44 @@ func (s *Service) List(ctx context.Context, filter EvidenceFilter, page Paginati
 
 // UpdateMetadata updates evidence description, classification, or tags.
 func (s *Service) UpdateMetadata(ctx context.Context, id uuid.UUID, updates EvidenceUpdate, actorID string) (EvidenceItem, error) {
+	// Sprint 9: normalize tags through the full tag rules (lowercase,
+	// regex, dedupe, limit). This closes the backdoor where PATCH could
+	// bypass ValidateTag and write uppercase or special-character tags.
+	if updates.Tags != nil {
+		normalized, err := NormalizeTags(updates.Tags)
+		if err != nil {
+			return EvidenceItem{}, err
+		}
+		updates.Tags = normalized
+	}
+
 	if err := validateEvidenceUpdate(updates); err != nil {
 		return EvidenceItem{}, err
+	}
+
+	// Classification changes must satisfy the ex_parte rules before touching
+	// the database. Fetch the prior state so we can emit a precise custody
+	// event and, when the classification moves off ex_parte, clear the side.
+	// The prior classification is also passed to the repository as an
+	// optimistic-concurrency guard (Sprint 9 M4) so two concurrent writers
+	// cannot both "win" a race where one sets classification to ex_parte
+	// and the other clears the side.
+	var prior EvidenceItem
+	if updates.Classification != nil {
+		p, err := s.repo.FindByID(ctx, id)
+		if err != nil {
+			return EvidenceItem{}, err
+		}
+		prior = p
+
+		if err := ValidateClassificationChange(*updates.Classification, updates.ExParteSide); err != nil {
+			return EvidenceItem{}, err
+		}
+		if *updates.Classification != ClassificationExParte && updates.ExParteSide == nil {
+			updates.ClearExParteSide = true
+		}
+		priorClass := prior.Classification
+		updates.ExpectedClassification = &priorClass
 	}
 
 	// Sanitize
@@ -287,6 +433,22 @@ func (s *Service) UpdateMetadata(ctx context.Context, id uuid.UUID, updates Evid
 		changed["tags"] = string(tagsJSON)
 	}
 	s.recordCustodyEvent(ctx, result.CaseID, result.ID, "metadata_updated", actorID, changed)
+
+	// Classification change gets a dedicated custody event with before/after so
+	// the chain records it distinctly from generic metadata edits (Sprint 9).
+	if updates.Classification != nil && prior.Classification != *updates.Classification {
+		detail := map[string]string{
+			"previous_classification": prior.Classification,
+			"new_classification":      *updates.Classification,
+		}
+		if prior.ExParteSide != nil {
+			detail["previous_ex_parte_side"] = *prior.ExParteSide
+		}
+		if updates.ExParteSide != nil {
+			detail["new_ex_parte_side"] = *updates.ExParteSide
+		}
+		s.recordCustodyEvent(ctx, result.CaseID, result.ID, "classification_changed", actorID, detail)
+	}
 
 	// Re-index
 	s.indexEvidence(ctx, result)
@@ -336,7 +498,16 @@ func (s *Service) GetThumbnail(ctx context.Context, id uuid.UUID) (io.ReadCloser
 	return reader, size, nil
 }
 
-// Destroy marks evidence as destroyed (soft delete) with audit trail.
+// Destroy is the pre-Sprint 9 soft-delete path. It is DEPRECATED and is no
+// longer reachable via HTTP — the DELETE /api/evidence/{id} handler routes
+// to DestroyEvidence (destruction.go), which enforces the audited
+// authority/retention/DB-first flow required by the Sprint 9 spec.
+//
+// This method is retained solely for backwards compatibility with existing
+// unit tests. New callers MUST use DestroyEvidence. Do not wire this to any
+// HTTP, CLI, or scheduled job path.
+//
+// Deprecated: use DestroyEvidence instead.
 func (s *Service) Destroy(ctx context.Context, input DestroyInput) error {
 	evidence, err := s.repo.FindByID(ctx, input.EvidenceID)
 	if err != nil {
@@ -407,6 +578,12 @@ func (s *Service) UploadNewVersion(ctx context.Context, parentID uuid.UUID, inpu
 		return EvidenceItem{}, &ValidationError{Field: "evidence", Message: "cannot version destroyed evidence"}
 	}
 
+	// Sprint 9: file replacement is a destructive mutation — block when the
+	// case is under legal hold.
+	if err := s.checkLegalHold(ctx, parent.CaseID); err != nil {
+		return EvidenceItem{}, err
+	}
+
 	// Upload with the same case
 	input.CaseID = parent.CaseID
 
@@ -463,7 +640,7 @@ func (s *Service) validateUploadInput(input UploadInput) error {
 	if input.Classification == "" {
 		input.Classification = ClassificationRestricted
 	}
-	if !ValidClassifications[input.Classification] {
+	if !validClassifications[input.Classification] {
 		return &ValidationError{Field: "classification", Message: "invalid classification"}
 	}
 	if len(input.Description) > MaxDescriptionLength {
@@ -484,7 +661,7 @@ func validateEvidenceUpdate(updates EvidenceUpdate) error {
 	if updates.Description != nil && len(*updates.Description) > MaxDescriptionLength {
 		return &ValidationError{Field: "description", Message: "description too long"}
 	}
-	if updates.Classification != nil && !ValidClassifications[*updates.Classification] {
+	if updates.Classification != nil && !validClassifications[*updates.Classification] {
 		return &ValidationError{Field: "classification", Message: "invalid classification"}
 	}
 	if updates.Tags != nil {
@@ -535,22 +712,30 @@ func (s *Service) indexEvidence(ctx context.Context, evidence EvidenceItem) {
 	if s.indexer == nil {
 		return
 	}
+	// Sprint 9: include ex_parte_side in the indexed payload so the search
+	// handler can apply the classification access matrix at query time.
+	// Without this field a defence user could see prosecution ex_parte
+	// items in search results.
+	payload := map[string]any{
+		"case_id":         evidence.CaseID.String(),
+		"evidence_number": derefStr(evidence.EvidenceNumber),
+		"filename":        evidence.Filename,
+		"original_name":   evidence.OriginalName,
+		"mime_type":       evidence.MimeType,
+		"classification":  evidence.Classification,
+		"description":     evidence.Description,
+		"tags":            evidence.Tags,
+		"uploaded_by":     evidence.UploadedBy,
+		"sha256_hash":     evidence.SHA256Hash,
+		"created_at":      evidence.CreatedAt.Format(time.RFC3339),
+	}
+	if evidence.ExParteSide != nil {
+		payload["ex_parte_side"] = *evidence.ExParteSide
+	}
 	doc := search.Document{
-		ID:    evidence.ID.String(),
-		Index: "evidence",
-		Payload: map[string]any{
-			"case_id":         evidence.CaseID.String(),
-			"evidence_number": derefStr(evidence.EvidenceNumber),
-			"filename":        evidence.Filename,
-			"original_name":   evidence.OriginalName,
-			"mime_type":       evidence.MimeType,
-			"classification":  evidence.Classification,
-			"description":     evidence.Description,
-			"tags":            evidence.Tags,
-			"uploaded_by":     evidence.UploadedBy,
-			"sha256_hash":     evidence.SHA256Hash,
-			"created_at":      evidence.CreatedAt.Format(time.RFC3339),
-		},
+		ID:      evidence.ID.String(),
+		Index:   "evidence",
+		Payload: payload,
 	}
 	if err := s.indexer.IndexDocument(ctx, doc); err != nil {
 		s.logger.Error("failed to index evidence", "id", evidence.ID, "error", err)

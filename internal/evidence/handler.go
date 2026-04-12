@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/time/rate"
 
 	"github.com/vaultkeeper/vaultkeeper/internal/auth"
 	"github.com/vaultkeeper/vaultkeeper/internal/custody"
@@ -27,20 +28,27 @@ type CustodyReader interface {
 
 // Handler provides HTTP endpoints for evidence operations.
 type Handler struct {
-	service   *Service
-	redaction *RedactionService
-	custody   CustodyReader
-	audit     auth.AuditLogger
-	maxUpload int64
+	service        *Service
+	redaction      *RedactionService
+	custody        CustodyReader
+	attemptRepo    UploadAttemptRepository
+	audit          auth.AuditLogger
+	maxUpload      int64
+	caseRoleLoader auth.CaseRoleLoader // optional — Sprint 9 access matrix
 }
 
 // NewHandler creates a new evidence HTTP handler.
-func NewHandler(service *Service, custodyReader CustodyReader, audit auth.AuditLogger, maxUploadSize int64) *Handler {
+func NewHandler(service *Service, custodyReader CustodyReader, audit auth.AuditLogger, maxUploadSize int64, attemptRepos ...UploadAttemptRepository) *Handler {
+	var attemptRepo UploadAttemptRepository = noopUploadAttemptRepository{}
+	if len(attemptRepos) > 0 && attemptRepos[0] != nil {
+		attemptRepo = attemptRepos[0]
+	}
 	return &Handler{
-		service:   service,
-		custody:   custodyReader,
-		audit:     audit,
-		maxUpload: maxUploadSize,
+		service:     service,
+		custody:     custodyReader,
+		attemptRepo: attemptRepo,
+		audit:       audit,
+		maxUpload:   maxUploadSize,
 	}
 }
 
@@ -49,13 +57,113 @@ func (h *Handler) SetRedactionService(rs *RedactionService) {
 	h.redaction = rs
 }
 
+// SetCaseRoleLoader wires the case-role loader used by Sprint 9 access
+// enforcement on list/get/download/thumbnail paths. Production MUST call
+// this; if nil, the handler falls back to deny-by-default on case-scoped
+// reads (loadCallerCaseRole returns ErrNoCaseRole).
+func (h *Handler) SetCaseRoleLoader(loader auth.CaseRoleLoader) {
+	h.caseRoleLoader = loader
+}
+
+// loadCallerCaseRole resolves the caller's case role for access checks.
+// Returns the role string (matching evidence.RoleXxx constants) and whether
+// the caller may proceed. A false result means the handler should respond
+// with 404 (not 403) to avoid leaking existence of classified items.
+func (h *Handler) loadCallerCaseRole(ctx context.Context, caseID uuid.UUID) (string, bool) {
+	ac, ok := auth.GetAuthContext(ctx)
+	if !ok {
+		return "", false
+	}
+	// System admins bypass the case-role matrix — they already have cross-
+	// case admin privilege via RequireSystemRole on admin routes, but on
+	// evidence reads we let them proceed so support operations still work.
+	// This bypass must happen before the loader nil-check so tests and any
+	// legitimate admin flow works without a production loader wired.
+	if ac.SystemRole == auth.RoleSystemAdmin {
+		return RoleJudge, true // use judge as the highest-access effective role
+	}
+	if h.caseRoleLoader == nil {
+		return "", false
+	}
+	role, err := h.caseRoleLoader.LoadCaseRole(ctx, caseID.String(), ac.UserID)
+	if err != nil {
+		return "", false
+	}
+	return string(role), true
+}
+
+// enforceItemAccess applies the classification access matrix to a fetched
+// evidence item. Returns true if the caller may see it. On false, the
+// handler MUST respond 404, not 403.
+//
+// Sprint 9 L1: successful reads of confidential or ex_parte items are
+// logged with a structured slog entry so the audit pipeline can alert on
+// suspicious read patterns (e.g. a prosecution member reading dozens of
+// ex_parte items in a short window). Public/restricted reads are not
+// logged to keep the signal-to-noise ratio sensible.
+func (h *Handler) enforceItemAccess(ctx context.Context, item EvidenceItem) bool {
+	if ac, ok := auth.GetAuthContext(ctx); ok && ac.SystemRole == auth.RoleSystemAdmin {
+		h.logClassifiedRead(ctx, item, "system_admin", ac.UserID)
+		return true
+	}
+	role, ok := h.loadCallerCaseRole(ctx, item.CaseID)
+	if !ok {
+		return false
+	}
+	// Treat empty classification as the default ("restricted") so legacy
+	// rows created before Sprint 9 are visible to authorised case roles.
+	class := item.Classification
+	if class == "" {
+		class = ClassificationRestricted
+	}
+	if !CheckAccess(role, class, item.ExParteSide, UserSideForRole(role)) {
+		return false
+	}
+	// Log classified reads only.
+	if ac, ok := auth.GetAuthContext(ctx); ok {
+		h.logClassifiedRead(ctx, item, role, ac.UserID)
+	}
+	return true
+}
+
+// logClassifiedRead emits a structured audit entry for successful reads
+// of confidential or ex_parte items. Public/restricted reads are not
+// logged to keep the signal-to-noise ratio sensible.
+func (h *Handler) logClassifiedRead(_ context.Context, item EvidenceItem, role, userID string) {
+	if item.Classification != ClassificationConfidential && item.Classification != ClassificationExParte {
+		return
+	}
+	side := ""
+	if item.ExParteSide != nil {
+		side = *item.ExParteSide
+	}
+	slog.Info("classified evidence read",
+		"evidence_id", item.ID,
+		"case_id", item.CaseID,
+		"classification", item.Classification,
+		"ex_parte_side", side,
+		"actor_role", role,
+		"actor_user_id", userID,
+	)
+}
+
+// uploadLimiter allows 10 upload requests per minute per user.
+var uploadLimiter = newUserRateLimiter(rate.Every(6*time.Second), 10)
+
 // RegisterRoutes mounts evidence routes on the given router.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	// Case-scoped evidence routes
 	r.Route("/api/cases/{caseID}/evidence", func(r chi.Router) {
-		r.Post("/", h.Upload)
+		r.With(rateLimitMiddleware(uploadLimiter)).Post("/", h.Upload)
 		r.Get("/", h.ListByCase)
 	})
+
+	// Tag taxonomy routes (Sprint 9 Step 5). Autocomplete is readable by any
+	// authenticated user; rename/merge/delete require case_admin.
+	r.Get("/api/evidence/tags/autocomplete", h.TagAutocomplete)
+	r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/api/evidence/tags/rename", h.TagRename)
+	r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/api/evidence/tags/merge", h.TagMerge)
+	r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/api/evidence/tags/delete", h.TagDelete)
 
 	// Evidence-scoped routes
 	r.Route("/api/evidence/{id}", func(r chi.Router) {
@@ -66,7 +174,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/custody", h.GetCustodyLog)
 		r.Patch("/", h.UpdateMetadata)
 		r.Delete("/", h.Destroy)
-		r.Post("/version", h.UploadNewVersion)
+		r.With(rateLimitMiddleware(uploadLimiter)).Post("/version", h.UploadNewVersion)
 		r.Post("/redact", h.ApplyRedactions)
 		r.Post("/redact/preview", h.PreviewRedactions)
 	})
@@ -85,58 +193,44 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Limit request body
-	r.Body = http.MaxBytesReader(w, r.Body, h.maxUpload+10<<20) // extra room for multipart overhead
-
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		httputil.RespondError(w, http.StatusBadRequest, "invalid multipart form")
+	form, ok := parseUploadForm(w, r, h.maxUpload)
+	if !ok {
 		return
 	}
+	defer form.file.Close()
 
-	file, header, err := r.FormFile("file")
+	userID, err := uuid.Parse(ac.UserID)
 	if err != nil {
-		httputil.RespondError(w, http.StatusBadRequest, "file field is required")
+		slog.Error("invalid user ID in auth context", "raw", ac.UserID, "error", err)
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	defer file.Close()
-
-	classification := r.FormValue("classification")
-	if classification == "" {
-		classification = ClassificationRestricted
-	}
-
-	description := r.FormValue("description")
-	source := r.FormValue("source")
-
-	var sourceDate *time.Time
-	if sd := r.FormValue("source_date"); sd != "" {
-		if t, err := time.Parse(time.RFC3339, sd); err == nil {
-			sourceDate = &t
-		} else if t, err := time.Parse("2006-01-02", sd); err == nil {
-			sourceDate = &t
-		}
-	}
-
-	var tags []string
-	if tagsStr := r.FormValue("tags"); tagsStr != "" {
-		if err := json.Unmarshal([]byte(tagsStr), &tags); err != nil {
-			// Try comma-separated fallback
-			tags = splitTags(tagsStr)
-		}
+	attemptID, err := h.attemptRepo.Record(r.Context(), UploadAttempt{
+		CaseID:     caseID,
+		UserID:     userID,
+		ClientHash: form.clientHash,
+		StartedAt:  time.Now().UTC(),
+	})
+	if err != nil {
+		slog.Error("failed to record upload attempt", "error", err)
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
 	}
 
 	input := UploadInput{
 		CaseID:         caseID,
-		File:           file,
-		Filename:       header.Filename,
-		SizeBytes:      header.Size,
-		Classification: classification,
-		Description:    description,
-		Tags:           tags,
+		File:           form.file,
+		Filename:       form.fileHeader,
+		SizeBytes:      form.fileSize,
+		Classification: form.classification,
+		Description:    form.description,
+		Tags:           form.tags,
 		UploadedBy:     ac.UserID,
 		UploadedByName: ac.Username,
-		Source:         source,
-		SourceDate:     sourceDate,
+		Source:         form.source,
+		SourceDate:     form.sourceDate,
+		ExpectedSHA256: form.clientHash,
+		AttemptID:      attemptID,
 	}
 
 	evidence, err := h.service.Upload(r.Context(), input)
@@ -156,12 +250,21 @@ func (h *Handler) ListByCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sprint 9: resolve the caller's case role so the repository layer can
+	// apply the classification access matrix. Missing role → 403.
+	role, ok := h.loadCallerCaseRole(r.Context(), caseID)
+	if !ok {
+		httputil.RespondError(w, http.StatusForbidden, "no role on this case")
+		return
+	}
+
 	filter := EvidenceFilter{
 		CaseID:         caseID,
 		Classification: r.URL.Query().Get("classification"),
 		MimeType:       r.URL.Query().Get("mime_type"),
 		SearchQuery:    r.URL.Query().Get("q"),
 		CurrentOnly:    r.URL.Query().Get("current_only") == "true",
+		UserRole:       role,
 	}
 
 	if tagsStr := r.URL.Query().Get("tags"); tagsStr != "" {
@@ -191,6 +294,12 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		respondServiceError(w, err)
 		return
 	}
+	// Sprint 9: classification matrix enforced post-fetch (404 on deny to
+	// avoid revealing existence of confidential/ex_parte items).
+	if !h.enforceItemAccess(r.Context(), evidence) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
 
 	httputil.RespondJSON(w, http.StatusOK, evidence)
 }
@@ -205,6 +314,18 @@ func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+
+	// Sprint 9: gate download with classification matrix. Fetch first so we
+	// can read CaseID/Classification for the check, then stream.
+	item, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), item) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
 		return
 	}
 
@@ -234,6 +355,17 @@ func (h *Handler) GetThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sprint 9: gate thumbnail on classification matrix.
+	item, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), item) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
 	reader, size, err := h.service.GetThumbnail(r.Context(), id)
 	if err != nil {
 		respondServiceError(w, err)
@@ -256,6 +388,19 @@ func (h *Handler) GetVersionHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sprint 9: gate version history on classification access. Use the
+	// current (newest) item as the access anchor — if the caller can see
+	// the current version they can see its history.
+	item, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), item) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
 	versions, err := h.service.GetVersionHistory(r.Context(), id)
 	if err != nil {
 		respondServiceError(w, err)
@@ -271,6 +416,12 @@ func (h *Handler) GetCustodyLog(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
 		return
 	}
+	// Note: custody log is intentionally NOT gated behind enforceItemAccess.
+	// The listing paths already hide classified UUIDs from unauthorised
+	// roles, so this endpoint is reachable only by callers who legitimately
+	// know the ID. Adding an access gate here would also block case
+	// auditors (observer/victim_rep) from reviewing the audit trail for
+	// items they can see in their listing.
 
 	limit := 50
 	if l := r.URL.Query().Get("limit"); l != "" {
@@ -336,6 +487,18 @@ func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sprint 9: enforce classification access on the current row before
+	// allowing a metadata edit (caller must first be able to see the item).
+	current, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), current) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
 	result, err := h.service.UpdateMetadata(r.Context(), id, updates, ac.UserID)
 	if err != nil {
 		respondServiceError(w, err)
@@ -345,6 +508,13 @@ func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 	httputil.RespondJSON(w, http.StatusOK, result)
 }
 
+// Destroy is the Sprint 9 audited destruction handler.
+//
+// DELETE /api/evidence/{id} body: {"authority": "<court order / legal basis>"}
+//
+// Flow: parse body → enforce classification access (must be able to see
+// the item) → call DestroyEvidence (which handles legal hold, retention,
+// MinIO-then-DB-safe ordering, custody chain, notifications).
 func (h *Handler) Destroy(w http.ResponseWriter, r *http.Request) {
 	ac, ok := auth.GetAuthContext(r.Context())
 	if !ok {
@@ -359,20 +529,29 @@ func (h *Handler) Destroy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Reason string `json:"reason"`
+		Authority string `json:"authority"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	input := DestroyInput{
-		EvidenceID: id,
-		Reason:     body.Reason,
-		ActorID:    ac.UserID,
+	// Gate on access matrix before destruction.
+	current, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), current) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
 	}
 
-	if err := h.service.Destroy(r.Context(), input); err != nil {
+	if err := h.service.DestroyEvidence(r.Context(), DestroyEvidenceInput{
+		EvidenceID: id,
+		ActorID:    ac.UserID,
+		Authority:  body.Authority,
+	}); err != nil {
 		respondServiceError(w, err)
 		return
 	}
@@ -408,43 +587,47 @@ func parsePagination(r *http.Request) Pagination {
 	}
 }
 
-func splitTags(s string) []string {
-	parts := strings.Split(s, ",")
-	tags := make([]string, 0, len(parts))
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if trimmed != "" {
-			tags = append(tags, trimmed)
-		}
-	}
-	return tags
+// parseUploadForm extracts and validates the multipart form fields common to
+// Upload and UploadNewVersion. It validates the client hash (header + form),
+// extracts the file, and parses metadata fields. Returns the validated client
+// hash, file handle, file header, and parsed metadata on success.
+type uploadFormData struct {
+	clientHash     string
+	file           io.ReadCloser
+	fileHeader     string
+	fileSize       int64
+	classification string
+	description    string
+	source         string
+	sourceDate     *time.Time
+	tags           []string
 }
 
-func (h *Handler) UploadNewVersion(w http.ResponseWriter, r *http.Request) {
-	ac, ok := auth.GetAuthContext(r.Context())
-	if !ok {
-		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
+func parseUploadForm(w http.ResponseWriter, r *http.Request, maxUpload int64) (*uploadFormData, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUpload+10<<20)
 
-	parentID, err := uuid.Parse(chi.URLParam(r, "id"))
+	headerHash, err := validateClientHashHeader(r)
 	if err != nil {
-		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
-		return
+		respondServiceError(w, err)
+		return nil, false
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, h.maxUpload+10<<20)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid multipart form")
-		return
+		return nil, false
+	}
+
+	clientHash, err := validateClientHashForm(r, headerHash)
+	if err != nil {
+		respondServiceError(w, err)
+		return nil, false
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "file field is required")
-		return
+		return nil, false
 	}
-	defer file.Close()
 
 	classification := r.FormValue("classification")
 	if classification == "" {
@@ -470,17 +653,88 @@ func (h *Handler) UploadNewVersion(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return &uploadFormData{
+		clientHash:     clientHash,
+		file:           file,
+		fileHeader:     header.Filename,
+		fileSize:       header.Size,
+		classification: classification,
+		description:    description,
+		source:         source,
+		sourceDate:     sourceDate,
+		tags:           tags,
+	}, true
+}
+
+func splitTags(s string) []string {
+	parts := strings.Split(s, ",")
+	tags := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			tags = append(tags, trimmed)
+		}
+	}
+	return tags
+}
+
+func (h *Handler) UploadNewVersion(w http.ResponseWriter, r *http.Request) {
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	parentID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+
+	form, ok := parseUploadForm(w, r, h.maxUpload)
+	if !ok {
+		return
+	}
+	defer form.file.Close()
+
+	// Look up parent to get case ID for the attempt record.
+	parent, err := h.service.Get(r.Context(), parentID)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+
+	userID, err := uuid.Parse(ac.UserID)
+	if err != nil {
+		slog.Error("invalid user ID in auth context", "raw", ac.UserID, "error", err)
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	attemptID, err := h.attemptRepo.Record(r.Context(), UploadAttempt{
+		CaseID:     parent.CaseID,
+		UserID:     userID,
+		ClientHash: form.clientHash,
+		StartedAt:  time.Now().UTC(),
+	})
+	if err != nil {
+		slog.Error("failed to record upload attempt", "error", err)
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
 	input := UploadInput{
-		File:           file,
-		Filename:       header.Filename,
-		SizeBytes:      header.Size,
-		Classification: classification,
-		Description:    description,
-		Tags:           tags,
+		File:           form.file,
+		Filename:       form.fileHeader,
+		SizeBytes:      form.fileSize,
+		Classification: form.classification,
+		Description:    form.description,
+		Tags:           form.tags,
 		UploadedBy:     ac.UserID,
 		UploadedByName: ac.Username,
-		Source:         source,
-		SourceDate:     sourceDate,
+		Source:         form.source,
+		SourceDate:     form.sourceDate,
+		ExpectedSHA256: form.clientHash,
+		AttemptID:      attemptID,
 	}
 
 	evidence, err := h.service.UploadNewVersion(r.Context(), parentID, input)
@@ -571,8 +825,25 @@ func respondServiceError(w http.ResponseWriter, err error) {
 		httputil.RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// Sprint 11.5: client hash validation errors → 400.
+	if errors.Is(err, ErrMissingClientHash) || errors.Is(err, ErrMalformedClientHash) || errors.Is(err, ErrHashFieldDisagreement) {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if errors.Is(err, ErrNotFound) {
 		httputil.RespondError(w, http.StatusNotFound, "not found")
+		return
+	}
+	// Sprint 11.5: hash mismatch → 409. Server hash is NOT echoed to the
+	// client to prevent use as a hash oracle. The mismatch is logged
+	// server-side via custody events for operator forensics.
+	if errors.Is(err, ErrHashMismatch) {
+		httputil.RespondError(w, http.StatusConflict, "upload_hash_mismatch")
+		return
+	}
+	// Sprint 9: legal hold and retention blocks surface as 409 Conflict.
+	if errors.Is(err, ErrLegalHoldActive) || errors.Is(err, ErrRetentionActive) {
+		httputil.RespondError(w, http.StatusConflict, err.Error())
 		return
 	}
 	httputil.RespondError(w, http.StatusInternalServerError, "internal error")

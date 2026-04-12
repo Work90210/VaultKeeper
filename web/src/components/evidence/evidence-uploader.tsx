@@ -1,16 +1,26 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { formatFileSize } from '@/lib/evidence-utils';
+import { hashFileStreaming } from '@/lib/upload-hasher';
+
+type UploadStatus =
+  | 'hashing'
+  | 'uploading'
+  | 'complete'
+  | 'error';
 
 interface UploadFile {
   readonly id: string;
   readonly file: File;
   readonly progress: number;
-  readonly status: 'uploading' | 'complete' | 'error';
+  readonly status: UploadStatus;
   readonly evidenceId: string | null;
   readonly error: string | null;
+  readonly clientHash: string | null;
+  readonly serverHash: string | null;
+  readonly hashProgress: number;
 }
 
 interface MetadataForm {
@@ -20,6 +30,15 @@ interface MetadataForm {
   readonly tags: string;
   readonly source: string;
   readonly sourceDate: string;
+}
+
+interface MismatchDiagnostic {
+  readonly clientHash: string;
+  readonly serverHash: string;
+  readonly byteCount: number;
+  readonly timestamp: string;
+  readonly caseId: string;
+  readonly filename: string;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
@@ -59,16 +78,57 @@ export function EvidenceUploader({
   const [metadataErrors, setMetadataErrors] = useState<
     Record<string, string | null>
   >({});
+  const [receiptExpanded, setReceiptExpanded] = useState<
+    Record<string, boolean>
+  >({});
+  const [copiedHash, setCopiedHash] = useState<Record<string, boolean>>({});
+  const [mismatchModal, setMismatchModal] = useState<{
+    uploadId: string;
+    diagnostic: MismatchDiagnostic;
+  } | null>(null);
 
-  const uploadFile = useCallback(
+  const abortControllers = useRef<Record<string, AbortController>>({});
+
+  const updateUpload = useCallback(
+    (id: string, patch: Partial<UploadFile>) => {
+      setUploads((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, ...patch } : u))
+      );
+    },
+    []
+  );
+
+  const hashAndUploadFile = useCallback(
     async (file: File, id: string) => {
-      const formData = new FormData();
-      formData.append('file', file);
+      const controller = new AbortController();
+      abortControllers.current[id] = controller;
 
+      // Phase 1: Hash
       try {
+        const clientHash = await hashFileStreaming(
+          file,
+          (bytesHashed, total) => {
+            const pct = total > 0 ? Math.round((bytesHashed / total) * 100) : 0;
+            updateUpload(id, { hashProgress: pct });
+          },
+          controller.signal
+        );
+
+        updateUpload(id, {
+          status: 'uploading',
+          clientHash,
+          hashProgress: 100,
+        });
+
+        // Phase 2: Upload
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('client_sha256', clientHash);
+
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${API_BASE}/api/cases/${caseId}/evidence`);
         xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+        xhr.setRequestHeader('X-Content-SHA256', clientHash);
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
@@ -76,82 +136,156 @@ export function EvidenceUploader({
               99,
               Math.round((e.loaded / e.total) * 100)
             );
-            setUploads((prev) =>
-              prev.map((u) => (u.id === id ? { ...u, progress: pct } : u))
-            );
+            updateUpload(id, { progress: pct });
           }
         };
 
         const result = await new Promise<{
           evidenceId: string | null;
+          serverHash: string | null;
           error: string | null;
+          status: number;
         }>((resolve) => {
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
               try {
                 const data = JSON.parse(xhr.responseText);
-                resolve({ evidenceId: data.data?.id || null, error: null });
+                resolve({
+                  evidenceId: data.data?.id || data.id || null,
+                  serverHash: data.data?.sha256_hash || data.sha256_hash || null,
+                  error: null,
+                  status: xhr.status,
+                });
               } catch {
                 resolve({
                   evidenceId: null,
+                  serverHash: null,
                   error: 'Invalid server response',
+                  status: xhr.status,
                 });
               }
             } else {
               try {
                 const data = JSON.parse(xhr.responseText);
+                const respData = data.data || data;
                 resolve({
                   evidenceId: null,
-                  error: data.error || `Upload failed (${xhr.status})`,
+                  serverHash: respData.actual_sha256 || null,
+                  error: respData.error || data.error || `Upload failed (${xhr.status})`,
+                  status: xhr.status,
                 });
               } catch {
                 resolve({
                   evidenceId: null,
+                  serverHash: null,
                   error: `Upload failed (${xhr.status})`,
+                  status: xhr.status,
                 });
               }
             }
           };
           xhr.onerror = () =>
-            resolve({ evidenceId: null, error: 'Network error' });
+            resolve({
+              evidenceId: null,
+              serverHash: null,
+              error: 'Network error',
+              status: 0,
+            });
           xhr.send(formData);
         });
 
-        if (result.error) {
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === id
-                ? { ...u, status: 'error' as const, error: result.error }
-                : u
-            )
-          );
+        if (result.status === 409) {
+          // Hash mismatch — server returns expected_sha256 and actual_sha256
+          updateUpload(id, {
+            status: 'error',
+            error: 'Integrity check failed',
+            serverHash: result.serverHash,
+          });
+          setMismatchModal({
+            uploadId: id,
+            diagnostic: {
+              clientHash,
+              serverHash: result.serverHash || 'unknown',
+              byteCount: file.size,
+              timestamp: new Date().toISOString(),
+              caseId,
+              filename: file.name,
+            },
+          });
+        } else if (result.error) {
+          updateUpload(id, {
+            status: 'error',
+            error: result.error,
+          });
         } else {
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === id
-                ? {
-                    ...u,
-                    status: 'complete' as const,
-                    progress: 100,
-                    evidenceId: result.evidenceId,
-                  }
-                : u
-            )
-          );
+          updateUpload(id, {
+            status: 'complete',
+            progress: 100,
+            evidenceId: result.evidenceId,
+            serverHash: result.serverHash,
+          });
           onUploadComplete();
         }
-      } catch {
-        setUploads((prev) =>
-          prev.map((u) =>
-            u.id === id
-              ? { ...u, status: 'error' as const, error: 'Upload failed' }
-              : u
-          )
-        );
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          updateUpload(id, {
+            status: 'error',
+            error: 'Hashing cancelled',
+          });
+        } else {
+          updateUpload(id, {
+            status: 'error',
+            error: 'Upload failed',
+          });
+        }
+      } finally {
+        delete abortControllers.current[id];
       }
     },
-    [caseId, accessToken, onUploadComplete]
+    [caseId, accessToken, onUploadComplete, updateUpload]
   );
+
+  const retryUpload = useCallback(
+    (id: string) => {
+      const upload = uploads.find((u) => u.id === id);
+      if (!upload) return;
+      setMismatchModal(null);
+      updateUpload(id, {
+        status: 'hashing',
+        progress: 0,
+        hashProgress: 0,
+        clientHash: null,
+        serverHash: null,
+        error: null,
+      });
+      hashAndUploadFile(upload.file, id);
+    },
+    [uploads, updateUpload, hashAndUploadFile]
+  );
+
+  const cancelHashing = useCallback((id: string) => {
+    abortControllers.current[id]?.abort();
+  }, []);
+
+  const downloadDiagnostic = useCallback((diagnostic: MismatchDiagnostic) => {
+    const blob = new Blob([JSON.stringify(diagnostic, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vaultkeeper-diagnostic-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const copyHash = useCallback(async (id: string, hash: string) => {
+    await navigator.clipboard.writeText(hash);
+    setCopiedHash((prev) => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setCopiedHash((prev) => ({ ...prev, [id]: false }));
+    }, 2000);
+  }, []);
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -163,30 +297,37 @@ export function EvidenceUploader({
             id,
             file,
             progress: 0,
-            status: 'uploading',
+            status: 'hashing',
             evidenceId: null,
             error: null,
+            clientHash: null,
+            serverHash: null,
+            hashProgress: 0,
           },
         ]);
         setMetadataForms((prev) => ({
           ...prev,
           [id]: defaultMetadata(file.name),
         }));
-        uploadFile(file, id);
+        hashAndUploadFile(file, id);
       }
     },
-    [uploadFile]
+    [hashAndUploadFile]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
   const dismiss = (id: string) => {
+    cancelHashing(id);
     setUploads((prev) => prev.filter((u) => u.id !== id));
     setMetadataForms((prev) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [id]: _removed, ...rest } = prev;
       return rest;
     });
+    if (mismatchModal?.uploadId === id) {
+      setMismatchModal(null);
+    }
   };
 
   const updateMetadataField = (
@@ -301,6 +442,38 @@ export function EvidenceUploader({
               </p>
             </div>
 
+            {u.status === 'hashing' && (
+              <div className="flex items-center gap-[var(--space-sm)] shrink-0">
+                <span
+                  className="text-xs"
+                  style={{ color: 'var(--text-secondary)' }}
+                  aria-live="polite"
+                >
+                  Computing fingerprint…
+                </span>
+                <div
+                  className="w-24 rounded-full overflow-hidden"
+                  style={{ height: '4px', backgroundColor: 'var(--bg-inset)' }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${u.hashProgress}%`,
+                      backgroundColor: 'var(--teal-accent)',
+                      transition: 'width 200ms ease',
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => cancelHashing(u.id)}
+                  className="btn-ghost text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
             {u.status === 'uploading' && (
               <div className="flex items-center gap-[var(--space-sm)] shrink-0">
                 <div
@@ -326,12 +499,23 @@ export function EvidenceUploader({
             )}
 
             {u.status === 'complete' && (
-              <span
-                className="text-xs font-medium"
-                style={{ color: 'var(--status-active)' }}
-              >
-                Uploaded
-              </span>
+              <div className="flex items-center gap-[var(--space-xs)] shrink-0">
+                {u.clientHash && u.serverHash && u.clientHash === u.serverHash && (
+                  <span
+                    className="text-xs"
+                    style={{ color: 'var(--status-active)' }}
+                    title="Client and server hashes match"
+                  >
+                    ✓
+                  </span>
+                )}
+                <span
+                  className="text-xs font-medium"
+                  style={{ color: 'var(--status-active)' }}
+                >
+                  Uploaded
+                </span>
+              </div>
             )}
 
             {u.status === 'error' && (
@@ -352,6 +536,64 @@ export function EvidenceUploader({
               </div>
             )}
           </div>
+
+          {/* Integrity receipt panel */}
+          {u.clientHash && (u.status === 'uploading' || u.status === 'complete') && (
+            <div
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setReceiptExpanded((prev) => ({
+                    ...prev,
+                    [u.id]: !prev[u.id],
+                  }))
+                }
+                className="w-full flex items-center justify-between px-[var(--space-md)] py-[var(--space-xs)]"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                <span className="text-xs font-medium">
+                  Integrity receipt
+                </span>
+                <span className="text-xs">
+                  {receiptExpanded[u.id] ? '▴' : '▾'}
+                </span>
+              </button>
+              {receiptExpanded[u.id] && (
+                <div className="px-[var(--space-md)] pb-[var(--space-sm)] space-y-[var(--space-xs)]">
+                  <p
+                    className="text-xs"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
+                    This is the cryptographic fingerprint of your file. Save
+                    this value — you can verify it later against the
+                    server-stored hash to confirm nothing was altered in
+                    transit.
+                  </p>
+                  <div className="flex items-center gap-[var(--space-xs)]">
+                    <code
+                      className="text-xs break-all font-[family-name:var(--font-mono)]"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {u.clientHash}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => copyHash(u.id, u.clientHash!)}
+                      className="btn-ghost text-xs shrink-0"
+                    >
+                      {copiedHash[u.id] ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Post-upload metadata form */}
           {u.status === 'complete' &&
@@ -388,6 +630,57 @@ export function EvidenceUploader({
           )}
         </div>
       ))}
+
+      {/* Hash mismatch modal */}
+      {mismatchModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mismatch-title"
+        >
+          <div
+            className="card p-[var(--space-lg)] space-y-[var(--space-md)]"
+            style={{
+              maxWidth: '480px',
+              width: '90vw',
+              backgroundColor: 'var(--bg-surface)',
+            }}
+          >
+            <h3
+              id="mismatch-title"
+              className="text-base font-semibold"
+              style={{ color: 'var(--status-hold)' }}
+            >
+              Upload failed integrity check
+            </h3>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              The file that reached our server does not match the file on your
+              device. This is usually caused by a flaky connection or antivirus
+              interference. Your original file is untouched.
+            </p>
+            <div className="flex gap-[var(--space-sm)]">
+              <button
+                type="button"
+                onClick={() => retryUpload(mismatchModal.uploadId)}
+                className="btn-primary"
+              >
+                Retry upload
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  downloadDiagnostic(mismatchModal.diagnostic)
+                }
+                className="btn-secondary"
+              >
+                Download diagnostic report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

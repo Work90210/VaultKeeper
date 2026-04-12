@@ -25,6 +25,7 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/search"
 )
 
+
 // ---------------------------------------------------------------------------
 // mockRedactionService — satisfies the interface used by the handler so we can
 // inject either success or error responses without a real MuPDF/pdfcpu chain.
@@ -162,7 +163,9 @@ func newServiceWith(repo Repository, storage ObjectStorage, caseLookup CaseLooku
 // UploadNewVersion
 // ---------------------------------------------------------------------------
 
-// buildVersionMultipart creates a multipart body with a "file" field.
+// buildVersionMultipart creates a multipart body with a "file" field and the
+// client_sha256 form field required by the upload hash validation.
+// Returns the buffer, content-type, and the SHA-256 hex of content (for the header).
 func buildVersionMultipart(t *testing.T, filename, content string) (*bytes.Buffer, string) {
 	t.Helper()
 	var buf bytes.Buffer
@@ -176,6 +179,7 @@ func buildVersionMultipart(t *testing.T, filename, content string) (*bytes.Buffe
 	}
 	w.WriteField("classification", "restricted")
 	w.WriteField("description", "new version")
+	w.WriteField("client_sha256", sha256Hex(content))
 	w.Close()
 	return &buf, w.FormDataContentType()
 }
@@ -281,10 +285,12 @@ func TestHandler_UploadNewVersion_ParentNotFound(t *testing.T) {
 	})
 
 	// Parent ID does not exist in the mock repo
-	buf, ct := buildVersionMultipart(t, "v2.pdf", "content")
+	const vContent = "content"
+	buf, ct := buildVersionMultipart(t, "v2.pdf", vContent)
 	parentID := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+parentID.String()+"/version", buf)
 	req.Header.Set("Content-Type", ct)
+	req.Header.Set("X-Content-SHA256", sha256Hex(vContent))
 	req = withAuthContext(req)
 
 	w := httptest.NewRecorder()
@@ -313,9 +319,11 @@ func TestHandler_UploadNewVersion_Success(t *testing.T) {
 		Tags:    []string{},
 	}
 
-	buf, ct := buildVersionMultipart(t, "v2.pdf", "new file content")
+	const vContent = "new file content"
+	buf, ct := buildVersionMultipart(t, "v2.pdf", vContent)
 	req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+parentID.String()+"/version", buf)
 	req.Header.Set("Content-Type", ct)
+	req.Header.Set("X-Content-SHA256", sha256Hex(vContent))
 	req = withAuthContext(req)
 
 	w := httptest.NewRecorder()
@@ -343,17 +351,20 @@ func TestHandler_UploadNewVersion_WithTagsJSON(t *testing.T) {
 		Tags:    []string{},
 	}
 
+	const vContent = "file content"
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	part, _ := mw.CreateFormFile("file", "v2.pdf")
-	part.Write([]byte("file content"))
+	part.Write([]byte(vContent))
 	mw.WriteField("classification", "restricted")
 	mw.WriteField("tags", `["tag1","tag2"]`)
 	mw.WriteField("source_date", "2024-01-15")
+	mw.WriteField("client_sha256", sha256Hex(vContent))
 	mw.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+parentID.String()+"/version", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(vContent))
 	req = withAuthContext(req)
 
 	w := httptest.NewRecorder()
@@ -381,17 +392,20 @@ func TestHandler_UploadNewVersion_WithTagsCSV(t *testing.T) {
 		Tags:    []string{},
 	}
 
+	const vContent = "file content"
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	part, _ := mw.CreateFormFile("file", "v2.pdf")
-	part.Write([]byte("file content"))
+	part.Write([]byte(vContent))
 	mw.WriteField("classification", "restricted")
 	// Invalid JSON → fallback to comma-separated
 	mw.WriteField("tags", "tag1,tag2,tag3")
+	mw.WriteField("client_sha256", sha256Hex(vContent))
 	mw.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+parentID.String()+"/version", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(vContent))
 	req = withAuthContext(req)
 
 	w := httptest.NewRecorder()
@@ -419,17 +433,20 @@ func TestHandler_UploadNewVersion_WithSourceDateISO(t *testing.T) {
 		Tags:    []string{},
 	}
 
+	const vContent = "file content"
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	part, _ := mw.CreateFormFile("file", "v2.pdf")
-	part.Write([]byte("file content"))
+	part.Write([]byte(vContent))
 	mw.WriteField("classification", "restricted")
 	// RFC3339 source_date
 	mw.WriteField("source_date", "2024-06-15T12:00:00Z")
+	mw.WriteField("client_sha256", sha256Hex(vContent))
 	mw.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+parentID.String()+"/version", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("X-Content-SHA256", sha256Hex(vContent))
 	req = withAuthContext(req)
 
 	w := httptest.NewRecorder()
