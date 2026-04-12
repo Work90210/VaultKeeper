@@ -70,12 +70,20 @@ const (
 	MaxPageLimit     = 200
 )
 
-// ValidClassifications is the set of allowed classification values.
-var ValidClassifications = map[string]bool{
+// validClassifications is the set of allowed classification values.
+// Unexported so other packages cannot mutate its membership. Use
+// IsValidClassification for cross-package lookups.
+var validClassifications = map[string]bool{
 	ClassificationPublic:       true,
 	ClassificationRestricted:   true,
 	ClassificationConfidential: true,
 	ClassificationExParte:      true,
+}
+
+// IsValidClassification reports whether s is a recognised classification
+// value (public, restricted, confidential, ex_parte).
+func IsValidClassification(s string) bool {
+	return validClassifications[s]
 }
 
 // safeFilenameRe allows alphanumerics, hyphens, underscores, dots, and spaces.
@@ -110,6 +118,7 @@ type EvidenceItem struct {
 	ExifData       []byte     `json:"exif_data,omitempty"`
 	Source         string     `json:"source"`
 	SourceDate     *time.Time `json:"source_date,omitempty"`
+	ExParteSide    *string    `json:"ex_parte_side,omitempty"`
 	DestroyedAt    *time.Time `json:"destroyed_at,omitempty"`
 	DestroyedBy    *string    `json:"destroyed_by,omitempty"`
 	DestroyReason  *string    `json:"destroy_reason,omitempty"`
@@ -121,6 +130,12 @@ type EvidenceItem struct {
 	RedactionAreaCount   *int              `json:"redaction_area_count,omitempty"`
 	RedactionAuthorID    *uuid.UUID        `json:"redaction_author_id,omitempty"`
 	RedactionFinalizedAt *time.Time        `json:"redaction_finalized_at,omitempty"`
+
+	// Retention and destruction metadata (Sprint 9 Step 3/4).
+	// RetentionUntil is the soonest date at which this item may be destroyed.
+	// DestructionAuthority records the legal authority cited at destruction.
+	RetentionUntil       *time.Time `json:"retention_until,omitempty"`
+	DestructionAuthority *string    `json:"destruction_authority,omitempty"`
 }
 
 // EvidenceFilter specifies query parameters for listing evidence.
@@ -135,11 +150,31 @@ type EvidenceFilter struct {
 	UserRole         string
 }
 
+// ApplyAccessFilter reports whether the caller's role is set, meaning the
+// repository should restrict results using the classification access matrix.
+func (f EvidenceFilter) ApplyAccessFilter() bool {
+	return f.UserRole != ""
+}
+
 // EvidenceUpdate holds optional fields for metadata updates.
 type EvidenceUpdate struct {
-	Description    *string  `json:"description"`
-	Classification *string  `json:"classification"`
-	Tags           []string `json:"tags"`
+	Description    *string    `json:"description"`
+	Classification *string    `json:"classification"`
+	ExParteSide    *string    `json:"ex_parte_side"`
+	Tags           []string   `json:"tags"`
+	RetentionUntil *time.Time `json:"retention_until"`
+	// ClearExParteSide instructs the repository to set ex_parte_side back to
+	// NULL (used when a classification is changed away from ex_parte).
+	ClearExParteSide bool `json:"-"`
+	// ClearRetentionUntil instructs the repository to set retention_until to NULL.
+	ClearRetentionUntil bool `json:"-"`
+	// ExpectedClassification is an optimistic-concurrency guard: when
+	// non-nil, the repository UPDATE adds `AND classification = $expected`
+	// to the WHERE clause. If another writer changed the classification
+	// between the service's prior-fetch and the UPDATE, the repository
+	// returns ErrConflict and the caller must retry with a fresh read.
+	// Not serialised over JSON (internal-only).
+	ExpectedClassification *string `json:"-"`
 }
 
 // CreateEvidenceInput is the validated input for creating a new evidence record.
@@ -153,6 +188,7 @@ type CreateEvidenceInput struct {
 	SizeBytes      int64
 	SHA256Hash     string
 	Classification string
+	ExParteSide    *string
 	Description    string
 	Tags           []string
 	UploadedBy     string
@@ -171,6 +207,9 @@ type CreateEvidenceInput struct {
 	RedactionAreaCount   *int
 	RedactionAuthorID    *uuid.UUID
 	RedactionFinalizedAt *time.Time
+
+	// Retention metadata (Sprint 9 Step 3).
+	RetentionUntil *time.Time
 }
 
 // DestroyInput holds the parameters for destroying evidence.

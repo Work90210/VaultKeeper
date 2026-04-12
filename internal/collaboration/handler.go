@@ -29,10 +29,17 @@ type CaseRoleLoader interface {
 	LoadCaseRole(ctx context.Context, caseID, userID string) (auth.CaseRole, error)
 }
 
+// handlerDB is the narrow Postgres surface Handler needs for case-id
+// lookups. Declared as an interface (satisfied by *pgxpool.Pool) so
+// unit tests can inject a fake without a live database.
+type handlerDB interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
 // Handler provides the WebSocket endpoint for collaborative redaction.
 type Handler struct {
 	hub            *Hub
-	db             *pgxpool.Pool
+	db             handlerDB
 	validator      TokenValidator
 	roleLoader     CaseRoleLoader
 	audit          auth.AuditLogger

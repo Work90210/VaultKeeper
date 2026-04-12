@@ -26,7 +26,8 @@ Goal: Features that win paid support contracts. Release **v2.0.0**.
 | [Sprint 9](sprint-09-classifications-legal-hold.md) | 17-18 | Classifications, legal hold, retention | 4-tier classification, audited destruction |
 | [Sprint 10](sprint-10-migration-bulk-upload.md) | 19-20 | Data migration tool, bulk upload | 5-step hash-bridging protocol, attestation certificate |
 | [Sprint 11](sprint-11-timeline-audit-integrity.md) | 21-22 | Timeline, audit dashboard, integrity | Visual timeline, admin audit, scheduled verification |
-| [Sprint 12](sprint-12-french-cicd-certificates.md) | 23-24 | French i18n, CI/CD, chain certificates | Full French, rolling updates, **v2.0.0** |
+| [Sprint 11.5](sprint-11-5-pilot-readiness.md) | 23-25 | **Pilot readiness hardening** | Client-side hashing, storage-layer legal hold, enforced lifecycle, CLI verifier, Berkeley Protocol report, air-gap mode, operator handbook. **Tag: v1.9.0-pilot-ready.** Shifts downstream sprints by 3 weeks. |
+| [Sprint 12](sprint-12-french-cicd-certificates.md) | 26-27 | French i18n, CI/CD, chain certificates | Full French, rolling updates, **v2.0.0** |
 
 ## Phase 3: AI & Advanced Features (Sprints 13-18, Weeks 25-36)
 

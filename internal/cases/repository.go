@@ -22,6 +22,14 @@ type Repository interface {
 	Update(ctx context.Context, id uuid.UUID, updates UpdateCaseInput) (Case, error)
 	Archive(ctx context.Context, id uuid.UUID) error
 	SetLegalHold(ctx context.Context, id uuid.UUID, hold bool) error
+	// CheckLegalHoldStrict returns the current legal_hold flag for a case via
+	// a single targeted read (no full row fetch, no in-memory state shared
+	// across calls). It is the minimum viable primitive for guarding
+	// destructive mutations without the full TOCTOU window of FindByID → check
+	// → act. True atomicity still requires the caller to run the destructive
+	// mutation inside the same transaction (or hold a row-level lock); see
+	// Service.EnsureNotOnHold for the documented contract.
+	CheckLegalHoldStrict(ctx context.Context, id uuid.UUID) (bool, error)
 }
 
 type dbPool interface {
@@ -41,12 +49,12 @@ func NewRepository(pool *pgxpool.Pool) *PGRepository {
 func (r *PGRepository) Create(ctx context.Context, c Case) (Case, error) {
 	var result Case
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO cases (reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_by_name)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		 RETURNING id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_by_name, created_at, updated_at`,
-		c.ReferenceCode, c.Title, c.Description, c.Jurisdiction, c.Status, c.LegalHold, c.CreatedBy, c.CreatedByName,
+		`INSERT INTO cases (reference_code, title, description, jurisdiction, status, legal_hold, retention_until, created_by, created_by_name)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 RETURNING id, reference_code, title, description, jurisdiction, status, legal_hold, retention_until, created_by, created_by_name, created_at, updated_at`,
+		c.ReferenceCode, c.Title, c.Description, c.Jurisdiction, c.Status, c.LegalHold, c.RetentionUntil, c.CreatedBy, c.CreatedByName,
 	).Scan(&result.ID, &result.ReferenceCode, &result.Title, &result.Description,
-		&result.Jurisdiction, &result.Status, &result.LegalHold, &result.CreatedBy, &result.CreatedByName,
+		&result.Jurisdiction, &result.Status, &result.LegalHold, &result.RetentionUntil, &result.CreatedBy, &result.CreatedByName,
 		&result.CreatedAt, &result.UpdatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
@@ -60,11 +68,11 @@ func (r *PGRepository) Create(ctx context.Context, c Case) (Case, error) {
 func (r *PGRepository) FindByID(ctx context.Context, id uuid.UUID) (Case, error) {
 	var c Case
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_by_name, created_at, updated_at
+		`SELECT id, reference_code, title, description, jurisdiction, status, legal_hold, retention_until, created_by, created_by_name, created_at, updated_at
 		 FROM cases WHERE id = $1`,
 		id,
 	).Scan(&c.ID, &c.ReferenceCode, &c.Title, &c.Description,
-		&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy, &c.CreatedByName,
+		&c.Jurisdiction, &c.Status, &c.LegalHold, &c.RetentionUntil, &c.CreatedBy, &c.CreatedByName,
 		&c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -158,7 +166,7 @@ func (r *PGRepository) FindAll(ctx context.Context, filter CaseFilter, page Pagi
 
 	// Fetch items
 	query := fmt.Sprintf(
-		`SELECT c.id, c.reference_code, c.title, c.description, c.jurisdiction, c.status, c.legal_hold, c.created_by, c.created_by_name, c.created_at, c.updated_at
+		`SELECT c.id, c.reference_code, c.title, c.description, c.jurisdiction, c.status, c.legal_hold, c.retention_until, c.created_by, c.created_by_name, c.created_at, c.updated_at
 		 FROM cases c %s
 		 ORDER BY c.id DESC
 		 LIMIT $%d`,
@@ -175,7 +183,7 @@ func (r *PGRepository) FindAll(ctx context.Context, filter CaseFilter, page Pagi
 	for rows.Next() {
 		var c Case
 		if err := rows.Scan(&c.ID, &c.ReferenceCode, &c.Title, &c.Description,
-			&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy, &c.CreatedByName,
+			&c.Jurisdiction, &c.Status, &c.LegalHold, &c.RetentionUntil, &c.CreatedBy, &c.CreatedByName,
 			&c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, 0, fmt.Errorf("scan case: %w", err)
 		}
@@ -218,6 +226,13 @@ func (r *PGRepository) Update(ctx context.Context, id uuid.UUID, updates UpdateC
 		args = append(args, *updates.Status)
 		argIdx++
 	}
+	if updates.RetentionUntil != nil {
+		sets = append(sets, fmt.Sprintf("retention_until = $%d", argIdx))
+		args = append(args, *updates.RetentionUntil)
+		argIdx++
+	} else if updates.ClearRetentionUntil {
+		sets = append(sets, "retention_until = NULL")
+	}
 
 	if len(sets) == 0 {
 		return r.FindByID(ctx, id)
@@ -228,13 +243,13 @@ func (r *PGRepository) Update(ctx context.Context, id uuid.UUID, updates UpdateC
 
 	query := fmt.Sprintf(
 		`UPDATE cases SET %s WHERE id = $%d
-		 RETURNING id, reference_code, title, description, jurisdiction, status, legal_hold, created_by, created_by_name, created_at, updated_at`,
+		 RETURNING id, reference_code, title, description, jurisdiction, status, legal_hold, retention_until, created_by, created_by_name, created_at, updated_at`,
 		strings.Join(sets, ", "), argIdx)
 
 	var c Case
 	err := r.pool.QueryRow(ctx, query, args...).Scan(
 		&c.ID, &c.ReferenceCode, &c.Title, &c.Description,
-		&c.Jurisdiction, &c.Status, &c.LegalHold, &c.CreatedBy, &c.CreatedByName,
+		&c.Jurisdiction, &c.Status, &c.LegalHold, &c.RetentionUntil, &c.CreatedBy, &c.CreatedByName,
 		&c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -255,6 +270,27 @@ func (r *PGRepository) Archive(ctx context.Context, id uuid.UUID) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// CheckLegalHoldStrict performs a single-column read of legal_hold for the
+// case. This is strictly stronger than FindByID-then-check because it does
+// not share intermediate state with other service calls and touches only the
+// one column that matters. Callers that need true atomicity must run this
+// inside the same transaction as their destructive mutation and use a
+// row-level lock (SELECT ... FOR SHARE) — that refactor is tracked for the
+// destruction flow and intentionally out of scope here.
+func (r *PGRepository) CheckLegalHoldStrict(ctx context.Context, id uuid.UUID) (bool, error) {
+	var hold bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT legal_hold FROM cases WHERE id = $1`, id,
+	).Scan(&hold)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrNotFound
+		}
+		return false, fmt.Errorf("check legal hold strict: %w", err)
+	}
+	return hold, nil
 }
 
 func (r *PGRepository) SetLegalHold(ctx context.Context, id uuid.UUID, hold bool) error {

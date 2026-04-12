@@ -48,6 +48,14 @@ func (h *Hub) Run(ctx context.Context) {
 	h.rooms = make(map[uuid.UUID]*Room)
 }
 
+// getOrCreateRoomHook is a test-only hook invoked between the read-lock
+// release and the write-lock acquisition inside GetOrCreateRoom. Tests
+// use it to force the double-checked locking window (seed the map after
+// the read-lock miss but before the write-lock re-check) so the inner
+// `if room, ok := h.rooms[evidenceID]; ok` branch is exercised.
+// Production code leaves this nil; it adds one nil-check per call.
+var getOrCreateRoomHook func()
+
 // GetOrCreateRoom returns an existing room or creates a new one for the
 // given evidence item.
 func (h *Hub) GetOrCreateRoom(ctx context.Context, evidenceID, caseID uuid.UUID, actorID string) (*Room, error) {
@@ -58,6 +66,10 @@ func (h *Hub) GetOrCreateRoom(ctx context.Context, evidenceID, caseID uuid.UUID,
 		return room, nil
 	}
 	h.mu.RUnlock()
+
+	if getOrCreateRoomHook != nil {
+		getOrCreateRoomHook()
+	}
 
 	// Slow path: create with write lock (double-check)
 	h.mu.Lock()

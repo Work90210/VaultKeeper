@@ -103,6 +103,14 @@ func (m *mockRepo) SetLegalHold(_ context.Context, id uuid.UUID, hold bool) erro
 	return nil
 }
 
+func (m *mockRepo) CheckLegalHoldStrict(_ context.Context, id uuid.UUID) (bool, error) {
+	c, ok := m.cases[id]
+	if !ok {
+		return false, ErrNotFound
+	}
+	return c.LegalHold, nil
+}
+
 type mockCustody struct {
 	events []string
 }
@@ -701,6 +709,105 @@ func TestService_SetLegalHold_RepoError(t *testing.T) {
 // ---------------------------------------------------------------------------
 // SetLegalHold — nil custody logger (L205)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// SetLegalHold — notifies all case members via MemberNotifier
+// ---------------------------------------------------------------------------
+
+type fakeMemberNotifier struct {
+	calls []fakeNotifyCall
+	err   error
+}
+
+type fakeNotifyCall struct {
+	caseID   uuid.UUID
+	newState bool
+	actor    string
+}
+
+func (f *fakeMemberNotifier) NotifyLegalHoldChanged(_ context.Context, caseID uuid.UUID, newState bool, actor string) error {
+	f.calls = append(f.calls, fakeNotifyCall{caseID: caseID, newState: newState, actor: actor})
+	return f.err
+}
+
+func TestService_SetLegalHold_NotifiesMembers(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Status: StatusActive, LegalHold: false}
+
+	notifier := &fakeMemberNotifier{}
+	svc.SetMemberNotifier(notifier)
+
+	if err := svc.SetLegalHold(context.Background(), id, true, "user-1"); err != nil {
+		t.Fatalf("SetLegalHold error: %v", err)
+	}
+
+	if len(notifier.calls) != 1 {
+		t.Fatalf("notifier calls = %d, want 1", len(notifier.calls))
+	}
+	call := notifier.calls[0]
+	if call.caseID != id || call.newState != true || call.actor != "user-1" {
+		t.Errorf("notify call = %+v", call)
+	}
+}
+
+func TestService_SetLegalHold_NotifiesOnRelease(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Status: StatusActive, LegalHold: true}
+
+	notifier := &fakeMemberNotifier{}
+	svc.SetMemberNotifier(notifier)
+
+	if err := svc.SetLegalHold(context.Background(), id, false, "user-2"); err != nil {
+		t.Fatalf("SetLegalHold error: %v", err)
+	}
+	if len(notifier.calls) != 1 || notifier.calls[0].newState != false {
+		t.Errorf("expected one release notification, got %+v", notifier.calls)
+	}
+}
+
+func TestService_SetLegalHold_NotifierErrorIsBestEffort(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Status: StatusActive, LegalHold: false}
+
+	notifier := &fakeMemberNotifier{err: fmt.Errorf("notification backend down")}
+	svc.SetMemberNotifier(notifier)
+
+	if err := svc.SetLegalHold(context.Background(), id, true, "user-1"); err != nil {
+		t.Fatalf("expected notifier error to be swallowed, got: %v", err)
+	}
+	if len(notifier.calls) != 1 {
+		t.Errorf("notifier should still have been invoked once, got %d", len(notifier.calls))
+	}
+}
+
+func TestService_SetLegalHold_IdempotentSkipsNotification(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Status: StatusActive, LegalHold: true}
+
+	notifier := &fakeMemberNotifier{}
+	svc.SetMemberNotifier(notifier)
+
+	if err := svc.SetLegalHold(context.Background(), id, true, "user-1"); err != nil {
+		t.Fatalf("SetLegalHold error: %v", err)
+	}
+	if len(notifier.calls) != 0 {
+		t.Errorf("expected no notifications for idempotent no-op, got %d", len(notifier.calls))
+	}
+}
+
+func TestService_SetLegalHold_NilNotifierIsSafe(t *testing.T) {
+	svc, repo, _ := newTestService(t)
+	id := uuid.New()
+	repo.cases[id] = Case{ID: id, Status: StatusActive, LegalHold: false}
+	// No notifier configured.
+	if err := svc.SetLegalHold(context.Background(), id, true, "user-1"); err != nil {
+		t.Fatalf("nil notifier must be safe, got: %v", err)
+	}
+}
 
 func TestService_SetLegalHold_NilCustody(t *testing.T) {
 	repo := newMockRepo()

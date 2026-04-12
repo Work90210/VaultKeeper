@@ -1,6 +1,11 @@
 package search
 
 // EvidenceSearchDoc represents an evidence item formatted for search indexing.
+//
+// Sprint 9: ExParteSide is included in the indexed payload so the search
+// handler can enforce the classification access matrix at query time
+// without a round-trip to the evidence repository. Without this field a
+// defence user could see prosecution ex_parte items in search results.
 type EvidenceSearchDoc struct {
 	ID             string   `json:"id"`
 	CaseID         string   `json:"case_id"`
@@ -12,6 +17,7 @@ type EvidenceSearchDoc struct {
 	FileName       string   `json:"file_name"`
 	MimeType       string   `json:"mime_type"`
 	Classification string   `json:"classification"`
+	ExParteSide    *string  `json:"ex_parte_side,omitempty"`
 	SourceDate     *string  `json:"source_date"`
 	UploadedAt     string   `json:"uploaded_at"`
 	IsCurrent      bool     `json:"is_current"`
@@ -49,6 +55,14 @@ type EvidenceSearchHit struct {
 	Title          string              `json:"title"`
 	Description    string              `json:"description"`
 	EvidenceNumber string              `json:"evidence_number"`
+	FileName       string              `json:"file_name,omitempty"`
+	MimeType       string              `json:"mime_type,omitempty"`
+	UploadedAt     string              `json:"uploaded_at,omitempty"`
 	Highlights     map[string][]string `json:"highlights"`
 	Score          float64             `json:"score"`
+	// Sprint 9: classification + ex_parte_side drive the post-query
+	// access filter in the HTTP handler. Not rendered to the user but
+	// required for correctness.
+	Classification string  `json:"classification,omitempty"`
+	ExParteSide    *string `json:"ex_parte_side,omitempty"`
 }

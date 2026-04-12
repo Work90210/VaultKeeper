@@ -128,6 +128,7 @@ func (c *MeilisearchClient) IndexEvidence(_ context.Context, doc EvidenceSearchD
 		"file_name":       doc.FileName,
 		"mime_type":       doc.MimeType,
 		"classification":  doc.Classification,
+		"ex_parte_side":   doc.ExParteSide, // Sprint 9 access filter
 		"source_date":     doc.SourceDate,
 		"uploaded_at":     doc.UploadedAt,
 		"is_current":      doc.IsCurrent,
@@ -223,6 +224,7 @@ func (c *MeilisearchClient) ReindexAll(_ context.Context, caseID string, items [
 			"file_name":       doc.FileName,
 			"mime_type":       doc.MimeType,
 			"classification":  doc.Classification,
+			"ex_parte_side":   doc.ExParteSide, // Sprint 9 access filter
 			"source_date":     doc.SourceDate,
 			"uploaded_at":     doc.UploadedAt,
 			"is_current":      doc.IsCurrent,
@@ -360,14 +362,42 @@ func parseEvidenceHit(hit map[string]json.RawMessage) EvidenceSearchHit {
 		_ = json.Unmarshal(raw, &score)
 	}
 
+	// Sprint 9: pull classification + ex_parte_side out of the raw hit so
+	// the handler can enforce the role access matrix post-query without a
+	// separate database round-trip.
+	classification := getString("classification")
+	var exParteSide *string
+	if raw, ok := hit["ex_parte_side"]; ok {
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil && s != "" {
+			exParteSide = &s
+		}
+	}
+
+	// Legacy documents may have been indexed under `filename` /
+	// `original_name` rather than `file_name`. Fall back so older rows
+	// still show a meaningful label.
+	fileName := getString("file_name")
+	if fileName == "" {
+		fileName = getString("original_name")
+	}
+	if fileName == "" {
+		fileName = getString("filename")
+	}
+
 	return EvidenceSearchHit{
 		EvidenceID:     getString("id"),
 		CaseID:         getString("case_id"),
 		Title:          getString("title"),
 		Description:    getString("description"),
 		EvidenceNumber: getString("evidence_number"),
+		FileName:       fileName,
+		MimeType:       getString("mime_type"),
+		UploadedAt:     getString("uploaded_at"),
 		Highlights:     highlights,
 		Score:          score,
+		Classification: classification,
+		ExParteSide:    exParteSide,
 	}
 }
 

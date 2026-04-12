@@ -38,7 +38,7 @@ export default async function CaseSettingsPage({
 
   return (
     <Shell>
-      <div className="max-w-xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+      <div className="max-w-3xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
         <CaseSettings caseData={res.data} accessToken={session.accessToken || ''} />
       </div>
     </Shell>

@@ -1,0 +1,7 @@
+# Secrets & runtime state — never commit
+.env
+authorized_keys
+*.pem
+*.key
+caddy_data/
+caddy_config/

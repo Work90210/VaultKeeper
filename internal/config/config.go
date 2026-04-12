@@ -55,7 +55,13 @@ type Config struct {
 	ArchiveStorageBucket  string
 	ArchiveStoragePath    string
 	AdminUserIDs          []string
-	Warnings              []string
+	// MigrationStagingRoot is the allowlisted filesystem prefix under
+	// which Sprint 10 migration manifests and evidence directories MUST
+	// reside. The migration HTTP handler refuses any manifest_path /
+	// source_root that does not live under this root. Empty means
+	// migration HTTP ingestion is disabled (CLI dry-run still works).
+	MigrationStagingRoot string
+	Warnings             []string
 }
 
 func LoadFromEnv() (Config, error) {
@@ -274,6 +280,7 @@ func LoadFromEnv() (Config, error) {
 	cfg.ArchiveStorageBucket = strings.TrimSpace(os.Getenv("ARCHIVE_STORAGE_BUCKET"))
 	cfg.ArchiveStoragePath = strings.TrimSpace(os.Getenv("ARCHIVE_STORAGE_PATH"))
 	cfg.AdminUserIDs = parseCSV(os.Getenv("ADMIN_USER_IDS"))
+	cfg.MigrationStagingRoot = strings.TrimSpace(os.Getenv("MIGRATION_STAGING_ROOT"))
 
 	if len(errs) > 0 {
 		return Config{}, fmt.Errorf("configuration validation failed: %s", strings.Join(errs, "; "))

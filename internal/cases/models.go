@@ -7,17 +7,18 @@ import (
 )
 
 type Case struct {
-	ID            uuid.UUID `json:"id"`
-	ReferenceCode string    `json:"reference_code"`
-	Title         string    `json:"title"`
-	Description   string    `json:"description"`
-	Jurisdiction  string    `json:"jurisdiction"`
-	Status        string    `json:"status"`
-	LegalHold     bool      `json:"legal_hold"`
-	CreatedBy     string    `json:"created_by"`
-	CreatedByName string    `json:"created_by_name"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID             uuid.UUID  `json:"id"`
+	ReferenceCode  string     `json:"reference_code"`
+	Title          string     `json:"title"`
+	Description    string     `json:"description"`
+	Jurisdiction   string     `json:"jurisdiction"`
+	Status         string     `json:"status"`
+	LegalHold      bool       `json:"legal_hold"`
+	RetentionUntil *time.Time `json:"retention_until,omitempty"`
+	CreatedBy      string     `json:"created_by"`
+	CreatedByName  string     `json:"created_by_name"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type CaseFilter struct {
@@ -36,10 +37,13 @@ type CreateCaseInput struct {
 }
 
 type UpdateCaseInput struct {
-	Title        *string `json:"title"`
-	Description  *string `json:"description"`
-	Jurisdiction *string `json:"jurisdiction"`
-	Status       *string `json:"status"`
+	Title          *string    `json:"title"`
+	Description    *string    `json:"description"`
+	Jurisdiction   *string    `json:"jurisdiction"`
+	Status         *string    `json:"status"`
+	RetentionUntil *time.Time `json:"retention_until"`
+	// ClearRetentionUntil sets retention_until back to NULL.
+	ClearRetentionUntil bool `json:"-"`
 }
 
 type Pagination struct {

@@ -252,7 +252,7 @@ export function DisclosureDetail({
                         className="px-[var(--space-md)] py-[var(--space-sm)] text-xs text-right"
                         style={{ color: 'var(--text-tertiary)' }}
                       >
-                        {formatBytes(item.file_size)}
+                        {formatBytes(item.size_bytes)}
                       </td>
                     </tr>
                   );
@@ -271,7 +271,7 @@ export function DisclosureDetail({
           borderLeft: '3px solid var(--status-closed)',
         }}
       >
-        <AlertTriangle size={14} style={{ color: 'var(--status-closed)', shrink: 0 }} />
+        <AlertTriangle size={14} style={{ color: 'var(--status-closed)', flexShrink: 0 }} />
         <p className="text-xs" style={{ color: 'var(--status-closed)' }}>
           Disclosure is permanent and cannot be reversed. All access is logged and auditable.
         </p>

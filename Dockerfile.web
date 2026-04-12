@@ -1,0 +1,42 @@
+# Next.js standalone production server
+FROM node:20-alpine AS builder
+
+WORKDIR /build
+
+ENV KEYCLOAK_URL=http://keycloak:8080 \
+    KEYCLOAK_REALM=vaultkeeper \
+    KEYCLOAK_CLIENT_ID=build-placeholder \
+    KEYCLOAK_CLIENT_SECRET=build-placeholder \
+    NEXTAUTH_SECRET=build-placeholder-at-least-32-characters-long-xx \
+    NEXTAUTH_URL=https://vaultkeeper.eu
+
+COPY web/package.json web/pnpm-lock.yaml* ./
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY web/ .
+RUN pnpm build
+
+# Runtime
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder --chown=nextjs:nodejs /build/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /build/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /build/public ./public
+
+USER nextjs
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD wget -qO /dev/null http://127.0.0.1:3000/api/health || exit 1
+
+CMD ["node", "server.js"]

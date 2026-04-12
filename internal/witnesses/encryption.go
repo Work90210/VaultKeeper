@@ -7,9 +7,24 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 
 	"golang.org/x/crypto/hkdf"
+)
+
+// The following function vars wrap stdlib primitives used by the
+// encryption routines. They are declared as variables rather than
+// direct calls so coverage-filling tests can swap in failing
+// implementations and exercise the "unreachable" defensive error
+// branches. Production behaviour is unchanged.
+var (
+	hkdfNewReader = func(h func() hash.Hash, secret, salt, info []byte) io.Reader {
+		return hkdf.New(h, secret, salt, info)
+	}
+	aesNewCipherFn = aes.NewCipher
+	cipherNewGCMFn = cipher.NewGCM
+	randReader     io.Reader = rand.Reader
 )
 
 // ErrDecryptionFailed is returned when ciphertext fails GCM authentication.
@@ -69,11 +84,13 @@ func NewEncryptor(keys ...EncryptionKey) (*Encryptor, error) {
 // deriveKey uses HKDF-SHA256 to derive a unique key per witness from the master key.
 func (e *Encryptor) deriveKey(masterKey []byte, witnessID string) ([]byte, error) {
 	salt := []byte(witnessID)
-	hkdfReader := hkdf.New(sha256.New, masterKey, salt, []byte(hkdfInfo))
+	hkdfReader := hkdfNewReader(sha256.New, masterKey, salt, []byte(hkdfInfo))
 
 	derived := make([]byte, derivedKeySize)
 	if _, err := io.ReadFull(hkdfReader, derived); err != nil {
-		// unreachable: hkdf.New returns an infinite SHA-256 HMAC reader that never errors.
+		// unreachable in production: hkdf.New returns an infinite SHA-256
+		// HMAC reader that never errors. The hkdfNewReader indirection
+		// above lets tests inject a failing reader to cover this branch.
 		return nil, fmt.Errorf("derive witness key: %w", err)
 	}
 	return derived, nil
@@ -97,14 +114,14 @@ func (e *Encryptor) Encrypt(plaintext []byte, witnessID, fieldName string) ([]by
 		return nil, err
 	}
 
-	block, err := aes.NewCipher(derivedKey)
+	block, err := aesNewCipherFn(derivedKey)
 	if err != nil {
 		// unreachable: HKDF always produces exactly derivedKeySize (32) bytes,
 		// which is a valid AES-256 key length.
 		return nil, fmt.Errorf("create AES cipher: %w", err)
 	}
 
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipherNewGCMFn(block)
 	if err != nil {
 		// unreachable: cipher.NewGCM only fails for non-standard block sizes;
 		// AES blocks are always 16 bytes so this never fires.
@@ -112,7 +129,7 @@ func (e *Encryptor) Encrypt(plaintext []byte, witnessID, fieldName string) ([]by
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+	if _, err := io.ReadFull(randReader, nonce); err != nil {
 		return nil, fmt.Errorf("generate nonce: %w", err)
 	}
 
@@ -151,13 +168,13 @@ func (e *Encryptor) Decrypt(ciphertext []byte, witnessID, fieldName string) ([]b
 		return nil, err
 	}
 
-	block, err := aes.NewCipher(derivedKey)
+	block, err := aesNewCipherFn(derivedKey)
 	if err != nil {
 		// unreachable: HKDF always produces 32 bytes — valid AES-256 key.
 		return nil, fmt.Errorf("create AES cipher: %w", err)
 	}
 
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipherNewGCMFn(block)
 	if err != nil {
 		// unreachable: cipher.NewGCM only fails for non-16-byte block ciphers;
 		// AES always uses 16-byte blocks.

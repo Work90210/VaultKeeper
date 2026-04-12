@@ -18,6 +18,12 @@ import (
 
 var ErrNotFound = errors.New("evidence not found")
 
+// ErrConflict is returned by Update when an optimistic-concurrency guard
+// (ExpectedClassification) fails — i.e. another writer changed the
+// classification between the caller's read and the UPDATE. Callers should
+// re-fetch the item and retry or abort, depending on their policy.
+var ErrConflict = errors.New("evidence update conflict: row changed concurrently")
+
 // Repository defines the evidence data access interface.
 type Repository interface {
 	Create(ctx context.Context, input CreateEvidenceInput) (EvidenceItem, error)
@@ -36,6 +42,12 @@ type Repository interface {
 	MarkPreviousVersions(ctx context.Context, parentID uuid.UUID) error
 	UpdateVersionFields(ctx context.Context, id uuid.UUID, parentID uuid.UUID, version int) error
 	MarkNonCurrent(ctx context.Context, id uuid.UUID) error
+
+	// Tag taxonomy (Sprint 9 Step 5)
+	ListDistinctTags(ctx context.Context, caseID uuid.UUID, prefix string, limit int) ([]string, error)
+	RenameTagInCase(ctx context.Context, caseID uuid.UUID, oldTag, newTag string) (int64, error)
+	MergeTagsInCase(ctx context.Context, caseID uuid.UUID, sources []string, target string) (int64, error)
+	DeleteTagFromCase(ctx context.Context, caseID uuid.UUID, tag string) (int64, error)
 }
 
 type dbPool interface {
@@ -58,9 +70,10 @@ func NewRepository(pool *pgxpool.Pool) *PGRepository {
 const evidenceColumns = `id, case_id, evidence_number, filename, original_name, storage_key,
 	thumbnail_key, mime_type, size_bytes, sha256_hash, classification, description,
 	tags, uploaded_by, uploaded_by_name, is_current, version, parent_id, tsa_token, tsa_name, tsa_timestamp,
-	tsa_status, tsa_retry_count, tsa_last_retry, exif_data, source, source_date,
+	tsa_status, tsa_retry_count, tsa_last_retry, exif_data, source, source_date, ex_parte_side,
 	destroyed_at, destroyed_by, destroy_reason, created_at,
-	redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at`
+	redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at,
+	retention_until, destruction_authority`
 
 func scanEvidence(row pgx.Row) (EvidenceItem, error) {
 	var e EvidenceItem
@@ -69,10 +82,11 @@ func scanEvidence(row pgx.Row) (EvidenceItem, error) {
 		&e.ThumbnailKey, &e.MimeType, &e.SizeBytes, &e.SHA256Hash, &e.Classification,
 		&e.Description, &e.Tags, &e.UploadedBy, &e.UploadedByName, &e.IsCurrent, &e.Version, &e.ParentID,
 		&e.TSAToken, &e.TSAName, &e.TSATimestamp, &e.TSAStatus, &e.TSARetryCount,
-		&e.TSALastRetry, &e.ExifData, &e.Source, &e.SourceDate,
+		&e.TSALastRetry, &e.ExifData, &e.Source, &e.SourceDate, &e.ExParteSide,
 		&e.DestroyedAt, &e.DestroyedBy, &e.DestroyReason,
 		&e.CreatedAt,
 		&e.RedactionName, &e.RedactionPurpose, &e.RedactionAreaCount, &e.RedactionAuthorID, &e.RedactionFinalizedAt,
+		&e.RetentionUntil, &e.DestructionAuthority,
 	)
 	if e.Tags == nil {
 		e.Tags = []string{}
@@ -89,10 +103,11 @@ func scanEvidenceRows(rows pgx.Rows) ([]EvidenceItem, error) {
 			&e.ThumbnailKey, &e.MimeType, &e.SizeBytes, &e.SHA256Hash, &e.Classification,
 			&e.Description, &e.Tags, &e.UploadedBy, &e.UploadedByName, &e.IsCurrent, &e.Version, &e.ParentID,
 			&e.TSAToken, &e.TSAName, &e.TSATimestamp, &e.TSAStatus, &e.TSARetryCount,
-			&e.TSALastRetry, &e.ExifData, &e.Source, &e.SourceDate,
+			&e.TSALastRetry, &e.ExifData, &e.Source, &e.SourceDate, &e.ExParteSide,
 			&e.DestroyedAt, &e.DestroyedBy, &e.DestroyReason,
 			&e.CreatedAt,
 			&e.RedactionName, &e.RedactionPurpose, &e.RedactionAreaCount, &e.RedactionAuthorID, &e.RedactionFinalizedAt,
+			&e.RetentionUntil, &e.DestructionAuthority,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan evidence row: %w", err)
@@ -109,10 +124,11 @@ func (r *PGRepository) Create(ctx context.Context, input CreateEvidenceInput) (E
 	query := fmt.Sprintf(`INSERT INTO evidence_items
 		(case_id, evidence_number, filename, original_name, storage_key, mime_type, size_bytes,
 		 sha256_hash, classification, description, tags, uploaded_by, uploaded_by_name, tsa_token, tsa_name,
-		 tsa_timestamp, tsa_status, exif_data, source, source_date,
-		 redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at)
+		 tsa_timestamp, tsa_status, exif_data, source, source_date, ex_parte_side,
+		 redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at,
+		 retention_until)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-		        $21, $22, $23, $24, $25)
+		        $21, $22, $23, $24, $25, $26, $27)
 		RETURNING %s`, evidenceColumns)
 
 	row := r.pool.QueryRow(ctx, query,
@@ -120,8 +136,9 @@ func (r *PGRepository) Create(ctx context.Context, input CreateEvidenceInput) (E
 		input.StorageKey, input.MimeType, input.SizeBytes, input.SHA256Hash,
 		input.Classification, input.Description, input.Tags, input.UploadedBy,
 		input.UploadedByName, input.TSAToken, input.TSAName, input.TSATimestamp, input.TSAStatus, input.ExifData,
-		input.Source, input.SourceDate,
+		input.Source, input.SourceDate, input.ExParteSide,
 		input.RedactionName, input.RedactionPurpose, input.RedactionAreaCount, input.RedactionAuthorID, input.RedactionFinalizedAt,
+		input.RetentionUntil,
 	)
 
 	return scanEvidence(row)
@@ -197,6 +214,15 @@ func (r *PGRepository) FindByCase(ctx context.Context, filter EvidenceFilter, pa
 		argIdx++
 	}
 
+	// Classification access filter (Sprint 9 Step 1). When UserRole is set,
+	// apply the role-aware access matrix as a SQL fragment. Bypassed when
+	// UserRole is empty (internal/system queries).
+	if filter.ApplyAccessFilter() {
+		if frag := buildClassificationAccessSQL(filter.UserRole); frag != "" {
+			conditions = append(conditions, frag)
+		}
+	}
+
 	// Defence role: only show disclosed evidence.
 	// When a disclosure has redacted=true, prefer the redacted copy (parent_id = original)
 	// over the original. Non-redacted disclosures show the original directly.
@@ -266,10 +292,24 @@ func (r *PGRepository) Update(ctx context.Context, id uuid.UUID, updates Evidenc
 		args = append(args, *updates.Classification)
 		argIdx++
 	}
+	if updates.ExParteSide != nil {
+		sets = append(sets, fmt.Sprintf("ex_parte_side = $%d", argIdx))
+		args = append(args, *updates.ExParteSide)
+		argIdx++
+	} else if updates.ClearExParteSide {
+		sets = append(sets, "ex_parte_side = NULL")
+	}
 	if updates.Tags != nil {
 		sets = append(sets, fmt.Sprintf("tags = $%d", argIdx))
 		args = append(args, updates.Tags)
 		argIdx++
+	}
+	if updates.RetentionUntil != nil {
+		sets = append(sets, fmt.Sprintf("retention_until = $%d", argIdx))
+		args = append(args, *updates.RetentionUntil)
+		argIdx++
+	} else if updates.ClearRetentionUntil {
+		sets = append(sets, "retention_until = NULL")
 	}
 
 	if len(sets) == 0 {
@@ -277,13 +317,31 @@ func (r *PGRepository) Update(ctx context.Context, id uuid.UUID, updates Evidenc
 	}
 
 	args = append(args, id)
+	idIdx := argIdx
+	argIdx++
+
+	// Sprint 9 optimistic concurrency: when the caller provides
+	// ExpectedClassification, require the current row to still carry that
+	// classification. If another writer has changed it between the
+	// service's prior-fetch and this UPDATE, 0 rows match and we return
+	// ErrConflict so the caller can retry with a fresh read.
+	where := fmt.Sprintf("id = $%d AND destroyed_at IS NULL", idIdx)
+	if updates.ExpectedClassification != nil {
+		args = append(args, *updates.ExpectedClassification)
+		where += fmt.Sprintf(" AND classification = $%d", argIdx)
+		argIdx++
+	}
+
 	query := fmt.Sprintf(
-		`UPDATE evidence_items SET %s WHERE id = $%d AND destroyed_at IS NULL RETURNING %s`,
-		strings.Join(sets, ", "), argIdx, evidenceColumns)
+		`UPDATE evidence_items SET %s WHERE %s RETURNING %s`,
+		strings.Join(sets, ", "), where, evidenceColumns)
 
 	e, err := scanEvidence(r.pool.QueryRow(ctx, query, args...))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			if updates.ExpectedClassification != nil {
+				return EvidenceItem{}, ErrConflict
+			}
 			return EvidenceItem{}, ErrNotFound
 		}
 		return EvidenceItem{}, fmt.Errorf("update evidence: %w", err)
@@ -467,16 +525,24 @@ func (r *PGRepository) MarkNonCurrent(ctx context.Context, id uuid.UUID) error {
 
 // ListByCaseForExport returns all current, non-destroyed evidence items for case export.
 // When userRole is "defence", only disclosed evidence is returned.
+// Sprint 9: the classification access matrix is applied identically to FindByCase.
 func (r *PGRepository) ListByCaseForExport(ctx context.Context, caseID uuid.UUID, userRole string) ([]EvidenceItem, error) {
 	joinClause := ""
 	if userRole == "defence" {
 		joinClause = " INNER JOIN disclosures d ON d.evidence_id = e.id AND d.case_id = e.case_id"
 	}
 
+	where := "WHERE e.case_id = $1 AND e.is_current = true AND e.destroyed_at IS NULL"
+	if userRole != "" {
+		if frag := buildClassificationAccessSQL(userRole); frag != "" {
+			where += " AND " + frag
+		}
+	}
+
 	query := fmt.Sprintf(`SELECT DISTINCT %s
 		FROM evidence_items e%s
-		WHERE e.case_id = $1 AND e.is_current = true AND e.destroyed_at IS NULL
-		ORDER BY e.created_at ASC`, prefixColumns("e", evidenceColumns), joinClause)
+		%s
+		ORDER BY e.created_at ASC`, prefixColumns("e", evidenceColumns), joinClause, where)
 
 	rows, err := r.pool.Query(ctx, query, caseID)
 	if err != nil {
@@ -801,10 +867,11 @@ func (r *PGRepository) CreateWithTx(ctx context.Context, tx pgx.Tx, input Create
 	query := fmt.Sprintf(`INSERT INTO evidence_items
 		(case_id, evidence_number, filename, original_name, storage_key, mime_type, size_bytes,
 		 sha256_hash, classification, description, tags, uploaded_by, uploaded_by_name, tsa_token, tsa_name,
-		 tsa_timestamp, tsa_status, exif_data, source, source_date,
-		 redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at)
+		 tsa_timestamp, tsa_status, exif_data, source, source_date, ex_parte_side,
+		 redaction_name, redaction_purpose, redaction_area_count, redaction_author_id, redaction_finalized_at,
+		 retention_until)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-		        $21, $22, $23, $24, $25)
+		        $21, $22, $23, $24, $25, $26, $27)
 		RETURNING %s`, evidenceColumns)
 
 	row := tx.QueryRow(ctx, query,
@@ -812,8 +879,9 @@ func (r *PGRepository) CreateWithTx(ctx context.Context, tx pgx.Tx, input Create
 		input.StorageKey, input.MimeType, input.SizeBytes, input.SHA256Hash,
 		input.Classification, input.Description, input.Tags, input.UploadedBy,
 		input.UploadedByName, input.TSAToken, input.TSAName, input.TSATimestamp, input.TSAStatus, input.ExifData,
-		input.Source, input.SourceDate,
+		input.Source, input.SourceDate, input.ExParteSide,
 		input.RedactionName, input.RedactionPurpose, input.RedactionAreaCount, input.RedactionAuthorID, input.RedactionFinalizedAt,
+		input.RetentionUntil,
 	)
 
 	return scanEvidence(row)
@@ -847,6 +915,83 @@ func (r *PGRepository) SetDerivativeParentWithTx(ctx context.Context, tx pgx.Tx,
 		parentID, id)
 	if err != nil {
 		return fmt.Errorf("set derivative parent: %w", err)
+	}
+	return nil
+}
+
+// Tag repository methods (ListDistinctTags, RenameTagInCase,
+// MergeTagsInCase, DeleteTagFromCase, withCaseTagLock, tagAdvisoryLockID,
+// escapeLikePattern) moved to tag_repository.go as part of Sprint 9
+// cleanup. Same package, same methods on *PGRepository — no import or
+// interface changes required.
+
+// FindExpiringRetention returns non-destroyed items whose retention_until
+// is still in the future AND lies on or before `before` (the upcoming
+// expiry window). Items already past their retention date are excluded so
+// the daily notification job does not re-alert about them every run —
+// they are actionable now and belong in a separate "ready-to-destroy"
+// query rather than an "expiring soon" notification.
+func (r *PGRepository) FindExpiringRetention(ctx context.Context, before time.Time) ([]ExpiringRetentionItem, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, case_id, COALESCE(evidence_number, ''), retention_until
+		 FROM evidence_items
+		 WHERE destroyed_at IS NULL
+		   AND retention_until IS NOT NULL
+		   AND retention_until > now()
+		   AND retention_until <= $1
+		 ORDER BY retention_until ASC`,
+		before,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find expiring retention: %w", err)
+	}
+	defer rows.Close()
+
+	var items []ExpiringRetentionItem
+	for rows.Next() {
+		var it ExpiringRetentionItem
+		if err := rows.Scan(&it.EvidenceID, &it.CaseID, &it.EvidenceNumber, &it.RetentionUntil); err != nil {
+			return nil, fmt.Errorf("scan expiring retention row: %w", err)
+		}
+		items = append(items, it)
+	}
+	return items, rows.Err()
+}
+
+// GetCaseRetention reads the case-level retention_until floor.
+func (r *PGRepository) GetCaseRetention(ctx context.Context, caseID uuid.UUID) (*time.Time, error) {
+	var t *time.Time
+	err := r.pool.QueryRow(ctx,
+		`SELECT retention_until FROM cases WHERE id = $1`,
+		caseID,
+	).Scan(&t)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get case retention: %w", err)
+	}
+	return t, nil
+}
+
+// DestroyWithAuthority clears the storage key, records destroyed_at,
+// destroyed_by, and destruction_authority in a single UPDATE. Returns
+// ErrNotFound if the row is absent or already destroyed.
+func (r *PGRepository) DestroyWithAuthority(ctx context.Context, id uuid.UUID, authority, actorID string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE evidence_items
+		 SET storage_key = NULL,
+		     destroyed_at = now(),
+		     destroyed_by = $1,
+		     destruction_authority = $2
+		 WHERE id = $3 AND destroyed_at IS NULL`,
+		actorID, authority, id,
+	)
+	if err != nil {
+		return fmt.Errorf("destroy with authority: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
 	}
 	return nil
 }

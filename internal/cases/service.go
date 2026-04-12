@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -17,6 +18,8 @@ type CustodyRecorder interface {
 type Service struct {
 	repo              Repository
 	custody           CustodyRecorder
+	notifier          MemberNotifier
+	logger            *slog.Logger
 	referenceCodeExpr *regexp.Regexp
 }
 
@@ -30,6 +33,25 @@ func NewService(repo Repository, custody CustodyRecorder, referenceCodeRegex str
 		custody:           custody,
 		referenceCodeExpr: expr,
 	}, nil
+}
+
+// SetMemberNotifier wires an outbound notifier used by SetLegalHold to alert
+// all case members on hold state changes. Best-effort — a nil notifier is a
+// valid configuration and simply disables notifications. Safe to call once
+// during server bootstrap, before the service handles requests.
+//
+// TODO(wiring): cmd/server/main.go should construct an adapter around
+// notifications.Service and call SetMemberNotifier on the case service after
+// the notification service is instantiated. Until that is done, hold-change
+// notifications are dropped in production but covered by fakes in tests.
+func (s *Service) SetMemberNotifier(n MemberNotifier) {
+	s.notifier = n
+}
+
+// SetLogger injects an optional structured logger. When nil, best-effort
+// notification failures in SetLegalHold are silently swallowed.
+func (s *Service) SetLogger(l *slog.Logger) {
+	s.logger = l
 }
 
 type ValidationError struct {
@@ -206,6 +228,18 @@ func (s *Service) SetLegalHold(ctx context.Context, id uuid.UUID, hold bool, set
 		_ = s.custody.RecordCaseEvent(ctx, id, action, setBy, map[string]string{
 			"previous_value": fmt.Sprintf("%v", c.LegalHold),
 		})
+	}
+
+	// Best-effort: notify all case members of the hold state change. The
+	// notifier implementation is responsible for fanning out to members —
+	// failures are logged but do not fail the toggle.
+	if s.notifier != nil {
+		if nerr := s.notifier.NotifyLegalHoldChanged(ctx, id, hold, setBy); nerr != nil {
+			if s.logger != nil {
+				s.logger.Warn("notify legal hold change",
+					"case_id", id, "new_state", hold, "error", nerr)
+			}
+		}
 	}
 
 	return nil

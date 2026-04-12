@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"image/jpeg"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gen2brain/go-fitz"
 	"github.com/go-chi/chi/v5"
@@ -29,6 +31,20 @@ const (
 	maxPDFReadSize  = 512 << 20 // 512 MB limit for PDF rendering
 )
 
+// Test hooks for otherwise-unreachable error branches.
+var (
+	pagesReadAll     = io.ReadAll
+	pagesJPEGEncode  = jpeg.Encode
+	pagesDocImageDPI = func(doc *fitz.Document, page int, dpi float64) (image.Image, error) {
+		return doc.ImageDPI(page, dpi)
+	}
+	// pagesGoCache dispatches the asynchronous cache-write closure. In
+	// production it launches a goroutine; tests can override it to run
+	// synchronously so the cache-write error branch is deterministically
+	// exercised.
+	pagesGoCache = func(fn func()) { go fn() }
+)
+
 // CaseRoleChecker checks case membership for authorization.
 type CaseRoleChecker interface {
 	LoadCaseRole(ctx context.Context, caseID, userID string) (auth.CaseRole, error)
@@ -36,7 +52,7 @@ type CaseRoleChecker interface {
 
 // PagesHandler serves rendered PDF pages as JPEG images with MinIO caching.
 type PagesHandler struct {
-	db         *pgxpool.Pool
+	db         dbPool
 	storage    ObjectStorage
 	roleLoader CaseRoleChecker
 	logger     *slog.Logger
@@ -44,6 +60,12 @@ type PagesHandler struct {
 
 // NewPagesHandler creates a handler for the PDF page renderer API.
 func NewPagesHandler(db *pgxpool.Pool, storage ObjectStorage, roleLoader CaseRoleChecker, logger *slog.Logger) *PagesHandler {
+	return newPagesHandlerFromPool(db, storage, roleLoader, logger)
+}
+
+// newPagesHandlerFromPool is the test-friendly constructor that accepts
+// the dbPool interface so unit tests can inject a mock pool.
+func newPagesHandlerFromPool(db dbPool, storage ObjectStorage, roleLoader CaseRoleChecker, logger *slog.Logger) *PagesHandler {
 	return &PagesHandler{db: db, storage: storage, roleLoader: roleLoader, logger: logger}
 }
 
@@ -107,7 +129,7 @@ func (h *PagesHandler) GetPageCount(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondError(w, http.StatusInternalServerError, "failed to load evidence file")
 		return
 	}
-	pdfData, err := io.ReadAll(io.LimitReader(pdfReader, maxPDFReadSize))
+	pdfData, err := pagesReadAll(io.LimitReader(pdfReader, maxPDFReadSize))
 	pdfReader.Close()
 	if err != nil { // unreachable: in-memory and MinIO readers over a local network rarely return read errors
 		h.logger.Error("read evidence file failed", "evidence_id", evidenceID, "error", err)
@@ -124,14 +146,17 @@ func (h *PagesHandler) GetPageCount(w http.ResponseWriter, r *http.Request) {
 	pageCount := doc.NumPage()
 	doc.Close()
 
-	// Cache asynchronously
-	go func() {
+	// Cache asynchronously. Use a detached timeout context so cancellation
+	// of the originating request doesn't abort the cache write, but the
+	// write still has a bounded lifetime.
+	pagesGoCache(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		payload, _ := json.Marshal(map[string]int{"page_count": pageCount})
-		if putErr := h.storage.PutObject(context.Background(), cacheKey, bytes.NewReader(payload), int64(len(payload)), "application/json"); putErr != nil {
-			// unreachable: goroutine runs after response is sent; assertion impossible
+		if putErr := h.storage.PutObject(ctx, cacheKey, bytes.NewReader(payload), int64(len(payload)), "application/json"); putErr != nil {
 			h.logger.Warn("cache page count failed", "cache_key", cacheKey, "error", putErr)
 		}
-	}()
+	})
 
 	httputil.RespondJSON(w, http.StatusOK, map[string]int{"page_count": pageCount})
 }
@@ -220,7 +245,7 @@ func (h *PagesHandler) GetPage(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondError(w, http.StatusInternalServerError, "failed to load evidence file")
 		return
 	}
-	pdfData, err := io.ReadAll(io.LimitReader(pdfReader, maxPDFReadSize))
+	pdfData, err := pagesReadAll(io.LimitReader(pdfReader, maxPDFReadSize))
 	pdfReader.Close()
 	if err != nil { // unreachable: in-memory and MinIO readers over a local network rarely return read errors
 		h.logger.Error("read evidence file failed", "evidence_id", evidenceID, "error", err)
@@ -236,13 +261,15 @@ func (h *PagesHandler) GetPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache asynchronously
-	go func() {
-		if putErr := h.storage.PutObject(context.Background(), cacheKey, bytes.NewReader(imageBytes), int64(len(imageBytes)), "image/jpeg"); putErr != nil {
-			// unreachable: goroutine runs after response is sent; assertion impossible
+	// Cache asynchronously. Detached timeout context — bounded lifetime,
+	// no cancellation from the already-responded request.
+	pagesGoCache(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if putErr := h.storage.PutObject(ctx, cacheKey, bytes.NewReader(imageBytes), int64(len(imageBytes)), "image/jpeg"); putErr != nil {
 			h.logger.Warn("cache rendered page failed", "cache_key", cacheKey, "error", putErr)
 		}
-	}()
+	})
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "private, max-age=300")
@@ -306,13 +333,13 @@ func renderPDFPageAsJPEG(pdfData []byte, pageNum, dpi int) ([]byte, error) {
 		return nil, fmt.Errorf("page %d out of range (1-%d)", pageNum, doc.NumPage())
 	}
 
-	img, err := doc.ImageDPI(pageNum-1, float64(dpi))
-	if err != nil { // unreachable: MuPDF only fails here on corrupt pages; out-of-range is caught above
+	img, err := pagesDocImageDPI(doc, pageNum-1, float64(dpi))
+	if err != nil {
 		return nil, fmt.Errorf("render page %d: %w", pageNum, err)
 	}
 
 	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85}); err != nil { // unreachable: jpeg encoding to bytes.Buffer never fails
+	if err := pagesJPEGEncode(&buf, img, &jpeg.Options{Quality: 85}); err != nil {
 		return nil, fmt.Errorf("encode JPEG: %w", err)
 	}
 

@@ -3,20 +3,31 @@
 }
 
 vaultkeeper.eu {
-	reverse_proxy api:8080
+	# API routes → Go backend
+	handle /api/* {
+		reverse_proxy api:8080
+	}
+	handle /health {
+		reverse_proxy api:8080
+	}
+
+	# WebSocket for real-time collaboration
+	handle /ws/* {
+		reverse_proxy api:8080
+	}
+
+	# Everything else → Next.js frontend
+	handle {
+		reverse_proxy web:3000
+	}
 
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 		X-Frame-Options "DENY"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; frame-src 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' wss:; frame-src 'none'"
 		-Server
-	}
-
-	@health path /health
-	handle @health {
-		reverse_proxy api:8080
 	}
 
 	log {

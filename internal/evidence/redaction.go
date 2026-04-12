@@ -67,6 +67,21 @@ func NewRedactionService(evidenceSvc *Service, storage ObjectStorage, tsa integr
 // maxRedactionSize limits file size for redaction operations (256MB).
 const maxRedactionSize = 256 << 20
 
+// Test hooks for otherwise-unreachable error branches. Production code
+// reads these directly; unit tests swap them with failing stubs to drive
+// 100% line coverage through paths that would otherwise require corrupt
+// inputs or filesystem faults.
+var (
+	redactionReadAll         = io.ReadAll
+	redactionImageEncodeJPEG = jpeg.Encode
+	redactionImageEncodePNG  = png.Encode
+	redactionPDFPageEncode   = jpeg.Encode
+	redactionPDFImportImages = pdfcpuapi.ImportImages
+	redactionPDFDocImage     = func(doc *fitz.Document, i int) (image.Image, error) {
+		return doc.Image(i)
+	}
+)
+
 // ApplyRedactions creates a redacted copy of an evidence item.
 func (rs *RedactionService) ApplyRedactions(ctx context.Context, evidenceID uuid.UUID, redactions []RedactionArea, actorID string) (RedactedResult, error) {
 	if err := validateRedactionAreas(redactions); err != nil {
@@ -93,9 +108,9 @@ func (rs *RedactionService) ApplyRedactions(ctx context.Context, evidenceID uuid
 		return RedactedResult{}, fmt.Errorf("download original file: %w", err)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(reader, maxRedactionSize+1))
+	data, err := redactionReadAll(io.LimitReader(reader, maxRedactionSize+1))
 	reader.Close()
-	if err != nil { // unreachable: MinIO reader over a network may theoretically fail
+	if err != nil {
 		return RedactedResult{}, fmt.Errorf("read original file: %w", err)
 	}
 
@@ -112,7 +127,7 @@ func (rs *RedactionService) ApplyRedactions(ctx context.Context, evidenceID uuid
 		return RedactedResult{}, &ValidationError{Field: "mime_type", Message: "redaction only supported for images and PDFs"}
 	}
 
-	if err != nil { // unreachable: redactImage/redactPDF errors are only from invalid input already checked
+	if err != nil {
 		return RedactedResult{}, fmt.Errorf("apply redactions: %w", err)
 	}
 
@@ -220,9 +235,9 @@ func (rs *RedactionService) PreviewRedactions(ctx context.Context, evidenceID uu
 		return nil, "", fmt.Errorf("download original file: %w", err)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(reader, maxRedactionSize+1))
+	data, err := redactionReadAll(io.LimitReader(reader, maxRedactionSize+1))
 	reader.Close()
-	if err != nil { // unreachable: MinIO reader over a network may theoretically fail
+	if err != nil {
 		return nil, "", fmt.Errorf("read original file: %w", err)
 	}
 
@@ -238,7 +253,7 @@ func (rs *RedactionService) PreviewRedactions(ctx context.Context, evidenceID uu
 		return nil, "", &ValidationError{Field: "mime_type", Message: "redaction only supported for images and PDFs"}
 	}
 
-	if err != nil { // unreachable: errors only from invalid image/PDF data, already validated
+	if err != nil {
 		return nil, "", fmt.Errorf("apply redactions for preview: %w", err)
 	}
 
@@ -275,11 +290,11 @@ func redactImage(data []byte, mimeType string, areas []RedactionArea) ([]byte, e
 	var buf bytes.Buffer
 	switch {
 	case strings.Contains(mimeType, "png"):
-		err = png.Encode(&buf, dst)
+		err = redactionImageEncodePNG(&buf, dst)
 	default:
-		err = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 95})
+		err = redactionImageEncodeJPEG(&buf, dst, &jpeg.Options{Quality: 95})
 	}
-	if err != nil { // unreachable: png/jpeg encoding to bytes.Buffer never returns an error
+	if err != nil {
 		return nil, fmt.Errorf("encode redacted image: %w", err)
 	}
 
@@ -321,8 +336,8 @@ func redactPDF(data []byte, areas []RedactionArea) ([]byte, error) {
 		pageNum := i + 1
 
 		// Rasterize page to image (300 DPI for quality)
-		img, err := doc.Image(i)
-		if err != nil { // unreachable: MuPDF fails to rasterize only on corrupt/invalid PDF, caught earlier
+		img, err := redactionPDFDocImage(doc, i)
+		if err != nil {
 			return nil, fmt.Errorf("rasterize page %d: %w", pageNum, err)
 		}
 
@@ -353,7 +368,7 @@ func redactPDF(data []byte, areas []RedactionArea) ([]byte, error) {
 
 		// Encode page as JPEG
 		var pageBuf bytes.Buffer
-		if err := jpeg.Encode(&pageBuf, dst, &jpeg.Options{Quality: 95}); err != nil { // unreachable: jpeg to bytes.Buffer never fails
+		if err := redactionPDFPageEncode(&pageBuf, dst, &jpeg.Options{Quality: 95}); err != nil {
 			return nil, fmt.Errorf("encode page %d: %w", pageNum, err)
 		}
 		pageImages = append(pageImages, pageBuf.Bytes())
@@ -369,7 +384,7 @@ func redactPDF(data []byte, areas []RedactionArea) ([]byte, error) {
 		imgReaders[i] = bytes.NewReader(img)
 	}
 
-	if err := pdfcpuapi.ImportImages(nil, &outBuf, imgReaders, nil, conf); err != nil {
+	if err := redactionPDFImportImages(nil, &outBuf, imgReaders, nil, conf); err != nil {
 		return nil, fmt.Errorf("reconstruct PDF from redacted images: %w", err)
 	}
 
@@ -490,9 +505,9 @@ func (rs *RedactionService) FinalizeFromDraft(ctx context.Context, input Finaliz
 		return RedactedResult{}, fmt.Errorf("download original file: %w", err)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(reader, maxRedactionSize+1))
+	data, err := redactionReadAll(io.LimitReader(reader, maxRedactionSize+1))
 	reader.Close()
-	if err != nil { // unreachable: MinIO reader over a network may theoretically fail
+	if err != nil {
 		return RedactedResult{}, fmt.Errorf("read original file: %w", err)
 	}
 
@@ -508,7 +523,7 @@ func (rs *RedactionService) FinalizeFromDraft(ctx context.Context, input Finaliz
 		return RedactedResult{}, &ValidationError{Field: "mime_type", Message: "redaction only supported for images and PDFs"}
 	}
 
-	if err != nil { // unreachable: valid MIME was already checked, content is from storage
+	if err != nil {
 		return RedactedResult{}, fmt.Errorf("apply redactions: %w", err)
 	}
 
@@ -554,7 +569,7 @@ func (rs *RedactionService) FinalizeFromDraft(ctx context.Context, input Finaliz
 
 	// 8. Classification — use original's classification unless overridden
 	classification := original.Classification
-	if input.Classification != "" && ValidClassifications[input.Classification] {
+	if input.Classification != "" && validClassifications[input.Classification] {
 		classification = input.Classification
 	}
 

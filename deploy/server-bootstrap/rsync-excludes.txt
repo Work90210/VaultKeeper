@@ -1,0 +1,48 @@
+# Rsync exclude list for shipping VaultKeeper repo to /srv/vaultkeeper
+.git/
+.github/
+.claude/
+.vscode/
+.idea/
+.DS_Store
+
+# Node / TS build artefacts
+node_modules/
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+
+# Go build/test artefacts
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Local state / dev data
+logs_llm/
+vectors.db
+vectors.db-*
+*.sqlite
+*.sqlite-*
+
+# Env files and secrets (we'll generate fresh on server)
+.env
+.env.*
+!.env.example
+
+# Large/temporary
+tmp/
+temp/
+dist/
+build/
+web/test-results/
+web/playwright-report/
+
+# Local infra state
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate*
+
+# deploy directory itself — server shouldn't ship its own bootstrap back to itself
+deploy/server-bootstrap/bootstrap.sh
+deploy/server-bootstrap/installimage.conf

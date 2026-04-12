@@ -8,6 +8,7 @@ export interface SearchHit {
   title: string;
   description: string;
   evidence_number: string;
+  file_name?: string;
   highlights: Record<string, string[]>;
   score: number;
   mime_type?: string;

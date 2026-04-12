@@ -34,7 +34,10 @@ export function EvidencePageClient({
 
   return (
     <div className="space-y-[var(--space-md)]">
-      {/* Upload toggle + uploader */}
+      {/* Upload controls — day-to-day single-file upload only.
+          Bulk-import from another system lives under Settings →
+          Data import (it's a one-off case-setup action, not daily
+          workflow). */}
       {canUpload && (
         <>
           <button

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EvidencePageClient } from '@/components/evidence/evidence-page-client';
+import { ImportArchive } from '@/components/evidence/import-archive';
 import { WitnessList } from '@/components/witnesses/witness-list';
 import { DisclosureList } from '@/components/disclosures/disclosure-list';
 import type { EvidenceItem, Witness, Disclosure } from '@/types';
@@ -687,6 +688,36 @@ function SettingsPanel({
           )}
         </aside>
       </div>
+
+      {/* Data import — Sprint 10. One-off case-setup action, intentionally
+          placed on Settings rather than Evidence so the day-to-day
+          evidence toolbar stays uncluttered. */}
+      {!isArchived && (
+        <div className="mt-[var(--space-xl)]">
+          <div className="card-inset p-[var(--space-lg)]">
+            <h3 className="field-label mb-[var(--space-xs)]">Data import</h3>
+            <p
+              className="text-xs mb-[var(--space-md)]"
+              style={{ color: 'var(--text-tertiary)', lineHeight: '1.5' }}
+            >
+              Bulk-import evidence from another system (e.g. RelativityOne).
+              If your archive contains a{' '}
+              <code className="font-[family-name:var(--font-mono)]">
+                manifest.csv
+              </code>{' '}
+              at the root, every file&apos;s source hash is verified on
+              ingestion, the batch is stamped with a trusted RFC 3161
+              timestamp, and you receive a signed attestation certificate
+              for court submission.
+            </p>
+            <ImportArchive
+              caseId={caseData.id}
+              accessToken={accessToken}
+              onImportComplete={() => router.refresh()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

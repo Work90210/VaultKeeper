@@ -1,3 +1,5 @@
+//go:build integration
+
 package evidence
 
 import (
@@ -27,33 +29,10 @@ import (
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
-
-// mockDraftRoleLoader is a CaseRoleChecker that always returns a fixed result.
-type mockDraftRoleLoader struct {
-	role auth.CaseRole
-	err  error
-}
-
-func (m *mockDraftRoleLoader) LoadCaseRole(_ context.Context, _, _ string) (auth.CaseRole, error) {
-	return m.role, m.err
-}
-
-// mockDraftCustody records custody events without side effects.
-type mockDraftCustody struct {
-	events []string
-}
-
-func (m *mockDraftCustody) RecordEvidenceEvent(_ context.Context, _, _ uuid.UUID, action, _ string, _ map[string]string) error {
-	m.events = append(m.events, action)
-	return nil
-}
-
-// mockDraftCustodyError always returns an error from RecordEvidenceEvent.
-type mockDraftCustodyError struct{}
-
-func (m *mockDraftCustodyError) RecordEvidenceEvent(_ context.Context, _, _ uuid.UUID, _, _ string, _ map[string]string) error {
-	return errors.New("custody backend unavailable")
-}
+//
+// Note: mock types (mockDraftRoleLoader, mockDraftCustody, mockDraftCustodyError)
+// are defined in draft_mocks_test.go so they remain available to unit tests that
+// are NOT behind the `integration` build tag.
 
 // newDraftHandler builds a DraftHandler backed by the real PGRepository so
 // that integration tests exercise the full SQL path.
@@ -1160,16 +1139,9 @@ func TestDraftHandler_RecordCustody_ErrorIsLogged(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// isDuplicateKeyError — non-pgconn error path
+// isDuplicateKeyError non-pgconn path is covered in draft_handler_unit_test.go
+// (no DB dependency, so it runs under the default unit-test build).
 // ---------------------------------------------------------------------------
-
-func TestIsDuplicateKeyError_NonPgError(t *testing.T) {
-	// A plain Go error should return false, exercising the non-pgconn branch.
-	plain := errors.New("some random error")
-	if isDuplicateKeyError(plain) {
-		t.Error("expected false for non-pg error")
-	}
-}
 
 // ---------------------------------------------------------------------------
 // checkCaseAccessHTTP — roleLoader internal error path

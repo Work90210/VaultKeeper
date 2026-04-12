@@ -61,10 +61,15 @@ func NewMiddleware(jwks *JWKSFetcher, keycloakURL, realm, clientID string, logge
 
 func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth for health check, CORS preflight, and WebSocket upgrade requests
-		// (WebSocket endpoints do their own token auth via query param)
+		// Skip auth for health check, CORS preflight, WebSocket upgrade
+		// requests (WS endpoints do their own query-param token auth),
+		// and anything under /.well-known/ (public discovery surface
+		// — e.g. the Sprint 10 migration signing key clients fetch to
+		// verify attestation certificate signatures without holding
+		// platform credentials).
 		isWSUpgrade := strings.EqualFold(r.Header.Get("Upgrade"), "websocket") && strings.HasSuffix(r.URL.Path, "/redact/collaborate")
-		if r.URL.Path == "/health" || r.Method == http.MethodOptions || isWSUpgrade {
+		isWellKnown := strings.HasPrefix(r.URL.Path, "/.well-known/")
+		if r.URL.Path == "/health" || r.Method == http.MethodOptions || isWSUpgrade || isWellKnown {
 			next.ServeHTTP(w, r)
 			return
 		}

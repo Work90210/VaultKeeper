@@ -70,9 +70,13 @@ func rateLimitMiddleware(limiter *userRateLimiter) func(http.Handler) http.Handl
 // Finalize rate limiter: 2 requests per minute per user.
 var finalizeLimiter = newUserRateLimiter(rate.Every(30*time.Second), 2)
 
+// draftHandlerJSONMarshal is the json.Marshal indirection used by SaveDraft
+// so unit tests can force the otherwise-unreachable marshal-error branch.
+var draftHandlerJSONMarshal = json.Marshal
+
 // DraftHandler provides HTTP endpoints for multi-draft redaction CRUD.
 type DraftHandler struct {
-	db           *pgxpool.Pool
+	db           dbPool
 	repo         *PGRepository
 	roleLoader   CaseRoleChecker
 	redactionSvc *RedactionService
@@ -82,6 +86,13 @@ type DraftHandler struct {
 
 // NewDraftHandler creates a new redaction draft HTTP handler.
 func NewDraftHandler(db *pgxpool.Pool, roleLoader CaseRoleChecker, custody CustodyRecorder, logger *slog.Logger) *DraftHandler {
+	return newDraftHandlerFromPool(db, roleLoader, custody, logger)
+}
+
+// newDraftHandlerFromPool constructs a DraftHandler from an injected
+// dbPool — used by unit tests to wire a mock pool alongside production
+// code that passes a real *pgxpool.Pool through NewDraftHandler.
+func newDraftHandlerFromPool(db dbPool, roleLoader CaseRoleChecker, custody CustodyRecorder, logger *slog.Logger) *DraftHandler {
 	return &DraftHandler{
 		db:         db,
 		repo:       &PGRepository{pool: db},
@@ -350,8 +361,8 @@ func (h *DraftHandler) SaveDraft(w http.ResponseWriter, r *http.Request) {
 		state.Areas = []draftArea{}
 	}
 
-	stateBytes, err := json.Marshal(state)
-	if err != nil { // unreachable: draftState contains only string/float64/int fields; json.Marshal never fails for these types
+	stateBytes, err := draftHandlerJSONMarshal(state)
+	if err != nil {
 		h.logger.Error("marshal draft state failed", "draft_id", draftID, "error", err)
 		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
 		return

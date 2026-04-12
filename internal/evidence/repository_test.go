@@ -253,10 +253,11 @@ func TestPGRepository_FindByID_Success(t *testing.T) {
 					*dest[24].(*[]byte) = nil       // exif_data
 					*dest[25].(*string) = ""        // source
 					*dest[26].(**time.Time) = nil   // source_date
-					*dest[27].(**time.Time) = nil   // destroyed_at
-					*dest[28].(**string) = nil      // destroyed_by
-					*dest[29].(**string) = nil      // destroy_reason
-					*dest[30].(*time.Time) = now
+					*dest[27].(**string) = nil      // ex_parte_side
+					*dest[28].(**time.Time) = nil   // destroyed_at
+					*dest[29].(**string) = nil      // destroyed_by
+					*dest[30].(**string) = nil      // destroy_reason
+					*dest[31].(*time.Time) = now
 					return nil
 				},
 			}
@@ -315,10 +316,11 @@ func TestPGRepository_Create_Success(t *testing.T) {
 					*dest[24].(*[]byte) = nil
 					*dest[25].(*string) = ""        // source
 					*dest[26].(**time.Time) = nil   // source_date
-					*dest[27].(**time.Time) = nil
-					*dest[28].(**string) = nil
+					*dest[27].(**string) = nil      // ex_parte_side
+					*dest[28].(**time.Time) = nil
 					*dest[29].(**string) = nil
-					*dest[30].(*time.Time) = now
+					*dest[30].(**string) = nil
+					*dest[31].(*time.Time) = now
 					return nil
 				},
 			}
@@ -405,10 +407,11 @@ func TestPGRepository_Update_NoChanges(t *testing.T) {
 					*dest[24].(*[]byte) = nil
 					*dest[25].(*string) = ""        // source
 					*dest[26].(**time.Time) = nil   // source_date
-					*dest[27].(**time.Time) = nil
-					*dest[28].(**string) = nil
+					*dest[27].(**string) = nil      // ex_parte_side
+					*dest[28].(**time.Time) = nil
 					*dest[29].(**string) = nil
-					*dest[30].(*time.Time) = now
+					*dest[30].(**string) = nil
+					*dest[31].(*time.Time) = now
 					return nil
 				},
 			}
@@ -485,10 +488,11 @@ func TestPGRepository_Update_Success(t *testing.T) {
 					*dest[24].(*[]byte) = nil
 					*dest[25].(*string) = ""        // source
 					*dest[26].(**time.Time) = nil   // source_date
-					*dest[27].(**time.Time) = nil
-					*dest[28].(**string) = nil
+					*dest[27].(**string) = nil      // ex_parte_side
+					*dest[28].(**time.Time) = nil
 					*dest[29].(**string) = nil
-					*dest[30].(*time.Time) = now
+					*dest[30].(**string) = nil
+					*dest[31].(*time.Time) = now
 					return nil
 				},
 			}
@@ -1118,10 +1122,11 @@ func TestPGRepository_FindByCase_SuccessWithRows(t *testing.T) {
 		*dest[24].(*[]byte) = nil
 		*dest[25].(*string) = ""        // source
 		*dest[26].(**time.Time) = nil   // source_date
-		*dest[27].(**time.Time) = nil
-		*dest[28].(**string) = nil
+		*dest[27].(**string) = nil      // ex_parte_side
+		*dest[28].(**time.Time) = nil
 		*dest[29].(**string) = nil
-		*dest[30].(*time.Time) = now
+		*dest[30].(**string) = nil
+		*dest[31].(*time.Time) = now
 		return nil
 	}
 
@@ -1226,10 +1231,11 @@ func TestPGRepository_FindByHash_WithRows(t *testing.T) {
 					*dest[24].(*[]byte) = nil
 					*dest[25].(*string) = ""        // source
 					*dest[26].(**time.Time) = nil   // source_date
-					*dest[27].(**time.Time) = nil
-					*dest[28].(**string) = nil
+					*dest[27].(**string) = nil      // ex_parte_side
+					*dest[28].(**time.Time) = nil
 					*dest[29].(**string) = nil
-					*dest[30].(*time.Time) = now
+					*dest[30].(**string) = nil
+					*dest[31].(*time.Time) = now
 					return nil
 				},
 			}, nil
@@ -1332,10 +1338,11 @@ func TestPGRepository_FindVersionHistory_Success(t *testing.T) {
 		*dest[24].(*[]byte) = nil
 		*dest[25].(*string) = ""        // source
 		*dest[26].(**time.Time) = nil   // source_date
-		*dest[27].(**time.Time) = nil
-		*dest[28].(**string) = nil
+		*dest[27].(**string) = nil      // ex_parte_side
+		*dest[28].(**time.Time) = nil
 		*dest[29].(**string) = nil
-		*dest[30].(*time.Time) = now
+		*dest[30].(**string) = nil
+		*dest[31].(*time.Time) = now
 		return nil
 	}
 
@@ -1401,10 +1408,11 @@ func TestPGRepository_FindVersionHistory_WithParentID(t *testing.T) {
 					*dest[24].(*[]byte) = nil
 					*dest[25].(*string) = ""        // source
 					*dest[26].(**time.Time) = nil   // source_date
-					*dest[27].(**time.Time) = nil
-					*dest[28].(**string) = nil
+					*dest[27].(**string) = nil      // ex_parte_side
+					*dest[28].(**time.Time) = nil
 					*dest[29].(**string) = nil
-					*dest[30].(*time.Time) = now
+					*dest[30].(**string) = nil
+					*dest[31].(*time.Time) = now
 					return nil
 				},
 			}
@@ -1460,10 +1468,11 @@ func TestPGRepository_FindVersionHistory_QueryError(t *testing.T) {
 					*dest[24].(*[]byte) = nil
 					*dest[25].(*string) = ""        // source
 					*dest[26].(**time.Time) = nil   // source_date
-					*dest[27].(**time.Time) = nil
-					*dest[28].(**string) = nil
+					*dest[27].(**string) = nil      // ex_parte_side
+					*dest[28].(**time.Time) = nil
 					*dest[29].(**string) = nil
-					*dest[30].(*time.Time) = now
+					*dest[30].(**string) = nil
+					*dest[31].(*time.Time) = now
 					return nil
 				},
 			}
@@ -1537,10 +1546,11 @@ func TestPGRepository_FindByCase_TrimExtraResults(t *testing.T) {
 					*dest[24].(*[]byte) = nil
 					*dest[25].(*string) = ""        // source
 					*dest[26].(**time.Time) = nil   // source_date
-					*dest[27].(**time.Time) = nil
-					*dest[28].(**string) = nil
+					*dest[27].(**string) = nil      // ex_parte_side
+					*dest[28].(**time.Time) = nil
 					*dest[29].(**string) = nil
-					*dest[30].(*time.Time) = now
+					*dest[30].(**string) = nil
+					*dest[31].(*time.Time) = now
 					return nil
 				},
 			}, nil
@@ -1613,10 +1623,11 @@ func TestPGRepository_scanEvidenceRows_NilTags(t *testing.T) {
 			*dest[24].(*[]byte) = nil
 			*dest[25].(*string) = ""        // source
 			*dest[26].(**time.Time) = nil   // source_date
-			*dest[27].(**time.Time) = nil
-			*dest[28].(**string) = nil
+			*dest[27].(**string) = nil      // ex_parte_side
+			*dest[28].(**time.Time) = nil
 			*dest[29].(**string) = nil
-			*dest[30].(*time.Time) = now
+			*dest[30].(**string) = nil
+			*dest[31].(*time.Time) = now
 			return nil
 		},
 	}

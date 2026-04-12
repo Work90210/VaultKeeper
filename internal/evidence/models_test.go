@@ -81,11 +81,11 @@ func TestStorageObjectKey(t *testing.T) {
 func TestValidClassifications(t *testing.T) {
 	valid := []string{"public", "restricted", "confidential", "ex_parte"}
 	for _, c := range valid {
-		if !ValidClassifications[c] {
+		if !validClassifications[c] {
 			t.Errorf("expected %q to be valid", c)
 		}
 	}
-	if ValidClassifications["secret"] {
+	if validClassifications["secret"] {
 		t.Error("secret should not be valid")
 	}
 }

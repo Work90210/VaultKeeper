@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -21,9 +22,17 @@ type DraftStore interface {
 	SaveDraft(ctx context.Context, evidenceID, caseID uuid.UUID, actorID string, state []byte) error
 }
 
+// draftStoreDB is the narrow Postgres surface PostgresDraftStore needs.
+// Declared as an interface (matching *pgxpool.Pool) so unit tests can
+// inject a fake pool without requiring a live database.
+type draftStoreDB interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 // PostgresDraftStore implements DraftStore using Postgres.
 type PostgresDraftStore struct {
-	db *pgxpool.Pool
+	db draftStoreDB
 }
 
 // NewPostgresDraftStore creates a DraftStore backed by Postgres.

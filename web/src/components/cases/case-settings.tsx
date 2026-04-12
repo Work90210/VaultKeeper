@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { ImportArchive } from '@/components/evidence/import-archive';
 
 interface CaseData {
   id: string;
@@ -209,6 +210,29 @@ export function CaseSettings({
         >
           {legalHold ? 'Release hold' : 'Set legal hold'}
         </button>
+      </div>
+
+      {/* Data import — Sprint 10 */}
+      <div className="card p-[var(--space-lg)]">
+        <h2 className="field-label text-sm mb-[var(--space-sm)]">
+          Data import
+        </h2>
+        <p
+          className="text-sm mb-[var(--space-md)]"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          Bulk-import evidence from another system (e.g. RelativityOne). If
+          your archive contains a <code className="font-[family-name:var(--font-mono)]">manifest.csv</code>{' '}
+          at the root, every file&apos;s source hash is verified on
+          ingestion, the batch is stamped with a trusted RFC 3161
+          timestamp, and you receive a signed attestation certificate for
+          court submission.
+        </p>
+        <ImportArchive
+          caseId={caseData.id}
+          accessToken={accessToken}
+          onImportComplete={() => router.refresh()}
+        />
       </div>
 
       {/* Archive */}
