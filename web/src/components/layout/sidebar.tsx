@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/hooks/use-auth';
 import { OrgSwitcher } from './org-switcher';
 import { useCaseContext } from '@/components/providers/case-provider';
 
@@ -126,6 +127,7 @@ const CASE_SIDEBAR_GROUPS: CaseSidebarGroup[] = [
 /* ─── Main Sidebar ─── */
 export function Sidebar() {
   const pathname = usePathname();
+  const { signOut } = useAuth();
   const { caseData, activeTab, setActiveTab, sidebarCounts } = useCaseContext();
 
   const isCaseView = caseData !== null;
@@ -204,6 +206,22 @@ export function Sidebar() {
           <SidebarIcon d={ICONS.profile} />
           Profile
         </Link>
+        <button
+          type="button"
+          onClick={signOut}
+          className="flex w-full items-center gap-[var(--space-sm)]"
+          style={{
+            ...ROW_STYLE,
+            color: 'var(--text-tertiary)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          <SidebarIcon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          Sign out
+        </button>
       </div>
     </aside>
   );
