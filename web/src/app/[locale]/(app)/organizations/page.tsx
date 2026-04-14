@@ -65,8 +65,6 @@ export default async function OrganizationsPage() {
                 return (
                   <tr
                     key={org.id}
-                    className="table-row"
-                    onClick={() => {}}
                     style={{ borderBottom: '1px solid var(--border-subtle)' }}
                   >
                     <td style={{ padding: 'var(--space-sm) var(--space-md)' }}>
