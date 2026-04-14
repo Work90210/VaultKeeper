@@ -39,4 +39,16 @@ const (
 	EventLegalHoldChanged  = "legal_hold_changed"
 	EventRetentionExpiring = "retention_expiring"
 	EventBackupFailed      = "backup_failed"
+
+	// Investigation events
+	EventEvidenceNeedsVerification = "evidence_needs_verification"
+	EventReportSubmittedForReview  = "report_submitted_for_review"
+	EventAnalysisNoteSuperseded    = "analysis_note_superseded"
+	EventSafetyProfileUpdated      = "safety_profile_updated"
+	EventReportPublished           = "report_published"
+
+	// Organization events
+	EventOrgInviteReceived = "org_invite_received"
+	EventOrgMemberJoined   = "org_member_joined"
+	EventOrgMemberRemoved  = "org_member_removed"
 )

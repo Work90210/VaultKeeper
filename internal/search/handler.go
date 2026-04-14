@@ -22,11 +22,17 @@ type UserCaseRolesLoader interface {
 	GetUserCaseRoles(ctx context.Context, userID string) (map[string]string, error) // caseID -> role
 }
 
+// UserOrgIDsLoader retrieves the org IDs a user is a member of.
+type UserOrgIDsLoader interface {
+	GetUserOrgIDs(ctx context.Context, userID string) ([]string, error)
+}
+
 // Handler provides HTTP endpoints for full-text search.
 type Handler struct {
 	searcher        EvidenceSearcher
 	caseIDLoader    UserCaseIDsLoader
 	caseRolesLoader UserCaseRolesLoader
+	orgIDLoader     UserOrgIDsLoader
 	audit           auth.AuditLogger
 }
 
@@ -39,6 +45,9 @@ func NewHandler(searcher EvidenceSearcher, caseIDLoader UserCaseIDsLoader, caseR
 		audit:           audit,
 	}
 }
+
+// SetOrgIDLoader wires the org ID loader for org-scoped search.
+func (h *Handler) SetOrgIDLoader(l UserOrgIDsLoader) { h.orgIDLoader = l }
 
 // RegisterRoutes mounts search routes on the given router.
 func (h *Handler) RegisterRoutes(r chi.Router) {
@@ -56,6 +65,10 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	query := parseSearchParams(r)
 
 	// Apply role-based case filtering for non-admin users.
+	// Org scoping is handled implicitly: GetUserCaseIDs already joins
+	// organization_memberships, so the case ID list is org-aware.
+	// A MeiliSearch organization_id filter is not applied here because
+	// existing indexed documents may lack that field (pre-org migration).
 	if ac.SystemRole < auth.RoleSystemAdmin {
 		caseIDs, err := h.caseIDLoader.GetUserCaseIDs(r.Context(), ac.UserID)
 		if err != nil {

@@ -28,9 +28,17 @@ func newCaseIDsLoaderFromDB(db caseLoaderDB) *PGCaseIDsLoader {
 	return &PGCaseIDsLoader{pool: db}
 }
 
-// GetUserCaseIDs returns all case IDs the given user has a role assignment for.
+// GetUserCaseIDs returns all case IDs the given user has access to.
+// This includes cases with an explicit case_role AND all cases in orgs
+// where the user is an owner or admin.
 func (l *PGCaseIDsLoader) GetUserCaseIDs(ctx context.Context, userID string) ([]string, error) {
-	rows, err := l.pool.Query(ctx, "SELECT case_id FROM case_roles WHERE user_id = $1", userID)
+	rows, err := l.pool.Query(ctx, `
+		SELECT DISTINCT c.id::text FROM cases c
+		WHERE c.id IN (SELECT case_id FROM case_roles WHERE user_id = $1)
+		   OR c.organization_id IN (
+		      SELECT organization_id FROM organization_memberships
+		      WHERE user_id = $1 AND status = 'active' AND role IN ('owner','admin')
+		   )`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("query user case IDs: %w", err)
 	}
@@ -50,6 +58,27 @@ func (l *PGCaseIDsLoader) GetUserCaseIDs(ctx context.Context, userID string) ([]
 	}
 
 	return caseIDs, nil
+}
+
+// GetUserOrgIDs returns all organization IDs the user is an active member of.
+func (l *PGCaseIDsLoader) GetUserOrgIDs(ctx context.Context, userID string) ([]string, error) {
+	rows, err := l.pool.Query(ctx,
+		`SELECT organization_id::text FROM organization_memberships
+		 WHERE user_id = $1 AND status = 'active'`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("query user org IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var orgIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan org ID: %w", err)
+		}
+		orgIDs = append(orgIDs, id)
+	}
+	return orgIDs, rows.Err()
 }
 
 // GetUserCaseRoles returns a map of case ID to role for the given user.

@@ -15,12 +15,14 @@ import (
 )
 
 type Handler struct {
-	service *Service
-	audit   auth.AuditLogger
+	service    *Service
+	audit      auth.AuditLogger
+	orgChecker OrgMemberChecker
+	roleStore  CaseRoleStore
 }
 
-func NewHandler(service *Service, audit auth.AuditLogger) *Handler {
-	return &Handler{service: service, audit: audit}
+func NewHandler(service *Service, audit auth.AuditLogger, orgChecker OrgMemberChecker, roleStore CaseRoleStore) *Handler {
+	return &Handler{service: service, audit: audit, orgChecker: orgChecker, roleStore: roleStore}
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
@@ -32,6 +34,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Patch("/", h.Update)
 			r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/archive", h.Archive)
 			r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/legal-hold", h.SetLegalHold)
+			r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/handover", h.Handover)
 		})
 	})
 }
@@ -65,11 +68,17 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	orgID := r.URL.Query().Get("organization_id")
+	if orgID == "" {
+		orgID = r.Header.Get("X-Organization-ID")
+	}
+
 	filter := CaseFilter{
-		UserID:       ac.UserID,
-		SystemAdmin:  ac.SystemRole >= auth.RoleSystemAdmin,
-		Jurisdiction: r.URL.Query().Get("jurisdiction"),
-		SearchQuery:  r.URL.Query().Get("q"),
+		UserID:         ac.UserID,
+		OrganizationID: orgID,
+		SystemAdmin:    ac.SystemRole >= auth.RoleSystemAdmin,
+		Jurisdiction:   r.URL.Query().Get("jurisdiction"),
+		SearchQuery:    r.URL.Query().Get("q"),
 	}
 	if statusParam := r.URL.Query().Get("status"); statusParam != "" {
 		filter.Status = strings.Split(statusParam, ",")
@@ -178,6 +187,33 @@ func (h *Handler) SetLegalHold(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.RespondJSON(w, http.StatusOK, map[string]bool{"legal_hold": body.Hold})
+}
+
+func (h *Handler) Handover(w http.ResponseWriter, r *http.Request) {
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	id, err := parseUUID(r, "id")
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
+		return
+	}
+
+	var input HandoverInput
+	if err := decodeBody(r, &input); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := h.service.Handover(r.Context(), id, input, ac.UserID, h.orgChecker, h.roleStore); err != nil {
+		respondServiceError(w, err)
+		return
+	}
+
+	httputil.RespondJSON(w, http.StatusOK, map[string]string{"status": "transferred"})
 }
 
 func decodeBody(r *http.Request, dst any) error {

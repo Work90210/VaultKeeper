@@ -14,17 +14,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/vaultkeeper/vaultkeeper/internal/apikeys"
 	"github.com/vaultkeeper/vaultkeeper/internal/app"
 	"github.com/vaultkeeper/vaultkeeper/internal/audit"
 	"github.com/vaultkeeper/vaultkeeper/internal/auth"
 	"github.com/vaultkeeper/vaultkeeper/internal/backup"
 	"github.com/vaultkeeper/vaultkeeper/internal/cases"
+	"github.com/vaultkeeper/vaultkeeper/internal/organization"
+	"github.com/vaultkeeper/vaultkeeper/internal/profile"
 	"github.com/vaultkeeper/vaultkeeper/internal/collaboration"
 	"github.com/vaultkeeper/vaultkeeper/internal/config"
 	"github.com/vaultkeeper/vaultkeeper/internal/custody"
 	"github.com/vaultkeeper/vaultkeeper/internal/database"
 	"github.com/vaultkeeper/vaultkeeper/internal/disclosures"
 	"github.com/vaultkeeper/vaultkeeper/internal/evidence"
+	"github.com/vaultkeeper/vaultkeeper/internal/investigation"
 	"github.com/vaultkeeper/vaultkeeper/internal/evidence/cleanup"
 	"github.com/vaultkeeper/vaultkeeper/internal/integrity"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
@@ -37,6 +41,41 @@ import (
 )
 
 var version = "dev"
+
+// evidenceOwnerAdapter bridges evidence.Repository to investigation.EvidenceOwnerChecker.
+type evidenceOwnerAdapter struct {
+	repo interface {
+		FindByID(ctx context.Context, id uuid.UUID) (evidence.EvidenceItem, error)
+	}
+}
+
+func (a *evidenceOwnerAdapter) GetUploadedBy(ctx context.Context, evidenceID uuid.UUID) (string, error) {
+	item, err := a.repo.FindByID(ctx, evidenceID)
+	if err != nil {
+		return "", err
+	}
+	return item.UploadedBy, nil
+}
+
+// caseMembershipAdapter bridges cases.RoleRepository to investigation.CaseMembershipChecker.
+// System admins bypass case-role lookup — they have cross-case access by design,
+// matching the evidence handler pattern (loadCallerCaseRole returns RoleJudge for system admins).
+type caseMembershipAdapter struct {
+	roleRepo auth.CaseRoleLoader
+}
+
+func (a *caseMembershipAdapter) HasRoleOnCase(ctx context.Context, caseID uuid.UUID, userID string) (bool, error) {
+	// Check if the caller is a system admin via the auth context on the request.
+	// System admins don't have case-level roles but have cross-case access.
+	if ac, ok := auth.GetAuthContext(ctx); ok && ac.SystemRole == auth.RoleSystemAdmin {
+		return true, nil
+	}
+	_, err := a.roleRepo.LoadCaseRole(ctx, caseID.String(), userID)
+	if err != nil {
+		return false, nil // no role = no membership (not an error)
+	}
+	return true, nil
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -95,10 +134,28 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("create case service: %w", err)
 	}
-	caseHandler := cases.NewHandler(caseSvc, auditLogger)
-
 	roleRepo := cases.NewRoleRepository(pool)
 	roleHandler := cases.NewRoleHandler(roleRepo, custodyLogger, auditLogger)
+
+	// Organization subsystem
+	orgRepo := organization.NewOrgRepository(pool)
+	memberRepo := organization.NewMembershipRepository(pool)
+
+	orgMemberAdapter := &organization.OrgMemberAdapter{MemberRepo: memberRepo}
+	caseHandler := cases.NewHandler(caseSvc, auditLogger, orgMemberAdapter, roleRepo)
+	inviteRepo := organization.NewInvitationRepository(pool)
+	orgAuthz := organization.NewOrgAuthzService(memberRepo)
+	orgSvc := organization.NewService(orgRepo, memberRepo, inviteRepo, orgAuthz, logger).
+		WithCaseStatusChecker(caseRepo)
+	orgHandler := organization.NewHandler(orgSvc, auditLogger)
+
+	// Profile subsystem
+	profileRepo := profile.NewRepository(pool)
+	profileHandler := profile.NewHandler(profileRepo, auditLogger)
+
+	// API Keys subsystem
+	apiKeysRepo := apikeys.NewRepository(pool)
+	apiKeysHandler := apikeys.NewHandler(apiKeysRepo, auditLogger)
 
 	// Evidence subsystem
 	minioStorage, err := evidence.NewMinIOStorage(ctx, cfg.MinIOEndpoint, cfg.MinIOAccessKey, cfg.MinIOSecretKey, cfg.MinIOBucket, cfg.MinIOUseSSL)
@@ -137,12 +194,14 @@ func run() error {
 	legalHoldAdapter := &app.LegalHoldAdapter{Svc: caseSvc}
 	retentionNotifier := &app.LoggingRetentionNotifier{Logger: logger}
 	uploadAttemptRepo := evidence.NewUploadAttemptRepository(pool)
+	captureMetadataRepo := evidence.NewCaptureMetadataRepository(pool)
 	evidenceSvc = evidenceSvc.
 		WithLegalHoldChecker(legalHoldAdapter).
 		WithRetentionNotifier(retentionNotifier).
 		WithErasureRepo(evidenceRepo).
 		WithUploadAttemptRepository(uploadAttemptRepo).
-		WithOutboxPool(pool)
+		WithOutboxPool(pool).
+		WithCaptureMetadataRepository(captureMetadataRepo)
 	if legalHoldAdapter == nil || retentionNotifier == nil || evidenceRepo == nil {
 		logger.Error("sprint 9 wiring incomplete",
 			"legal_hold_checker", legalHoldAdapter != nil,
@@ -208,6 +267,25 @@ func run() error {
 	// matrix is enforced on list / get / download / thumbnail / update /
 	// destroy paths. Without this, reads bypass the matrix entirely.
 	evidenceHandler.SetCaseRoleLoader(roleRepo)
+
+	// Shared org-membership checker and case → org lookup used across handlers.
+	orgAdapter := &organization.OrgMemberAdapter{MemberRepo: memberRepo}
+	caseLookupOrgFn := func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error) {
+		c, err := caseRepo.FindByID(ctx, caseID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return c.OrganizationID, nil
+	}
+	evidenceLookupCaseFn := func(ctx context.Context, evidenceID uuid.UUID) (uuid.UUID, error) {
+		item, err := evidenceRepo.FindByID(ctx, evidenceID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return item.CaseID, nil
+	}
+
+	evidenceHandler.SetOrgMembershipChecker(orgAdapter, caseLookupOrgFn)
 	gdprRegistrar := &evidence.GDPRRouteRegistrar{Handler: evidenceHandler, Audit: auditLogger}
 
 	// Redaction service
@@ -226,6 +304,16 @@ func run() error {
 	witnessRepo := witnesses.NewRepository(pool)
 	witnessSvc := witnesses.NewService(witnessRepo, witnessEncryptor, custodyLogger, logger)
 	witnessHandler := witnesses.NewHandler(witnessSvc, roleRepo, auditLogger)
+	witnessHandler.SetOrgMembershipChecker(
+		&organization.OrgMemberAdapter{MemberRepo: memberRepo},
+		func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error) {
+			c, err := caseRepo.FindByID(ctx, caseID)
+			if err != nil {
+				return uuid.Nil, err
+			}
+			return c.OrganizationID, nil
+		},
+	)
 
 	// Start TSA retry job
 	tsaRetryJob := integrity.NewTSARetryJob(tsaClient, evidenceRepo, evidenceRepo, custodyLogger, logger)
@@ -245,12 +333,24 @@ func run() error {
 	// Passing nil disables email; in-app notifications still work.
 	notifService := notifications.NewService(notifRepo, emailSender, nil, logger, cfg.AdminUserIDs)
 	notifHandler := notifications.NewHandler(notifService)
+	notifPrefsRepo := notifications.NewPGPreferencesRepository(pool)
+	notifHandler.SetPreferencesRepo(notifPrefsRepo)
 
 	// Disclosure subsystem (depends on notification service)
 	disclosureRepo := disclosures.NewRepository(pool)
 	disclosureNotifier := &disclosureNotificationAdapter{notifService: notifService}
 	disclosureSvc := disclosures.NewService(disclosureRepo, custodyLogger, disclosureNotifier, logger)
 	disclosureHandler := disclosures.NewHandler(disclosureSvc, roleRepo, auditLogger)
+	disclosureHandler.SetOrgMembershipChecker(
+		&organization.OrgMemberAdapter{MemberRepo: memberRepo},
+		func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error) {
+			c, err := caseRepo.FindByID(ctx, caseID)
+			if err != nil {
+				return uuid.Nil, err
+			}
+			return c.OrganizationID, nil
+		},
+	)
 
 	// Search subsystem
 	caseIDLoader := search.NewCaseIDsLoader(pool)
@@ -269,6 +369,7 @@ func run() error {
 		evidenceSearcher = &search.NoopEvidenceSearcher{}
 	}
 	searchHandler := search.NewHandler(evidenceSearcher, caseIDLoader, caseIDLoader, auditLogger)
+	searchHandler.SetOrgIDLoader(caseIDLoader)
 
 	// Integrity verification handler
 	fileReaderAdapter := &integrity.StorageFileReader{
@@ -329,13 +430,16 @@ func run() error {
 	go runRetentionScheduler(retentionCtx, evidenceSvc, logger)
 
 	// Case export
-	exportSvc := cases.NewExportService(evidenceRepo, custodyRepo, caseRepo, minioStorage, custodyLogger)
+	exportSvc := cases.NewExportService(evidenceRepo, custodyRepo, caseRepo, minioStorage, custodyLogger).
+		WithCaptureMetadataExporter(captureMetadataRepo)
 	exportHandler := cases.NewExportHandler(exportSvc, auditLogger)
+	exportHandler.SetOrgMembershipChecker(orgAdapter, caseLookupOrgFn)
 
 	// Custody PDF reports
 	caseReportAdapter := &caseReportSourceAdapter{repo: caseRepo}
 	reportGen := reports.NewCustodyReportGenerator(custodyRepo, evidenceRepo, caseReportAdapter)
 	reportHandler := reports.NewHandler(reportGen, auditLogger)
+	reportHandler.SetOrgMembershipChecker(orgAdapter, caseLookupOrgFn, evidenceLookupCaseFn)
 
 	// PDF page renderer
 	pagesHandler := evidence.NewPagesHandler(pool, minioStorage, roleRepo, logger)
@@ -352,6 +456,16 @@ func run() error {
 	go collabHub.Run(collabCtx)
 	wsTokenValidator := auth.NewMiddleware(jwks, cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, logger, auditLogger)
 	collabHandler := collaboration.NewHandler(collabHub, pool, wsTokenValidator, roleRepo, auditLogger, logger, cfg.CORSOrigins)
+	collabHandler.SetOrgMembershipChecker(
+		&organization.OrgMemberAdapter{MemberRepo: memberRepo},
+		func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error) {
+			c, err := caseRepo.FindByID(ctx, caseID)
+			if err != nil {
+				return uuid.Nil, err
+			}
+			return c.OrganizationID, nil
+		},
+	)
 
 	// Sprint 11.5 — cleanup worker for notification_outbox processing.
 	cleanupWorker := cleanup.NewWorker(pool, nil, nil, logger, 30*time.Second)
@@ -366,10 +480,28 @@ func run() error {
 		server.WithBackupChecker(backupRunner),
 	)
 
+	// Investigation subsystem (Berkeley Protocol v2+v3)
+	investigationRepo := investigation.NewPGRepository(pool)
+	investigationSvc := investigation.NewService(investigationRepo, custodyLogger, logger).
+		WithEvidenceOwnerChecker(&evidenceOwnerAdapter{repo: evidenceRepo}).
+		WithCaseMembershipChecker(&caseMembershipAdapter{roleRepo: roleRepo})
+	investigationHandler := investigation.NewHandler(investigationSvc, auditLogger)
+	investigationHandler.SetOrgMembershipChecker(
+		&organization.OrgMemberAdapter{MemberRepo: memberRepo},
+		func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error) {
+			c, err := caseRepo.FindByID(ctx, caseID)
+			if err != nil {
+				return uuid.Nil, err
+			}
+			return c.OrganizationID, nil
+		},
+	)
+
 	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, healthHandler,
 		caseHandler, roleHandler, evidenceHandler, gdprRegistrar, notifHandler, searchHandler, integrityHandler,
 		backupHandler, exportHandler, reportHandler, witnessHandler, disclosureHandler,
 		pagesHandler, draftHandler, collabHandler, migrationHandler, bulkHandler, importHandler,
+		investigationHandler, orgHandler, profileHandler, apiKeysHandler,
 	)
 
 	serverErr := make(chan error, 1)

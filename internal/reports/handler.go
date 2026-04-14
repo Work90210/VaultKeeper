@@ -1,6 +1,7 @@
 package reports
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,15 +13,56 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/httputil"
 )
 
+// OrgMembershipChecker verifies whether a user belongs to a case's organization.
+type OrgMembershipChecker interface {
+	IsActiveMember(ctx context.Context, orgID uuid.UUID, userID string) (bool, error)
+}
+
 // Handler serves PDF report downloads.
 type Handler struct {
-	generator *CustodyReportGenerator
-	audit     auth.AuditLogger
+	generator          *CustodyReportGenerator
+	audit              auth.AuditLogger
+	orgChecker         OrgMembershipChecker
+	caseLookupOrg      func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)
+	evidenceCaseLookup func(ctx context.Context, evidenceID uuid.UUID) (uuid.UUID, error) // returns case ID for an evidence item
 }
 
 // NewHandler creates a new reports handler.
 func NewHandler(generator *CustodyReportGenerator, audit auth.AuditLogger) *Handler {
 	return &Handler{generator: generator, audit: audit}
+}
+
+// SetOrgMembershipChecker wires the org membership checker. When set, report
+// access requires that the caller is a member of the case's organization.
+func (h *Handler) SetOrgMembershipChecker(
+	checker OrgMembershipChecker,
+	caseLookup func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error),
+	evidenceCaseLookup func(ctx context.Context, evidenceID uuid.UUID) (uuid.UUID, error),
+) {
+	h.orgChecker = checker
+	h.caseLookupOrg = caseLookup
+	h.evidenceCaseLookup = evidenceCaseLookup
+}
+
+// ensureOrgMembership verifies that the caller belongs to the case's org.
+// Returns true if the caller may proceed.
+func (h *Handler) ensureOrgMembership(ctx context.Context, caseID uuid.UUID) bool {
+	if h.orgChecker == nil || h.caseLookupOrg == nil {
+		return true // not wired — skip check (backwards compat)
+	}
+	ac, ok := auth.GetAuthContext(ctx)
+	if !ok {
+		return false
+	}
+	if ac.SystemRole == auth.RoleSystemAdmin {
+		return true
+	}
+	orgID, err := h.caseLookupOrg(ctx, caseID)
+	if err != nil {
+		return false
+	}
+	isMember, err := h.orgChecker.IsActiveMember(ctx, orgID, ac.UserID)
+	return err == nil && isMember
 }
 
 // RegisterRoutes mounts report endpoints on the router.
@@ -34,6 +76,11 @@ func (h *Handler) ExportCaseCustody(w http.ResponseWriter, r *http.Request) {
 	caseID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
+		return
+	}
+
+	if !h.ensureOrgMembership(r.Context(), caseID) {
+		httputil.RespondError(w, http.StatusForbidden, "not a member of this organization")
 		return
 	}
 
@@ -67,6 +114,19 @@ func (h *Handler) ExportEvidenceCustody(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
 		return
+	}
+
+	// Org membership gate: resolve evidence → case → org.
+	if h.orgChecker != nil && h.evidenceCaseLookup != nil {
+		caseID, err := h.evidenceCaseLookup(r.Context(), evidenceID)
+		if err != nil {
+			httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+			return
+		}
+		if !h.ensureOrgMembership(r.Context(), caseID) {
+			httputil.RespondError(w, http.StatusForbidden, "not a member of this organization")
+			return
+		}
 	}
 
 	pdfBytes, err := h.generator.GenerateEvidenceCustodyPDF(r.Context(), evidenceID)

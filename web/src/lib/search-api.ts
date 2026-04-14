@@ -52,9 +52,11 @@ export async function searchEvidence(
   searchParams.set('offset', String(params.offset ?? 0));
 
   const url = `${API_BASE}/api/search?${searchParams.toString()}`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  const orgMatch = document.cookie.match(/(?:^|; )vk-active-org=([^;]*)/);
+  if (orgMatch) headers['X-Organization-ID'] = decodeURIComponent(orgMatch[1]);
+
+  const response = await fetch(url, { headers });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);

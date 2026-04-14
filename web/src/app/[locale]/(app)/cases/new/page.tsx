@@ -4,22 +4,31 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useState } from 'react';
 import { Shell } from '@/components/layout/shell';
+import { useOrg } from '@/hooks/use-org';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function NewCasePage() {
   const router = useRouter();
   const { data: session } = useSession();
+  const { activeOrg } = useOrg();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+
+    if (!activeOrg) {
+      setError('No organization selected. Switch to an organization first.');
+      return;
+    }
+
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
     const body = {
+      organization_id: activeOrg.id,
       reference_code: formData.get('reference_code'),
       title: formData.get('title'),
       description: formData.get('description'),

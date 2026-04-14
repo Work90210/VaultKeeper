@@ -2,12 +2,13 @@ import { getServerSession } from 'next-auth';
 import { redirect, notFound } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { authenticatedFetch } from '@/lib/api';
-import { Shell } from '@/components/layout/shell';
 import { CaseDetail } from '@/components/cases/case-detail';
+import type { TabKey } from '@/components/cases/case-detail';
 import type { EvidenceItem, CaseRole, Witness, Disclosure } from '@/types';
 
 interface CaseData {
   id: string;
+  organization_id?: string;
   reference_code: string;
   title: string;
   description: string;
@@ -44,11 +45,9 @@ export default async function CaseDetailPage({
 
   if (caseRes.error) {
     return (
-      <Shell>
-        <div className="max-w-5xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
-          <div className="banner-error">{caseRes.error}</div>
-        </div>
-      </Shell>
+      <div className="max-w-7xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+        <div className="banner-error">{caseRes.error}</div>
+      </div>
     );
   }
 
@@ -73,45 +72,33 @@ export default async function CaseDetailPage({
     (r) => r.user_id === session.user.id && r.role === 'prosecutor'
   ) || isSystemAdmin;
 
-  const validTabs = ['overview', 'evidence', 'witnesses', 'disclosures', 'settings'] as const;
-  const tab = validTabs.includes(searchParams.tab as typeof validTabs[number])
-    ? (searchParams.tab as typeof validTabs[number])
+  const validTabs: readonly TabKey[] = [
+    'overview', 'evidence', 'witnesses', 'disclosures',
+    'inquiry-logs', 'assessments', 'verifications', 'corroborations', 'analysis', 'safety',
+    'templates', 'reports', 'settings',
+  ];
+  const rawTab = searchParams.tab === 'investigation' ? 'inquiry-logs' : searchParams.tab;
+  const tab: TabKey | undefined = validTabs.includes(rawTab as TabKey)
+    ? (rawTab as TabKey)
     : undefined;
 
   return (
-    <Shell>
-      <div className="max-w-5xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
-        <nav className="flex items-center gap-[var(--space-xs)] mb-[var(--space-md)]">
-          <a
-            href="/en/cases"
-            className="link-subtle text-xs uppercase tracking-wider font-medium"
-          >
-            Cases
-          </a>
-          <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>/</span>
-          <span
-            className="text-xs uppercase tracking-wider font-medium font-[family-name:var(--font-mono)]"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            {caseRes.data.reference_code}
-          </span>
-        </nav>
-
-        <CaseDetail
-          caseData={caseRes.data}
-          canEdit={canEdit}
-          accessToken={session.accessToken as string}
-          evidence={evidence}
-          evidenceTotal={evidenceTotal}
-          evidenceNextCursor={evidenceNextCursor}
-          evidenceHasMore={evidenceHasMore}
-          canUpload={canUpload}
-          initialTab={tab}
-          witnesses={witnesses}
-          disclosures={disclosuresList}
-          isProsecutor={isProsecutor}
-        />
-      </div>
-    </Shell>
+    <div className="max-w-7xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+      <CaseDetail
+        caseData={caseRes.data}
+        canEdit={canEdit}
+        accessToken={session.accessToken as string}
+        userId={session.user.id}
+        evidence={evidence}
+        evidenceTotal={evidenceTotal}
+        evidenceNextCursor={evidenceNextCursor}
+        evidenceHasMore={evidenceHasMore}
+        canUpload={canUpload}
+        initialTab={tab}
+        witnesses={witnesses}
+        disclosures={disclosuresList}
+        isProsecutor={isProsecutor}
+      />
+    </div>
   );
 }

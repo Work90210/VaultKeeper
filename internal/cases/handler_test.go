@@ -63,7 +63,7 @@ func setupHandlerTest(t *testing.T) (*Handler, *mockRepo) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := NewHandler(svc, nil)
+	h := NewHandler(svc, nil, nil, nil)
 	return h, repo
 }
 
@@ -631,7 +631,7 @@ func setupHandlerWithErrRepo(t *testing.T, repo *errRepo) *Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewHandler(svc, nil)
+	return NewHandler(svc, nil, nil, nil)
 }
 
 func TestHandler_List_ServiceError(t *testing.T) {

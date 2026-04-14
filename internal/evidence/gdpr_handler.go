@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -29,6 +30,32 @@ func (g *GDPRRouteRegistrar) RegisterRoutes(r chi.Router) {
 	// POST /api/erasure-requests/{id}/resolve — case_admin or higher.
 	r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, g.Audit)).
 		Post("/api/erasure-requests/{id}/resolve", g.Handler.ResolveErasureRequest)
+}
+
+// ensureEvidenceOrgMembership verifies that the caller is a member of the
+// organization that owns the case containing the given evidence item.
+// Returns true if the caller may proceed.
+func (h *Handler) ensureEvidenceOrgMembership(ctx context.Context, evidenceID uuid.UUID) bool {
+	if h.orgChecker == nil || h.caseLookupOrg == nil {
+		return true // not wired — skip check (backwards compat)
+	}
+	ac, ok := auth.GetAuthContext(ctx)
+	if !ok {
+		return false
+	}
+	if ac.SystemRole == auth.RoleSystemAdmin {
+		return true
+	}
+	item, err := h.service.Get(ctx, evidenceID)
+	if err != nil {
+		return false
+	}
+	orgID, err := h.caseLookupOrg(ctx, item.CaseID)
+	if err != nil {
+		return false
+	}
+	isMember, err := h.orgChecker.IsActiveMember(ctx, orgID, ac.UserID)
+	return err == nil && isMember
 }
 
 // createErasureRequestBody is the POST body for opening a GDPR erasure
@@ -66,6 +93,11 @@ func (h *Handler) CreateErasureRequest(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+
+	if !h.ensureEvidenceOrgMembership(r.Context(), id) {
+		httputil.RespondError(w, http.StatusForbidden, "not a member of this organization")
 		return
 	}
 
@@ -116,6 +148,19 @@ func (h *Handler) ResolveErasureRequest(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid request ID")
 		return
+	}
+
+	// Org membership gate: resolve erasure request → evidence → case → org.
+	if h.orgChecker != nil && h.caseLookupOrg != nil {
+		erasureReq, err := h.service.FindErasureRequest(r.Context(), id)
+		if err != nil {
+			httputil.RespondError(w, http.StatusNotFound, "erasure request not found")
+			return
+		}
+		if !h.ensureEvidenceOrgMembership(r.Context(), erasureReq.EvidenceID) {
+			httputil.RespondError(w, http.StatusForbidden, "not a member of this organization")
+			return
+		}
 	}
 
 	var body resolveErasureRequestBody

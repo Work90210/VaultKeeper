@@ -93,7 +93,7 @@
     --duration-slow: 400ms;
   }
 
-  /* — Dark theme — */
+  /* — Dark theme (system preference) — */
   @media (prefers-color-scheme: dark) {
     :root {
       --bg-primary: var(--stone-950);
@@ -122,6 +122,64 @@
       --shadow-lg: 0 10px 15px oklch(0.05 0.01 60 / 0.30), 0 4px 6px oklch(0.05 0.01 60 / 0.10);
       --shadow-xl: 0 20px 25px oklch(0.05 0.01 60 / 0.35), 0 8px 10px oklch(0.05 0.01 60 / 0.15);
     }
+  }
+
+  /* — Forced light theme (overrides system dark preference) — */
+  html[data-theme="light"] {
+    --bg-primary: var(--stone-50);
+    --bg-secondary: oklch(0.978 0.003 75);
+    --bg-elevated: oklch(0.995 0.002 75);
+    --bg-inset: var(--stone-100);
+
+    --text-primary: var(--stone-900);
+    --text-secondary: var(--stone-600);
+    --text-tertiary: var(--stone-400);
+    --text-inverse: var(--stone-50);
+
+    --border-default: var(--stone-200);
+    --border-subtle: oklch(0.940 0.006 75);
+    --border-strong: var(--stone-300);
+
+    --amber-subtle: oklch(0.920 0.040 80);
+    --status-active-bg: oklch(0.940 0.030 145);
+    --status-closed-bg: oklch(0.940 0.035 75);
+    --status-archived-bg: oklch(0.940 0.005 60);
+    --status-hold-bg: oklch(0.940 0.030 25);
+
+    --shadow-xs: 0 1px 2px oklch(0.3 0.01 60 / 0.06);
+    --shadow-sm: 0 1px 3px oklch(0.3 0.01 60 / 0.08), 0 1px 2px oklch(0.3 0.01 60 / 0.04);
+    --shadow-md: 0 4px 6px oklch(0.3 0.01 60 / 0.06), 0 2px 4px oklch(0.3 0.01 60 / 0.04);
+    --shadow-lg: 0 10px 15px oklch(0.3 0.01 60 / 0.08), 0 4px 6px oklch(0.3 0.01 60 / 0.03);
+    --shadow-xl: 0 20px 25px oklch(0.3 0.01 60 / 0.10), 0 8px 10px oklch(0.3 0.01 60 / 0.04);
+  }
+
+  /* — Forced dark theme (via toggle) — */
+  html[data-theme="dark"] {
+    --bg-primary: var(--stone-950);
+    --bg-secondary: oklch(0.180 0.012 45);
+    --bg-elevated: oklch(0.200 0.014 48);
+    --bg-inset: oklch(0.140 0.014 40);
+
+    --text-primary: oklch(0.920 0.006 75);
+    --text-secondary: oklch(0.640 0.010 70);
+    --text-tertiary: oklch(0.480 0.010 65);
+    --text-inverse: var(--stone-950);
+
+    --border-default: oklch(0.260 0.012 50);
+    --border-subtle: oklch(0.220 0.010 48);
+    --border-strong: oklch(0.340 0.012 55);
+
+    --amber-subtle: oklch(0.240 0.030 65);
+    --status-active-bg: oklch(0.220 0.030 145);
+    --status-closed-bg: oklch(0.220 0.030 70);
+    --status-archived-bg: oklch(0.200 0.005 60);
+    --status-hold-bg: oklch(0.220 0.030 25);
+
+    --shadow-xs: 0 1px 2px oklch(0.05 0.01 60 / 0.30);
+    --shadow-sm: 0 1px 3px oklch(0.05 0.01 60 / 0.35), 0 1px 2px oklch(0.05 0.01 60 / 0.20);
+    --shadow-md: 0 4px 6px oklch(0.05 0.01 60 / 0.25), 0 2px 4px oklch(0.05 0.01 60 / 0.15);
+    --shadow-lg: 0 10px 15px oklch(0.05 0.01 60 / 0.30), 0 4px 6px oklch(0.05 0.01 60 / 0.10);
+    --shadow-xl: 0 20px 25px oklch(0.05 0.01 60 / 0.35), 0 8px 10px oklch(0.05 0.01 60 / 0.15);
   }
 
   html {
@@ -295,6 +353,28 @@
     cursor: pointer;
   }
   .table-row:hover { background-color: var(--bg-inset); }
+
+  /* — Berkeley Protocol phase accents — */
+  .phase-inquiry    { border-left: 2px solid oklch(0.600 0.100 220); }
+  .phase-assessment { border-left: 2px solid oklch(0.600 0.100 70); }
+  .phase-collection { border-left: 2px solid oklch(0.600 0.100 145); }
+  .phase-preservation { border-left: 2px solid oklch(0.600 0.100 280); }
+  .phase-verification { border-left: 2px solid oklch(0.600 0.100 40); }
+  .phase-analysis   { border-left: 2px solid oklch(0.600 0.100 340); }
+  .phase-corroboration { border-left: 2px solid oklch(0.600 0.100 30); }
+  .phase-report     { border-left: 2px solid oklch(0.600 0.100 190); }
+  .phase-safety     { border-left: 2px solid oklch(0.600 0.100 310); }
+
+  /* — Loading skeleton — */
+  .skeleton {
+    background: linear-gradient(90deg, var(--bg-inset) 25%, var(--border-subtle) 50%, var(--bg-inset) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes skeleton-pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
 }
 
 @layer components {
@@ -334,6 +414,14 @@
     .marketing-glass {
       background: oklch(0.160 0.016 40 / 0.85);
     }
+  }
+
+  html[data-theme="dark"] .marketing-glass {
+    background: oklch(0.160 0.016 40 / 0.85);
+  }
+
+  html[data-theme="light"] .marketing-glass {
+    background: oklch(0.985 0.004 75 / 0.85);
   }
 
   .marketing-divider {

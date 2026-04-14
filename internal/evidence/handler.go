@@ -26,6 +26,11 @@ type CustodyReader interface {
 	ListByEvidence(ctx context.Context, evidenceID uuid.UUID, limit int, cursor string) ([]custody.Event, int, error)
 }
 
+// OrgMembershipChecker verifies whether a user belongs to a case's organization.
+type OrgMembershipChecker interface {
+	IsActiveMember(ctx context.Context, orgID uuid.UUID, userID string) (bool, error)
+}
+
 // Handler provides HTTP endpoints for evidence operations.
 type Handler struct {
 	service        *Service
@@ -34,7 +39,9 @@ type Handler struct {
 	attemptRepo    UploadAttemptRepository
 	audit          auth.AuditLogger
 	maxUpload      int64
-	caseRoleLoader auth.CaseRoleLoader // optional — Sprint 9 access matrix
+	caseRoleLoader auth.CaseRoleLoader      // optional — Sprint 9 access matrix
+	orgChecker     OrgMembershipChecker      // optional — org boundary enforcement
+	caseLookupOrg  func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error) // returns org ID for a case
 }
 
 // NewHandler creates a new evidence HTTP handler.
@@ -65,6 +72,13 @@ func (h *Handler) SetCaseRoleLoader(loader auth.CaseRoleLoader) {
 	h.caseRoleLoader = loader
 }
 
+// SetOrgMembershipChecker wires the org membership checker. When set, evidence
+// access requires that the caller is a member of the case's organization.
+func (h *Handler) SetOrgMembershipChecker(checker OrgMembershipChecker, caseLookup func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)) {
+	h.orgChecker = checker
+	h.caseLookupOrg = caseLookup
+}
+
 // loadCallerCaseRole resolves the caller's case role for access checks.
 // Returns the role string (matching evidence.RoleXxx constants) and whether
 // the caller may proceed. A false result means the handler should respond
@@ -82,6 +96,19 @@ func (h *Handler) loadCallerCaseRole(ctx context.Context, caseID uuid.UUID) (str
 	if ac.SystemRole == auth.RoleSystemAdmin {
 		return RoleJudge, true // use judge as the highest-access effective role
 	}
+
+	// Org membership gate: verify the caller is a member of the case's org.
+	if h.orgChecker != nil && h.caseLookupOrg != nil {
+		orgID, err := h.caseLookupOrg(ctx, caseID)
+		if err != nil {
+			return "", false
+		}
+		isMember, err := h.orgChecker.IsActiveMember(ctx, orgID, ac.UserID)
+		if err != nil || !isMember {
+			return "", false
+		}
+	}
+
 	if h.caseRoleLoader == nil {
 		return "", false
 	}
@@ -150,6 +177,9 @@ func (h *Handler) logClassifiedRead(_ context.Context, item EvidenceItem, role, 
 // uploadLimiter allows 10 upload requests per minute per user.
 var uploadLimiter = newUserRateLimiter(rate.Every(6*time.Second), 10)
 
+// captureMetadataLimiter allows 6 capture metadata writes per minute per user.
+var captureMetadataLimiter = newUserRateLimiter(rate.Every(10*time.Second), 6)
+
 // RegisterRoutes mounts evidence routes on the given router.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	// Case-scoped evidence routes
@@ -177,6 +207,10 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.With(rateLimitMiddleware(uploadLimiter)).Post("/version", h.UploadNewVersion)
 		r.Post("/redact", h.ApplyRedactions)
 		r.Post("/redact/preview", h.PreviewRedactions)
+
+		// Berkeley Protocol capture metadata
+		r.With(rateLimitMiddleware(captureMetadataLimiter)).Put("/capture-metadata", h.UpsertCaptureMetadata)
+		r.Get("/capture-metadata", h.GetCaptureMetadata)
 	})
 }
 
@@ -817,6 +851,122 @@ func (h *Handler) PreviewRedactions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", mimeType)
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, reader) //nolint:errcheck
+}
+
+func (h *Handler) UpsertCaptureMetadata(w http.ResponseWriter, r *http.Request) {
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+
+	// Enforce classification access — caller must be able to see the item.
+	current, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), current) {
+		slog.Warn("capture metadata write denied: classification access failed",
+			"evidence_id", id, "case_id", current.CaseID, "actor", ac.UserID)
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
+	// Write-role enforcement: only investigator/prosecutor/judge may write capture metadata.
+	// Observer and victim_representative roles are read-only for provenance data.
+	role, roleOK := h.loadCallerCaseRole(r.Context(), current.CaseID)
+	if !roleOK {
+		slog.Warn("capture metadata write denied: no case role",
+			"evidence_id", id, "case_id", current.CaseID, "actor", ac.UserID)
+		httputil.RespondError(w, http.StatusForbidden, "no role on this case")
+		return
+	}
+	captureWriteRoles := map[string]bool{"investigator": true, "prosecutor": true, "judge": true}
+	if !captureWriteRoles[role] {
+		slog.Warn("capture metadata write denied: insufficient role",
+			"evidence_id", id, "case_id", current.CaseID, "actor", ac.UserID, "role", role)
+		httputil.RespondError(w, http.StatusForbidden, "insufficient role to write capture metadata")
+		return
+	}
+
+	var input CaptureMetadataInput
+	if err := decodeBody(r, &input); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	saved, warnings, err := h.service.UpsertCaptureMetadata(r.Context(), id, input, ac.UserID, role)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+
+	// Redact sensitive fields based on caller's role (already loaded above)
+	redacted := saved.RedactForRole(role)
+
+	response := map[string]any{
+		"data": redacted,
+	}
+	if len(warnings) > 0 {
+		response["warnings"] = warnings
+	}
+	httputil.RespondJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) GetCaptureMetadata(w http.ResponseWriter, r *http.Request) {
+	if _, ok := auth.GetAuthContext(r.Context()); !ok {
+		httputil.RespondError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+
+	// Enforce classification access.
+	current, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), current) {
+		ac, acOK := auth.GetAuthContext(r.Context())
+		actorID := ""
+		if acOK {
+			actorID = ac.UserID
+		}
+		slog.Warn("capture metadata read denied: classification access failed",
+			"evidence_id", id, "case_id", current.CaseID, "actor", actorID)
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
+	metadata, err := h.service.GetCaptureMetadata(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrCaptureMetadataNotFound) {
+			httputil.RespondError(w, http.StatusNotFound, "no capture metadata for this evidence item")
+			return
+		}
+		respondServiceError(w, err)
+		return
+	}
+
+	role, roleOK := h.loadCallerCaseRole(r.Context(), current.CaseID)
+	if !roleOK {
+		slog.Warn("could not resolve case role for capture metadata read",
+			"evidence_id", id, "case_id", current.CaseID)
+	}
+	redacted := metadata.RedactForRole(role)
+	httputil.RespondJSON(w, http.StatusOK, redacted)
 }
 
 func respondServiceError(w http.ResponseWriter, err error) {

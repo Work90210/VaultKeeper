@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -16,12 +17,19 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/httputil"
 )
 
+// OrgMembershipChecker verifies whether a user belongs to a case's organization.
+type OrgMembershipChecker interface {
+	IsActiveMember(ctx context.Context, orgID uuid.UUID, userID string) (bool, error)
+}
+
 // Handler provides HTTP endpoints for witness operations.
 type Handler struct {
 	service       *Service
 	roleLoader    auth.CaseRoleLoader
 	audit         auth.AuditLogger
 	rotationJob   *KeyRotationJob
+	orgChecker    OrgMembershipChecker
+	caseLookupOrg func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)
 }
 
 // NewHandler creates a new witness HTTP handler.
@@ -245,7 +253,34 @@ func (h *Handler) getCaseRole(ctx context.Context, caseID, userID string, system
 	if systemRole >= auth.RoleSystemAdmin {
 		return auth.CaseRoleInvestigator, nil
 	}
+
+	// Org membership gate: verify the caller belongs to the case's org.
+	if h.orgChecker != nil && h.caseLookupOrg != nil {
+		parsedCaseID, parseErr := uuid.Parse(caseID)
+		if parseErr != nil {
+			return "", fmt.Errorf("invalid case ID: %w", parseErr)
+		}
+		orgID, err := h.caseLookupOrg(ctx, parsedCaseID)
+		if err != nil {
+			return "", fmt.Errorf("lookup org for case: %w", err)
+		}
+		isMember, err := h.orgChecker.IsActiveMember(ctx, orgID, userID)
+		if err != nil {
+			return "", fmt.Errorf("org membership check: %w", err)
+		}
+		if !isMember {
+			return "", auth.ErrNoCaseRole
+		}
+	}
+
 	return h.roleLoader.LoadCaseRole(ctx, caseID, userID)
+}
+
+// SetOrgMembershipChecker wires the org membership checker. When set,
+// witness access requires that the caller is a member of the case's organization.
+func (h *Handler) SetOrgMembershipChecker(checker OrgMembershipChecker, caseLookup func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)) {
+	h.orgChecker = checker
+	h.caseLookupOrg = caseLookup
 }
 
 // SetRotationJob sets the key rotation job on the handler.

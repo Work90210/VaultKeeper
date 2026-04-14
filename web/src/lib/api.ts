@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { authOptions } from '@/lib/auth';
 
 export interface ApiResponse<T> {
@@ -47,11 +48,16 @@ export async function authenticatedFetch<T>(
     redirect('/en/login');
   }
 
-  return api<T>(path, {
-    ...options,
-    headers: {
-      ...options?.headers,
-      Authorization: `Bearer ${session.accessToken}`,
-    },
-  });
+  const cookieStore = await cookies();
+  const activeOrgId = cookieStore.get('vk-active-org')?.value;
+
+  const headers: HeadersInit = {
+    ...options?.headers,
+    Authorization: `Bearer ${session.accessToken}`,
+  };
+  if (activeOrgId) {
+    (headers as Record<string, string>)['X-Organization-ID'] = activeOrgId;
+  }
+
+  return api<T>(path, { ...options, headers });
 }

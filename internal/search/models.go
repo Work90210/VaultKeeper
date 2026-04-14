@@ -9,6 +9,7 @@ package search
 type EvidenceSearchDoc struct {
 	ID             string   `json:"id"`
 	CaseID         string   `json:"case_id"`
+	OrganizationID string   `json:"organization_id"`
 	Title          string   `json:"title"`
 	Description    string   `json:"description"`
 	EvidenceNumber string   `json:"evidence_number"`
@@ -22,6 +23,14 @@ type EvidenceSearchDoc struct {
 	UploadedAt     string   `json:"uploaded_at"`
 	IsCurrent      bool     `json:"is_current"`
 	IsDisclosed    bool     `json:"is_disclosed"`
+
+	// Berkeley Protocol capture metadata (non-sensitive fields only)
+	Platform           *string `json:"platform,omitempty"`
+	CaptureMethod      *string `json:"capture_method,omitempty"`
+	SourceURL          *string `json:"source_url,omitempty"`
+	ContentLanguage    *string `json:"content_language,omitempty"`
+	VerificationStatus *string `json:"verification_status,omitempty"`
+	CaptureTimestamp   *string `json:"capture_timestamp,omitempty"`
 }
 
 // SearchQuery describes a full-text search request with filters and pagination.
@@ -35,8 +44,9 @@ type SearchQuery struct {
 	DateTo          *string
 	Limit           int
 	Offset          int
-	UserCaseIDs     []string
-	DisclosedOnly   bool
+	UserCaseIDs       []string
+	OrganizationIDs   []string
+	DisclosedOnly     bool
 }
 
 // EvidenceSearchResult holds a page of search results with metadata.

@@ -1,15 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { EvidencePageClient } from '@/components/evidence/evidence-page-client';
 import { ImportArchive } from '@/components/evidence/import-archive';
 import { WitnessList } from '@/components/witnesses/witness-list';
 import { DisclosureList } from '@/components/disclosures/disclosure-list';
-import type { EvidenceItem, Witness, Disclosure } from '@/types';
+import { InvestigationPageClient } from '@/components/investigation/investigation-page-client';
+import type { EvidenceItem, Witness, Disclosure, CaseRole } from '@/types';
+import { CaseMembersPanel } from './case-members-panel';
+import { CaseHandoverDialog } from './case-handover-dialog';
+import { useCaseContext } from '@/components/providers/case-provider';
 
 interface CaseData {
   id: string;
+  organization_id?: string;
   reference_code: string;
   title: string;
   description: string;
@@ -28,20 +33,22 @@ const STATUS_STYLES: Record<string, { color: string; bg: string }> = {
   archived: { color: 'var(--status-archived)', bg: 'var(--status-archived-bg)' },
 };
 
-type TabKey = 'overview' | 'evidence' | 'witnesses' | 'disclosures' | 'settings';
+export type TabKey =
+  | 'overview' | 'evidence'
+  | 'witnesses' | 'disclosures' | 'members'
+  | 'inquiry-logs' | 'assessments' | 'verifications' | 'corroborations' | 'analysis' | 'safety'
+  | 'templates' | 'reports'
+  | 'settings';
 
-const TABS: { key: TabKey; label: string; adminOnly?: boolean }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'evidence', label: 'Evidence' },
-  { key: 'witnesses', label: 'Witnesses' },
-  { key: 'disclosures', label: 'Disclosures' },
-  { key: 'settings', label: 'Settings', adminOnly: true },
-];
+const INVESTIGATION_SECTIONS = new Set<TabKey>([
+  'inquiry-logs', 'assessments', 'verifications', 'corroborations', 'analysis', 'safety', 'templates', 'reports',
+]);
 
 export function CaseDetail({
   caseData,
   canEdit,
   accessToken,
+  userId,
   evidence,
   evidenceTotal,
   evidenceNextCursor,
@@ -50,11 +57,13 @@ export function CaseDetail({
   initialTab,
   witnesses = [],
   disclosures = [],
+  caseMembers = [],
   isProsecutor = false,
 }: {
   caseData: CaseData;
   canEdit: boolean;
   accessToken: string;
+  userId: string;
   evidence: EvidenceItem[];
   evidenceTotal: number;
   evidenceNextCursor: string;
@@ -63,12 +72,89 @@ export function CaseDetail({
   initialTab?: TabKey;
   witnesses?: Witness[];
   disclosures?: Disclosure[];
+  caseMembers?: CaseRole[];
   isProsecutor?: boolean;
 }) {
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab || 'overview');
+  const {
+    setCaseData,
+    activeTab: contextTab,
+    setActiveTab: contextSetActiveTab,
+    setSidebarCounts,
+    updateSidebarCounts,
+  } = useCaseContext();
+
+  const resolvedInitial: TabKey =
+    initialTab === ('investigation' as string) ? 'inquiry-logs' : (initialTab || 'overview');
+
+  // Register case data in context for the sidebar
+  useEffect(() => {
+    setCaseData({
+      id: caseData.id,
+      reference_code: caseData.reference_code,
+      title: caseData.title,
+      status: caseData.status,
+      canEdit,
+    });
+    contextSetActiveTab(resolvedInitial);
+    return () => {
+      setCaseData(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseData.id, caseData.reference_code, caseData.title, caseData.status, canEdit]);
+
+  const activeTab = contextTab as TabKey || resolvedInitial;
+  const setActiveTab = contextSetActiveTab;
+
   const status = STATUS_STYLES[caseData.status] || STATUS_STYLES.archived;
 
-  const visibleTabs = TABS.filter((t) => !t.adminOnly || canEdit);
+  const isInvestigationSection = INVESTIGATION_SECTIONS.has(activeTab);
+
+  const handleCountsLoaded = useCallback((counts: Record<string, number>) => {
+    updateSidebarCounts(counts);
+  }, [updateSidebarCounts]);
+
+  // Eagerly fetch investigation counts for sidebar badges
+  useEffect(() => {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    const fetchCount = (url: string) =>
+      fetch(url, { headers })
+        .then(r => r.ok ? r.json() : null)
+        .then(json => (json?.data ?? json ?? []).length)
+        .catch(() => 0);
+
+    Promise.all([
+      fetchCount(`${API_BASE}/api/cases/${caseData.id}/inquiry-logs`),
+      fetchCount(`${API_BASE}/api/cases/${caseData.id}/assessments`),
+      fetchCount(`${API_BASE}/api/cases/${caseData.id}/verifications`),
+      fetchCount(`${API_BASE}/api/cases/${caseData.id}/corroborations`),
+      fetchCount(`${API_BASE}/api/cases/${caseData.id}/analysis-notes`),
+      fetchCount(`${API_BASE}/api/cases/${caseData.id}/safety-profiles`),
+      fetchCount(`${API_BASE}/api/cases/${caseData.id}/template-instances`),
+      fetchCount(`${API_BASE}/api/cases/${caseData.id}/reports`),
+    ]).then(([inq, assess, verify, corr, analysis, safety, templates, reports]) => {
+      updateSidebarCounts({
+        'inquiry-logs': inq,
+        assessments: assess,
+        verifications: verify,
+        corroborations: corr,
+        analysis,
+        safety,
+        templates,
+        reports,
+      });
+    });
+  }, [caseData.id, accessToken, updateSidebarCounts]);
+
+  // Push static counts to sidebar context
+  useEffect(() => {
+    setSidebarCounts({
+      evidence: evidenceTotal,
+      witnesses: witnesses.length,
+      disclosures: disclosures.length,
+      members: caseMembers.length,
+    });
+  }, [evidenceTotal, witnesses.length, disclosures.length, caseMembers.length, setSidebarCounts]);
 
   return (
     <div style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}>
@@ -87,6 +173,16 @@ export function CaseDetail({
           >
             {caseData.status}
           </span>
+          {caseMembers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('members')}
+              className="badge cursor-pointer"
+              style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text-secondary)' }}
+            >
+              {caseMembers.length} member{caseMembers.length !== 1 ? 's' : ''}
+            </button>
+          )}
           {caseData.legal_hold && (
             <span
               className="badge"
@@ -107,54 +203,8 @@ export function CaseDetail({
         </h1>
       </header>
 
-      {/* ── Tab bar ── */}
-      <nav
-        className="flex gap-[var(--space-lg)] mb-[var(--space-lg)]"
-        style={{ borderBottom: '1px solid var(--border-default)' }}
-        role="tablist"
-      >
-        {visibleTabs.map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              role="tab"
-              type="button"
-              aria-selected={isActive}
-              onClick={() => setActiveTab(tab.key)}
-              className="relative pb-[var(--space-sm)] text-sm font-medium transition-colors"
-              style={{
-                color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {tab.label}
-              {tab.key === 'evidence' && (
-                <span
-                  className="ml-[var(--space-xs)] text-xs font-normal"
-                  style={{ color: 'var(--text-tertiary)' }}
-                >
-                  {evidenceTotal}
-                </span>
-              )}
-              {isActive && (
-                <span
-                  className="absolute left-0 right-0 -bottom-px"
-                  style={{
-                    height: '2px',
-                    backgroundColor: 'var(--amber-accent)',
-                  }}
-                />
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* ── Tab panels ── */}
-      <div role="tabpanel">
+      {/* ── Content area ── */}
+      <div>
         {activeTab === 'overview' && (
           <OverviewPanel
             caseData={caseData}
@@ -192,6 +242,35 @@ export function CaseDetail({
             onSelect={(id) => window.location.href = `/en/disclosures/${id}`}
             onCreateNew={isProsecutor ? () => window.location.href = `/en/cases/${caseData.id}/disclosures/new` : undefined}
             canCreate={isProsecutor}
+          />
+        )}
+
+        {activeTab === 'members' && (
+          <CaseMembersPanel
+            caseId={caseData.id}
+            members={caseMembers}
+            canManage={canEdit}
+            organizationId={caseData.organization_id}
+            accessToken={accessToken}
+          />
+        )}
+
+        {isInvestigationSection && (
+          <InvestigationPageClient
+            caseId={caseData.id}
+            accessToken={accessToken}
+            userId={userId}
+            activeSection={activeTab}
+            onCountsLoaded={handleCountsLoaded}
+            inquiryLogs={[]}
+            assessments={[]}
+            verifications={[]}
+            corroborations={[]}
+            analysisNotes={[]}
+            templates={[]}
+            templateInstances={[]}
+            reports={[]}
+            safetyProfiles={[]}
           />
         )}
 
@@ -539,7 +618,6 @@ function SettingsPanel({
 
         {/* Right: case actions */}
         <aside className="space-y-[var(--space-md)]">
-          {/* Case status */}
           {caseStatus === 'active' && (
             <div className="card-inset p-[var(--space-md)]">
               <div className="flex items-center justify-between mb-[var(--space-sm)]">
@@ -616,7 +694,6 @@ function SettingsPanel({
             </div>
           )}
 
-          {/* Legal hold — hidden when archived */}
           {!isArchived && (
           <div className="card-inset p-[var(--space-md)]">
             <div className="flex items-center justify-between mb-[var(--space-sm)]">
@@ -653,7 +730,6 @@ function SettingsPanel({
           </div>
           )}
 
-          {/* Archive */}
           {!isArchived && (
             <div
               className="card-inset p-[var(--space-md)]"
@@ -689,9 +765,6 @@ function SettingsPanel({
         </aside>
       </div>
 
-      {/* Data import — Sprint 10. One-off case-setup action, intentionally
-          placed on Settings rather than Evidence so the day-to-day
-          evidence toolbar stays uncluttered. */}
       {!isArchived && (
         <div className="mt-[var(--space-xl)]">
           <div className="card-inset p-[var(--space-lg)]">
@@ -713,7 +786,7 @@ function SettingsPanel({
             <ImportArchive
               caseId={caseData.id}
               accessToken={accessToken}
-              onImportComplete={() => router.refresh()}
+              onImportComplete={() => window.location.reload()}
             />
           </div>
         </div>

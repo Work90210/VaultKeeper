@@ -1,6 +1,7 @@
 package cases
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,15 +13,49 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/httputil"
 )
 
+// OrgMembershipChecker verifies whether a user belongs to a case's organization.
+type OrgMembershipChecker interface {
+	IsActiveMember(ctx context.Context, orgID uuid.UUID, userID string) (bool, error)
+}
+
 // ExportHandler serves case export ZIP downloads.
 type ExportHandler struct {
 	exportService *ExportService
 	audit         auth.AuditLogger
+	orgChecker    OrgMembershipChecker
+	caseLookupOrg func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)
 }
 
 // NewExportHandler creates a new export handler.
 func NewExportHandler(exportService *ExportService, audit auth.AuditLogger) *ExportHandler {
 	return &ExportHandler{exportService: exportService, audit: audit}
+}
+
+// SetOrgMembershipChecker wires the org membership checker. When set, case
+// export requires that the caller is a member of the case's organization.
+func (h *ExportHandler) SetOrgMembershipChecker(checker OrgMembershipChecker, caseLookup func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)) {
+	h.orgChecker = checker
+	h.caseLookupOrg = caseLookup
+}
+
+// ensureOrgMembership verifies that the caller belongs to the case's org.
+func (h *ExportHandler) ensureOrgMembership(ctx context.Context, caseID uuid.UUID) bool {
+	if h.orgChecker == nil || h.caseLookupOrg == nil {
+		return true
+	}
+	ac, ok := auth.GetAuthContext(ctx)
+	if !ok {
+		return false
+	}
+	if ac.SystemRole == auth.RoleSystemAdmin {
+		return true
+	}
+	orgID, err := h.caseLookupOrg(ctx, caseID)
+	if err != nil {
+		return false
+	}
+	isMember, err := h.orgChecker.IsActiveMember(ctx, orgID, ac.UserID)
+	return err == nil && isMember
 }
 
 // RegisterRoutes mounts the export endpoint on the router.
@@ -39,6 +74,11 @@ func (h *ExportHandler) ExportCase(w http.ResponseWriter, r *http.Request) {
 	caseID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
+		return
+	}
+
+	if !h.ensureOrgMembership(r.Context(), caseID) {
+		httputil.RespondError(w, http.StatusForbidden, "not a member of this organization")
 		return
 	}
 

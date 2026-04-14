@@ -64,6 +64,15 @@ func (s *Service) WithErasureRepo(repo ErasureRepository) *Service {
 	return s
 }
 
+// FindErasureRequest loads an erasure request by ID. It delegates to the
+// underlying erasure repository.
+func (s *Service) FindErasureRequest(ctx context.Context, id uuid.UUID) (ErasureRequest, error) {
+	if s.erasureRepo == nil {
+		return ErasureRequest{}, fmt.Errorf("erasure repository not configured")
+	}
+	return s.erasureRepo.FindErasureRequest(ctx, id)
+}
+
 // CreateErasureRequest opens a GDPR erasure workflow for an evidence item.
 // It builds a ConflictReport by checking legal hold, retention, and case
 // status. If there are no conflicts the request is persisted with status

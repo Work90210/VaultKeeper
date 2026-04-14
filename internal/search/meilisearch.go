@@ -120,6 +120,7 @@ func (c *MeilisearchClient) IndexEvidence(_ context.Context, doc EvidenceSearchD
 	payload := map[string]any{
 		"id":              doc.ID,
 		"case_id":         doc.CaseID,
+		"organization_id": doc.OrganizationID,
 		"title":           doc.Title,
 		"description":     doc.Description,
 		"evidence_number": doc.EvidenceNumber,
@@ -133,6 +134,25 @@ func (c *MeilisearchClient) IndexEvidence(_ context.Context, doc EvidenceSearchD
 		"uploaded_at":     doc.UploadedAt,
 		"is_current":      doc.IsCurrent,
 		"is_disclosed":    doc.IsDisclosed,
+	}
+	// Berkeley Protocol capture metadata (non-sensitive fields only)
+	if doc.Platform != nil {
+		payload["platform"] = *doc.Platform
+	}
+	if doc.CaptureMethod != nil {
+		payload["capture_method"] = *doc.CaptureMethod
+	}
+	if doc.SourceURL != nil {
+		payload["source_url"] = *doc.SourceURL
+	}
+	if doc.ContentLanguage != nil {
+		payload["content_language"] = *doc.ContentLanguage
+	}
+	if doc.VerificationStatus != nil {
+		payload["verification_status"] = *doc.VerificationStatus
+	}
+	if doc.CaptureTimestamp != nil {
+		payload["capture_timestamp"] = *doc.CaptureTimestamp
 	}
 
 	pk := "id"
@@ -213,7 +233,7 @@ func (c *MeilisearchClient) ReindexAll(_ context.Context, caseID string, items [
 
 	docs := make([]map[string]any, 0, len(items))
 	for _, doc := range items {
-		docs = append(docs, map[string]any{
+		d := map[string]any{
 			"id":              doc.ID,
 			"case_id":         doc.CaseID,
 			"title":           doc.Title,
@@ -229,7 +249,26 @@ func (c *MeilisearchClient) ReindexAll(_ context.Context, caseID string, items [
 			"uploaded_at":     doc.UploadedAt,
 			"is_current":      doc.IsCurrent,
 			"is_disclosed":    doc.IsDisclosed,
-		})
+		}
+		if doc.Platform != nil {
+			d["platform"] = *doc.Platform
+		}
+		if doc.CaptureMethod != nil {
+			d["capture_method"] = *doc.CaptureMethod
+		}
+		if doc.SourceURL != nil {
+			d["source_url"] = *doc.SourceURL
+		}
+		if doc.ContentLanguage != nil {
+			d["content_language"] = *doc.ContentLanguage
+		}
+		if doc.VerificationStatus != nil {
+			d["verification_status"] = *doc.VerificationStatus
+		}
+		if doc.CaptureTimestamp != nil {
+			d["capture_timestamp"] = *doc.CaptureTimestamp
+		}
+		docs = append(docs, d)
 	}
 
 	pk := "id"
@@ -245,17 +284,17 @@ func (c *MeilisearchClient) ReindexAll(_ context.Context, caseID string, items [
 func (c *MeilisearchClient) ConfigureEvidenceIndex(_ context.Context) error {
 	index := c.client.Index(evidenceIndex)
 
-	searchable := []string{"title", "description", "tags", "evidence_number", "source", "file_name"}
+	searchable := []string{"title", "description", "tags", "evidence_number", "source", "file_name", "content_language"}
 	if _, err := index.UpdateSearchableAttributes(&searchable); err != nil {
 		return fmt.Errorf("configure evidence searchable attributes: %w", err)
 	}
 
-	filterable := []interface{}{"case_id", "mime_type", "classification", "tags", "source_date", "uploaded_at", "is_current", "is_disclosed"}
+	filterable := []interface{}{"case_id", "organization_id", "mime_type", "classification", "tags", "source_date", "uploaded_at", "is_current", "is_disclosed", "platform", "verification_status", "capture_timestamp"}
 	if _, err := index.UpdateFilterableAttributes(&filterable); err != nil {
 		return fmt.Errorf("configure evidence filterable attributes: %w", err)
 	}
 
-	sortable := []string{"uploaded_at", "source_date", "evidence_number"}
+	sortable := []string{"uploaded_at", "source_date", "evidence_number", "capture_timestamp"}
 	if _, err := index.UpdateSortableAttributes(&sortable); err != nil {
 		return fmt.Errorf("configure evidence sortable attributes: %w", err)
 	}
@@ -279,6 +318,14 @@ func buildEvidenceFilter(q SearchQuery) string {
 
 	if q.CaseID != nil && *q.CaseID != "" {
 		parts = append(parts, fmt.Sprintf("case_id = '%s'", escapeFilterValue(*q.CaseID)))
+	}
+
+	if len(q.OrganizationIDs) > 0 {
+		quoted := make([]string, len(q.OrganizationIDs))
+		for i, id := range q.OrganizationIDs {
+			quoted[i] = fmt.Sprintf("'%s'", escapeFilterValue(id))
+		}
+		parts = append(parts, fmt.Sprintf("organization_id IN [%s]", strings.Join(quoted, ", ")))
 	}
 
 	if len(q.UserCaseIDs) > 0 {

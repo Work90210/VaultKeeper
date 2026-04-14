@@ -23,6 +23,17 @@ func (h *Handler) requireCaseMembership(ctx context.Context, caseID uuid.UUID) b
 	if ac.SystemRole == auth.RoleSystemAdmin {
 		return true
 	}
+	// Org membership gate: verify the caller belongs to the case's org.
+	if h.orgChecker != nil && h.caseLookupOrg != nil {
+		orgID, err := h.caseLookupOrg(ctx, caseID)
+		if err != nil {
+			return false
+		}
+		isMember, err := h.orgChecker.IsActiveMember(ctx, orgID, ac.UserID)
+		if err != nil || !isMember {
+			return false
+		}
+	}
 	if h.caseRoleLoader == nil {
 		return false
 	}

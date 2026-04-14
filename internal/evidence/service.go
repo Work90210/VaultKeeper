@@ -71,6 +71,7 @@ type Service struct {
 	erasureRepo       ErasureRepository            // optional — set via WithErasureRepo
 	attempts          UploadAttemptRepository       // optional — Sprint 11.5 upload attempt tracking
 	outboxPool        execer                        // optional — for notification_outbox inserts
+	captureMetadata   CaptureMetadataRepository     // optional — Berkeley Protocol capture metadata
 }
 
 // WithLegalHoldChecker injects a legal-hold checker into the service.
@@ -90,6 +91,12 @@ func (s *Service) WithUploadAttemptRepository(repo UploadAttemptRepository) *Ser
 // WithOutboxPool injects the DB pool for notification_outbox writes (Sprint 11.5).
 func (s *Service) WithOutboxPool(pool execer) *Service {
 	s.outboxPool = pool
+	return s
+}
+
+// WithCaptureMetadataRepository injects the capture metadata repository (Berkeley Protocol).
+func (s *Service) WithCaptureMetadataRepository(repo CaptureMetadataRepository) *Service {
+	s.captureMetadata = repo
 	return s
 }
 
@@ -755,4 +762,192 @@ func derefStr(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// UpsertCaptureMetadata validates and saves capture metadata for an evidence item.
+// actorRole is the caller's case role (investigator/prosecutor/judge) — used to
+// enforce role-elevation for verification status changes.
+func (s *Service) UpsertCaptureMetadata(ctx context.Context, evidenceID uuid.UUID, input CaptureMetadataInput, actorID, actorRole string) (*EvidenceCaptureMetadata, []CaptureMetadataWarning, error) {
+	if s.captureMetadata == nil {
+		return nil, nil, fmt.Errorf("capture metadata repository not configured")
+	}
+
+	warnings, err := ValidateCaptureMetadataInput(input)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Verify evidence exists and get case ID for custody event
+	evidence, err := s.repo.FindByID(ctx, evidenceID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	captureTS, _ := time.Parse(time.RFC3339, input.CaptureTimestamp)
+
+	var pubTS *time.Time
+	if input.PublicationTimestamp != nil && *input.PublicationTimestamp != "" {
+		t, _ := time.Parse(time.RFC3339, *input.PublicationTimestamp)
+		pubTS = &t
+	}
+
+	// Pin collector to the authenticated actor — never accept client-supplied collector_user_id
+	// to prevent chain-of-custody spoofing.
+	actorUUID, _ := uuid.Parse(actorID)
+	collectorUID := &actorUUID
+
+	// Check if existing metadata has a different verification status
+	var previousVerification string
+	existing, existErr := s.captureMetadata.GetByEvidenceID(ctx, evidenceID)
+	if existErr == nil && existing != nil {
+		previousVerification = existing.VerificationStatus
+	}
+
+	verificationStatus := VerificationUnverified
+	if input.VerificationStatus != nil && *input.VerificationStatus != "" {
+		verificationStatus = *input.VerificationStatus
+	}
+
+	// Role-elevation: setting verified/disputed requires prosecutor or judge.
+	// Investigators can capture metadata but cannot self-certify verification.
+	elevatedStatuses := map[string]bool{VerificationVerified: true, VerificationDisputed: true}
+	if elevatedStatuses[verificationStatus] {
+		elevatedRoles := map[string]bool{"prosecutor": true, "judge": true}
+		if !elevatedRoles[actorRole] {
+			return nil, nil, &ValidationError{
+				Field:   "verification_status",
+				Message: "setting verified or disputed status requires prosecutor or judge role",
+			}
+		}
+	}
+
+	metadata := &EvidenceCaptureMetadata{
+		EvidenceID:                    evidenceID,
+		SourceURL:                     input.SourceURL,
+		CanonicalURL:                  input.CanonicalURL,
+		Platform:                      input.Platform,
+		PlatformContentType:           input.PlatformContentType,
+		CaptureMethod:                 input.CaptureMethod,
+		CaptureTimestamp:              captureTS,
+		PublicationTimestamp:           pubTS,
+		CollectorUserID:               collectorUID,
+		// CollectorDisplayName is intentionally NOT persisted from user input.
+		// The _encrypted DB column requires application-layer encryption (same pattern
+		// as witness PII). Until the encryption service is wired, we store only
+		// collector_user_id and resolve the display name at read time via Keycloak/SSO.
+		// This prevents storing plaintext PII in a column named _encrypted.
+		CreatorAccountHandle:          input.CreatorAccountHandle,
+		CreatorAccountDisplayName:     input.CreatorAccountDisplayName,
+		CreatorAccountURL:             input.CreatorAccountURL,
+		CreatorAccountID:              input.CreatorAccountID,
+		ContentDescription:            input.ContentDescription,
+		ContentLanguage:               input.ContentLanguage,
+		GeoLatitude:                   input.GeoLatitude,
+		GeoLongitude:                  input.GeoLongitude,
+		GeoPlaceName:                  input.GeoPlaceName,
+		GeoSource:                     input.GeoSource,
+		AvailabilityStatus:            input.AvailabilityStatus,
+		WasLive:                       input.WasLive,
+		WasDeleted:                    input.WasDeleted,
+		CaptureToolName:               input.CaptureToolName,
+		CaptureToolVersion:            input.CaptureToolVersion,
+		BrowserName:                   input.BrowserName,
+		BrowserVersion:                input.BrowserVersion,
+		BrowserUserAgent:              input.BrowserUserAgent,
+		NetworkContext:                 input.NetworkContext,
+		PreservationNotes:             input.PreservationNotes,
+		VerificationStatus:            verificationStatus,
+		VerificationNotes:             input.VerificationNotes,
+		MetadataSchemaVersion:         1,
+	}
+
+	if err := s.captureMetadata.UpsertByEvidenceID(ctx, evidenceID, metadata); err != nil {
+		return nil, nil, fmt.Errorf("upsert capture metadata: %w", err)
+	}
+
+	// Set fields that the DB populates
+	metadata.EvidenceID = evidenceID
+	now := time.Now().UTC()
+	metadata.CreatedAt = now
+	metadata.UpdatedAt = now
+
+	// Custody event: capture_metadata_upserted
+	detail := map[string]string{
+		"capture_method":      metadata.CaptureMethod,
+		"verification_status": metadata.VerificationStatus,
+	}
+	if metadata.Platform != nil {
+		detail["platform"] = *metadata.Platform
+	}
+	if metadata.SourceURL != nil && *metadata.SourceURL != "" {
+		detail["source_url_present"] = "true"
+	}
+	s.recordCustodyEvent(ctx, evidence.CaseID, evidenceID, "capture_metadata_upserted", actorID, detail)
+
+	// Dedicated custody event if verification status changed
+	if previousVerification != "" && previousVerification != verificationStatus {
+		s.recordCustodyEvent(ctx, evidence.CaseID, evidenceID, "capture_metadata_verification_changed", actorID, map[string]string{
+			"previous_status": previousVerification,
+			"new_status":      verificationStatus,
+		})
+	}
+
+	// Re-index with capture metadata fields
+	s.indexEvidenceWithCapture(ctx, evidence, metadata)
+
+	return metadata, warnings, nil
+}
+
+// GetCaptureMetadata retrieves capture metadata for an evidence item.
+func (s *Service) GetCaptureMetadata(ctx context.Context, evidenceID uuid.UUID) (*EvidenceCaptureMetadata, error) {
+	if s.captureMetadata == nil {
+		return nil, ErrCaptureMetadataNotFound
+	}
+	return s.captureMetadata.GetByEvidenceID(ctx, evidenceID)
+}
+
+// indexEvidenceWithCapture extends the search index entry with capture metadata fields.
+func (s *Service) indexEvidenceWithCapture(ctx context.Context, ev EvidenceItem, cm *EvidenceCaptureMetadata) {
+	if s.indexer == nil {
+		return
+	}
+	payload := map[string]any{
+		"case_id":         ev.CaseID.String(),
+		"evidence_number": derefStr(ev.EvidenceNumber),
+		"filename":        ev.Filename,
+		"original_name":   ev.OriginalName,
+		"mime_type":       ev.MimeType,
+		"classification":  ev.Classification,
+		"description":     ev.Description,
+		"tags":            ev.Tags,
+		"uploaded_by":     ev.UploadedBy,
+		"sha256_hash":     ev.SHA256Hash,
+		"created_at":      ev.CreatedAt.Format(time.RFC3339),
+	}
+	if ev.ExParteSide != nil {
+		payload["ex_parte_side"] = *ev.ExParteSide
+	}
+	// Add searchable capture metadata fields (exclude sensitive ones)
+	if cm != nil {
+		if cm.Platform != nil {
+			payload["platform"] = *cm.Platform
+		}
+		if cm.SourceURL != nil {
+			payload["source_url"] = *cm.SourceURL
+		}
+		if cm.ContentLanguage != nil {
+			payload["content_language"] = *cm.ContentLanguage
+		}
+		payload["capture_method"] = cm.CaptureMethod
+		payload["verification_status"] = cm.VerificationStatus
+		payload["capture_timestamp"] = cm.CaptureTimestamp.Format(time.RFC3339)
+	}
+	doc := search.Document{
+		ID:      ev.ID.String(),
+		Index:   "evidence",
+		Payload: payload,
+	}
+	if err := s.indexer.IndexDocument(ctx, doc); err != nil {
+		s.logger.Error("failed to index evidence with capture metadata", "id", ev.ID, "error", err)
+	}
 }

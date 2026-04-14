@@ -8,6 +8,7 @@ import (
 
 type Case struct {
 	ID             uuid.UUID  `json:"id"`
+	OrganizationID uuid.UUID  `json:"organization_id"`
 	ReferenceCode  string     `json:"reference_code"`
 	Title          string     `json:"title"`
 	Description    string     `json:"description"`
@@ -22,18 +23,20 @@ type Case struct {
 }
 
 type CaseFilter struct {
-	UserID       string
-	SystemAdmin  bool
-	Status       []string
-	Jurisdiction string
-	SearchQuery  string
+	UserID         string
+	OrganizationID string
+	SystemAdmin    bool
+	Status         []string
+	Jurisdiction   string
+	SearchQuery    string
 }
 
 type CreateCaseInput struct {
-	ReferenceCode string `json:"reference_code"`
-	Title         string `json:"title"`
-	Description   string `json:"description"`
-	Jurisdiction  string `json:"jurisdiction"`
+	OrganizationID string `json:"organization_id"`
+	ReferenceCode  string `json:"reference_code"`
+	Title          string `json:"title"`
+	Description    string `json:"description"`
+	Jurisdiction   string `json:"jurisdiction"`
 }
 
 type UpdateCaseInput struct {
@@ -70,6 +73,14 @@ type CaseRole struct {
 type AssignRoleInput struct {
 	UserID string `json:"user_id"`
 	Role   string `json:"role"`
+}
+
+type HandoverInput struct {
+	FromUserID            string   `json:"from_user_id"`
+	ToUserID              string   `json:"to_user_id"`
+	NewRoles              []string `json:"new_roles"`
+	PreserveExistingRoles bool     `json:"preserve_existing_roles"`
+	Reason                string   `json:"reason"`
 }
 
 const (

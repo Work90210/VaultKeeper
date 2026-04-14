@@ -1,6 +1,7 @@
 package notifications
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -14,12 +15,20 @@ import (
 
 // Handler exposes notification endpoints over HTTP.
 type Handler struct {
-	service *Service
+	service   *Service
+	prefsRepo PreferencesRepository
 }
 
 // NewHandler creates a Handler backed by the given Service.
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
+}
+
+// SetPreferencesRepo attaches a PreferencesRepository so the handler can
+// serve notification-preference endpoints. When nil, the preference
+// endpoints return 503.
+func (h *Handler) SetPreferencesRepo(repo PreferencesRepository) {
+	h.prefsRepo = repo
 }
 
 // RegisterRoutes mounts the notification routes on the given router.
@@ -29,6 +38,11 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/unread-count", h.UnreadCount)
 		r.Post("/read-all", h.MarkAllRead)
 		r.Patch("/{id}/read", h.MarkRead)
+	})
+
+	r.Route("/api/settings/notifications", func(r chi.Router) {
+		r.Get("/", h.GetPreferences)
+		r.Put("/", h.UpdatePreferences)
 	})
 }
 
@@ -123,4 +137,53 @@ func (h *Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.RespondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// GetPreferences returns the authenticated user's notification preferences.
+func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
+	if h.prefsRepo == nil {
+		httputil.RespondError(w, http.StatusServiceUnavailable, "notification preferences not configured")
+		return
+	}
+
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	prefs, err := h.prefsRepo.Get(r.Context(), ac.UserID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	httputil.RespondJSON(w, http.StatusOK, prefs)
+}
+
+// UpdatePreferences saves the authenticated user's notification preferences.
+func (h *Handler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
+	if h.prefsRepo == nil {
+		httputil.RespondError(w, http.StatusServiceUnavailable, "notification preferences not configured")
+		return
+	}
+
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	var prefs NotificationPreferences
+	if err := json.NewDecoder(r.Body).Decode(&prefs); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.prefsRepo.Upsert(r.Context(), ac.UserID, prefs); err != nil {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	httputil.RespondJSON(w, http.StatusOK, prefs)
 }

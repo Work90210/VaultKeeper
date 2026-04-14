@@ -36,6 +36,11 @@ type handlerDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+// OrgMembershipChecker verifies whether a user belongs to a case's organization.
+type OrgMembershipChecker interface {
+	IsActiveMember(ctx context.Context, orgID uuid.UUID, userID string) (bool, error)
+}
+
 // Handler provides the WebSocket endpoint for collaborative redaction.
 type Handler struct {
 	hub            *Hub
@@ -45,6 +50,8 @@ type Handler struct {
 	audit          auth.AuditLogger
 	logger         *slog.Logger
 	allowedOrigins []string
+	orgChecker     OrgMembershipChecker
+	caseLookupOrg  func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)
 }
 
 // NewHandler creates a new collaboration WebSocket handler.
@@ -58,6 +65,13 @@ func NewHandler(hub *Hub, db *pgxpool.Pool, validator TokenValidator, roleLoader
 		logger:         logger,
 		allowedOrigins: allowedOrigins,
 	}
+}
+
+// SetOrgMembershipChecker wires the org membership checker. When set,
+// collaboration access requires that the caller is a member of the case's organization.
+func (h *Handler) SetOrgMembershipChecker(checker OrgMembershipChecker, caseLookup func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)) {
+	h.orgChecker = checker
+	h.caseLookupOrg = caseLookup
 }
 
 // RegisterRoutes mounts the collaboration WebSocket endpoint.
@@ -100,6 +114,29 @@ func (h *Handler) Collaborate(w http.ResponseWriter, r *http.Request) {
 			"evidence_id", evidenceID, "error", err)
 		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
 		return
+	}
+
+	// Org membership gate: verify the caller belongs to the case's org.
+	if ac.SystemRole < auth.RoleSystemAdmin && h.orgChecker != nil && h.caseLookupOrg != nil {
+		orgID, orgErr := h.caseLookupOrg(ctx, caseID)
+		if orgErr != nil {
+			h.logger.Error("lookup org for case failed", "case_id", caseID, "error", orgErr)
+			httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		isMember, memberErr := h.orgChecker.IsActiveMember(ctx, orgID, ac.UserID)
+		if memberErr != nil {
+			h.logger.Error("org membership check failed", "org_id", orgID, "error", memberErr)
+			httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		if !isMember {
+			if h.audit != nil {
+				h.audit.LogAccessDenied(ctx, ac.UserID, "/api/evidence/"+evidenceID.String()+"/redact/collaborate", "org_member", "non_member", auth.GetClientIP(r))
+			}
+			httputil.RespondError(w, http.StatusForbidden, "insufficient permissions")
+			return
+		}
 	}
 
 	// Authorize — system admins bypass, others need a case role

@@ -68,14 +68,20 @@ func (s *Service) CreateCase(ctx context.Context, input CreateCaseInput, created
 		return Case{}, err
 	}
 
+	orgID, err := uuid.Parse(input.OrganizationID)
+	if err != nil {
+		return Case{}, &ValidationError{Field: "organization_id", Message: "valid organization ID is required"}
+	}
+
 	c := Case{
-		ReferenceCode: strings.TrimSpace(input.ReferenceCode),
-		Title:         html.EscapeString(strings.TrimSpace(input.Title)),
-		Description:   html.EscapeString(strings.TrimSpace(input.Description)),
-		Jurisdiction:  html.EscapeString(strings.TrimSpace(input.Jurisdiction)),
-		Status:        StatusActive,
-		CreatedBy:     createdBy,
-		CreatedByName: createdByName,
+		OrganizationID: orgID,
+		ReferenceCode:  strings.TrimSpace(input.ReferenceCode),
+		Title:          html.EscapeString(strings.TrimSpace(input.Title)),
+		Description:    html.EscapeString(strings.TrimSpace(input.Description)),
+		Jurisdiction:   html.EscapeString(strings.TrimSpace(input.Jurisdiction)),
+		Status:         StatusActive,
+		CreatedBy:      createdBy,
+		CreatedByName:  createdByName,
 	}
 
 	result, err := s.repo.Create(ctx, c)
@@ -240,6 +246,88 @@ func (s *Service) SetLegalHold(ctx context.Context, id uuid.UUID, hold bool, set
 					"case_id", id, "new_state", hold, "error", nerr)
 			}
 		}
+	}
+
+	return nil
+}
+
+func (s *Service) Handover(ctx context.Context, caseID uuid.UUID, input HandoverInput, actorUserID string, orgChecker OrgMemberChecker, roleStore CaseRoleStore) error {
+	if input.FromUserID == "" {
+		return &ValidationError{Field: "from_user_id", Message: "from_user_id is required"}
+	}
+	if input.ToUserID == "" {
+		return &ValidationError{Field: "to_user_id", Message: "to_user_id is required"}
+	}
+	if input.FromUserID == input.ToUserID {
+		return &ValidationError{Field: "to_user_id", Message: "from and to user must differ"}
+	}
+	if len(input.NewRoles) == 0 {
+		return &ValidationError{Field: "new_roles", Message: "at least one role is required"}
+	}
+	for _, role := range input.NewRoles {
+		if !ValidCaseRoles[role] {
+			return &ValidationError{Field: "new_roles", Message: fmt.Sprintf("invalid role: %s", role)}
+		}
+	}
+	reason := strings.TrimSpace(input.Reason)
+	if reason == "" {
+		return &ValidationError{Field: "reason", Message: "reason is required"}
+	}
+
+	c, err := s.repo.FindByID(ctx, caseID)
+	if err != nil {
+		return err
+	}
+	if c.Status == StatusArchived {
+		return &ValidationError{Field: "status", Message: "cannot handover an archived case"}
+	}
+
+	// Verify both users are members of the case's org.
+	fromMember, err := orgChecker.IsActiveMember(ctx, c.OrganizationID, input.FromUserID)
+	if err != nil {
+		return fmt.Errorf("check from_user org membership: %w", err)
+	}
+	if !fromMember {
+		return &ValidationError{Field: "from_user_id", Message: "user is not a member of the case organization"}
+	}
+
+	toMember, err := orgChecker.IsActiveMember(ctx, c.OrganizationID, input.ToUserID)
+	if err != nil {
+		return fmt.Errorf("check to_user org membership: %w", err)
+	}
+	if !toMember {
+		return &ValidationError{Field: "to_user_id", Message: "user is not a member of the case organization"}
+	}
+
+	// Remove from_user's case roles (unless preserving).
+	if !input.PreserveExistingRoles {
+		if err := roleStore.Revoke(ctx, caseID, input.FromUserID); err != nil {
+			if err != ErrNotFound {
+				return fmt.Errorf("revoke from_user roles: %w", err)
+			}
+			// No existing role to revoke — that's fine.
+		}
+	}
+
+	// Assign new roles to to_user.
+	for _, role := range input.NewRoles {
+		if _, err := roleStore.Assign(ctx, caseID, input.ToUserID, role, actorUserID); err != nil {
+			if strings.Contains(err.Error(), "role already assigned") {
+				continue // idempotent
+			}
+			return fmt.Errorf("assign to_user role %s: %w", role, err)
+		}
+	}
+
+	// Record custody log entry.
+	if s.custody != nil {
+		_ = s.custody.RecordCaseEvent(ctx, caseID, "case_handover", actorUserID, map[string]string{
+			"from_user_id":           input.FromUserID,
+			"to_user_id":             input.ToUserID,
+			"new_roles":              strings.Join(input.NewRoles, ","),
+			"preserve_existing_roles": fmt.Sprintf("%v", input.PreserveExistingRoles),
+			"reason":                 reason,
+		})
 	}
 
 	return nil

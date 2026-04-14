@@ -49,9 +49,11 @@ export default function SearchPage() {
     if (!session?.accessToken) return;
 
     const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
-    fetch(`${apiBase}/api/cases?limit=200`, {
-      headers: { Authorization: `Bearer ${session.accessToken}` },
-    })
+    const orgMatch = document.cookie.match(/(?:^|; )vk-active-org=([^;]*)/);
+    const headers: Record<string, string> = { Authorization: `Bearer ${session.accessToken}` };
+    if (orgMatch) headers['X-Organization-ID'] = decodeURIComponent(orgMatch[1]);
+
+    fetch(`${apiBase}/api/cases?limit=200`, { headers })
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (json?.data) {
