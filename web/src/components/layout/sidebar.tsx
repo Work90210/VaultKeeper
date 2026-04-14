@@ -78,7 +78,6 @@ const APP_NAV_ITEMS = [
   { href: '/en/cases', label: 'Cases', iconKey: 'cases' },
   { href: '/en/search', label: 'Search', iconKey: 'search' },
   { href: '/en/organizations', label: 'Organizations', iconKey: 'organizations' },
-  { href: '/en/notifications', label: 'Notifications', iconKey: 'notifications' },
 ] as const;
 
 /* ─── Case sidebar groups ─── */

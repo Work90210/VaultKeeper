@@ -688,7 +688,7 @@ export default function SettingsPage() {
 
   return (
     <Shell>
-      <div className="max-w-5xl mx-auto px-[var(--space-md)] py-[var(--space-xl)]">
+      <div className="px-[var(--space-lg)] py-[var(--space-xl)]">
         <div style={{ marginBottom: 'var(--space-lg)' }}>
           <h1
             className="font-[family-name:var(--font-heading)]"
