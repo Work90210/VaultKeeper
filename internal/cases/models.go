@@ -75,6 +75,20 @@ type AssignRoleInput struct {
 	Role   string `json:"role"`
 }
 
+// CaseAssignmentView is a denormalized view of a case role assignment,
+// enriched with case metadata for org-level dashboards.
+type CaseAssignmentView struct {
+	ID            uuid.UUID `json:"id"`
+	CaseID        uuid.UUID `json:"case_id"`
+	UserID        string    `json:"user_id"`
+	Role          string    `json:"role"`
+	GrantedBy     string    `json:"granted_by"`
+	GrantedAt     time.Time `json:"granted_at"`
+	CaseTitle     string    `json:"case_title"`
+	ReferenceCode string    `json:"reference_code"`
+	CaseStatus    string    `json:"case_status"`
+}
+
 type HandoverInput struct {
 	FromUserID            string   `json:"from_user_id"`
 	ToUserID              string   `json:"to_user_id"`

@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useLocale } from 'next-intl';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Shell } from '@/components/layout/shell';
 import { useOrg } from '@/hooks/use-org';
+import { OrganizationSection } from '@/components/settings/organization-section';
 import type { ApiKey } from '@/types';
 import { listApiKeys, createApiKey, revokeApiKey } from '@/lib/apikeys-api';
 
@@ -589,99 +590,16 @@ function ApiKeysSection() {
   );
 }
 
-// ── Organization Settings ───────────────────────────────────────────────────
-
-function OrganizationSection() {
-  const { activeOrg, isOrgAdmin, isOrgOwner } = useOrg();
-  const { data: session } = useSession();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  useEffect(() => {
-    if (activeOrg) {
-      setName(activeOrg.name);
-      setDescription(activeOrg.description);
-    }
-  }, [activeOrg]);
-
-  if (!activeOrg) return <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>No organization selected.</p>;
-  if (!isOrgAdmin) return <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>Only organization admins can manage settings.</p>;
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true); setError(''); setSuccess('');
-    try {
-      const res = await fetch(`${API_BASE}/api/organizations/${activeOrg.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.accessToken}` },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        setError(body?.error ?? 'Failed to update');
-      } else {
-        setSuccess('Organization updated.');
-      }
-    } catch { setError('Network error'); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <div className="stagger-in space-y-[var(--space-lg)]">
-      <div>
-        <h3 className="field-label">Organization Details</h3>
-        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }}>
-          Managing: <strong style={{ color: 'var(--text-primary)' }}>{activeOrg.name}</strong>
-        </p>
-        <form onSubmit={handleSave} className="space-y-[var(--space-md)]">
-          <div>
-            <label className="field-label">Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="input-field" required />
-          </div>
-          <div>
-            <label className="field-label">Description</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="input-field resize-y" />
-          </div>
-          {error && <div className="banner-error">{error}</div>}
-          {success && <div className="banner-success">{success}</div>}
-          <button type="submit" disabled={saving} className="btn-primary" style={{ fontSize: 'var(--text-sm)' }}>
-            {saving ? 'Saving\u2026' : 'Save Changes'}
-          </button>
-        </form>
-      </div>
-
-      <div>
-        <h3 className="field-label">Members</h3>
-        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }}>
-          {activeOrg.member_count} member{activeOrg.member_count !== 1 ? 's' : ''} &middot; {activeOrg.case_count} case{activeOrg.case_count !== 1 ? 's' : ''}
-        </p>
-        <Link href={`/en/organizations/${activeOrg.id}`} className="btn-secondary" style={{ fontSize: 'var(--text-sm)' }}>
-          Manage Members
-        </Link>
-      </div>
-
-      {isOrgOwner && (
-        <div style={{ padding: 'var(--space-md)', borderRadius: 'var(--radius-md)', border: '1px solid var(--status-hold-bg)' }}>
-          <h3 className="field-label" style={{ color: 'var(--status-hold)' }}>Danger Zone</h3>
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }}>
-            Deleting an organization is permanent. All cases must be archived first.
-          </p>
-          <button type="button" className="btn-danger" style={{ fontSize: 'var(--text-sm)' }} disabled>
-            Delete Organization
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Main Settings Page ──────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') as SettingsTab | null;
+  const [activeTab, setActiveTab] = useState<SettingsTab>(
+    initialTab && ['general', 'notifications', 'security', 'api-keys', 'organization'].includes(initialTab)
+      ? initialTab
+      : 'general'
+  );
   const { isOrgAdmin } = useOrg();
 
   const visibleTabs = SETTINGS_TABS.filter((t) => !t.adminOnly || isOrgAdmin);

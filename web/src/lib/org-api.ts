@@ -6,6 +6,7 @@ import type {
   OrgInvitation,
   OrgRole,
   Case,
+  CaseAssignment,
   UserProfile,
 } from '@/types';
 
@@ -139,6 +140,12 @@ export async function updateProfile(data: {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
+}
+
+export async function getOrgCaseAssignments(orgId: string) {
+  return authenticatedFetch<CaseAssignment[]>(
+    `/api/organizations/${orgId}/case-assignments`
+  );
 }
 
 export async function getOrgCases(orgId: string) {

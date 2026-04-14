@@ -92,6 +92,38 @@ func (r *RoleRepository) ListByCaseID(ctx context.Context, caseID uuid.UUID) ([]
 	return roles, rows.Err()
 }
 
+// ListByOrgID returns all case role assignments for cases belonging to the
+// given organization, ordered by user then case title. Used by org admins
+// to see who has access to what.
+func (r *RoleRepository) ListByOrgID(ctx context.Context, orgID uuid.UUID) ([]CaseAssignmentView, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT cr.id, cr.case_id, cr.user_id, cr.role, cr.granted_by, cr.granted_at,
+		        c.title, c.reference_code, c.status
+		 FROM case_roles cr
+		 JOIN cases c ON c.id = cr.case_id
+		 WHERE c.organization_id = $1
+		 ORDER BY cr.user_id, c.title`,
+		orgID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list case assignments by org: %w", err)
+	}
+	defer rows.Close()
+
+	var views []CaseAssignmentView
+	for rows.Next() {
+		var v CaseAssignmentView
+		if err := rows.Scan(
+			&v.ID, &v.CaseID, &v.UserID, &v.Role, &v.GrantedBy, &v.GrantedAt,
+			&v.CaseTitle, &v.ReferenceCode, &v.CaseStatus,
+		); err != nil {
+			return nil, fmt.Errorf("scan case assignment view: %w", err)
+		}
+		views = append(views, v)
+	}
+	return views, rows.Err()
+}
+
 func (r *RoleRepository) LoadCaseRole(ctx context.Context, caseID, userID string) (auth.CaseRole, error) {
 	cid, err := uuid.Parse(caseID)
 	if err != nil {
@@ -112,13 +144,23 @@ func (r *RoleRepository) LoadCaseRole(ctx context.Context, caseID, userID string
 }
 
 type RoleHandler struct {
-	roles   CaseRoleStore
-	custody CustodyRecorder
-	audit   auth.AuditLogger
+	roles         CaseRoleStore
+	custody       CustodyRecorder
+	audit         auth.AuditLogger
+	orgChecker    OrgMembershipChecker
+	caseLookupOrg func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)
 }
 
 func NewRoleHandler(roles CaseRoleStore, custody CustodyRecorder, audit auth.AuditLogger) *RoleHandler {
 	return &RoleHandler{roles: roles, custody: custody, audit: audit}
+}
+
+// SetOrgMembershipChecker wires the org membership checker. When set,
+// role assignment validates that the target user is an active member of
+// the case's organization.
+func (h *RoleHandler) SetOrgMembershipChecker(checker OrgMembershipChecker, caseLookup func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)) {
+	h.orgChecker = checker
+	h.caseLookupOrg = caseLookup
 }
 
 func (h *RoleHandler) RegisterRoutes(r chi.Router) {
@@ -156,6 +198,25 @@ func (h *RoleHandler) Assign(w http.ResponseWriter, r *http.Request) {
 	if input.UserID == "" {
 		httputil.RespondError(w, http.StatusBadRequest, "user_id is required")
 		return
+	}
+
+	// Verify target user is an active member of the case's organization.
+	// System admins bypass this check — they have cross-org access by design.
+	if ac.SystemRole < auth.RoleSystemAdmin && h.orgChecker != nil && h.caseLookupOrg != nil {
+		orgID, lookupErr := h.caseLookupOrg(r.Context(), caseID)
+		if lookupErr != nil {
+			httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		isMember, memberErr := h.orgChecker.IsActiveMember(r.Context(), orgID, input.UserID)
+		if memberErr != nil {
+			httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		if !isMember {
+			httputil.RespondError(w, http.StatusBadRequest, "user is not an active member of this organization")
+			return
+		}
 	}
 
 	cr, err := h.roles.Assign(r.Context(), caseID, input.UserID, input.Role, ac.UserID)

@@ -207,6 +207,18 @@ export interface Disclosure {
   redacted: boolean;
 }
 
+export interface CaseAssignment {
+  id: string;
+  case_id: string;
+  user_id: string;
+  role: string;
+  granted_by: string;
+  granted_at: string;
+  case_title: string;
+  reference_code: string;
+  case_status: string;
+}
+
 export interface Notification {
   id: string;
   type: string;

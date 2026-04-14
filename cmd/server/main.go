@@ -286,6 +286,8 @@ func run() error {
 	}
 
 	evidenceHandler.SetOrgMembershipChecker(orgAdapter, caseLookupOrgFn)
+	roleHandler.SetOrgMembershipChecker(orgAdapter, caseLookupOrgFn)
+	orgHandler.SetCaseAssignmentLister(&caseAssignmentListerAdapter{roleRepo: roleRepo})
 	gdprRegistrar := &evidence.GDPRRouteRegistrar{Handler: evidenceHandler, Audit: auditLogger}
 
 	// Redaction service
@@ -686,4 +688,14 @@ func (a *disclosureNotificationAdapter) NotifyDisclosure(ctx context.Context, ca
 		Title:  title,
 		Body:   body,
 	})
+}
+
+// caseAssignmentListerAdapter bridges cases.RoleRepository to
+// organization.OrgCaseAssignmentLister, avoiding circular imports.
+type caseAssignmentListerAdapter struct {
+	roleRepo *cases.RoleRepository
+}
+
+func (a *caseAssignmentListerAdapter) ListOrgCaseAssignments(ctx context.Context, orgID uuid.UUID) (any, error) {
+	return a.roleRepo.ListByOrgID(ctx, orgID)
 }

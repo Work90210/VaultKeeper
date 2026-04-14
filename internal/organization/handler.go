@@ -19,10 +19,17 @@ type OrgCaseLister interface {
 	ListOrgCases(ctx context.Context, orgID uuid.UUID, userID string, isAdmin bool) (any, error)
 }
 
+// OrgCaseAssignmentLister lists all case role assignments across an org.
+// Injected to avoid circular dependency with the cases package.
+type OrgCaseAssignmentLister interface {
+	ListOrgCaseAssignments(ctx context.Context, orgID uuid.UUID) (any, error)
+}
+
 type Handler struct {
-	service    *Service
-	audit      auth.AuditLogger
-	caseLister OrgCaseLister
+	service              *Service
+	audit                auth.AuditLogger
+	caseLister           OrgCaseLister
+	caseAssignmentLister OrgCaseAssignmentLister
 }
 
 func NewHandler(service *Service, audit auth.AuditLogger) *Handler {
@@ -30,6 +37,8 @@ func NewHandler(service *Service, audit auth.AuditLogger) *Handler {
 }
 
 func (h *Handler) SetCaseLister(l OrgCaseLister) { h.caseLister = l }
+
+func (h *Handler) SetCaseAssignmentLister(l OrgCaseAssignmentLister) { h.caseAssignmentLister = l }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Route("/api/organizations", func(r chi.Router) {
@@ -47,6 +56,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.Get("/invitations", h.ListInvitations)
 			r.Delete("/invitations/{inviteId}", h.RevokeInvitation)
 			r.Get("/cases", h.ListOrgCases)
+			r.Get("/case-assignments", h.ListCaseAssignments)
 		})
 	})
 	r.Post("/api/invitations/accept", h.AcceptInvitation)
@@ -419,6 +429,44 @@ func (h *Handler) ListOrgCases(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.RespondJSON(w, http.StatusOK, cases)
+}
+
+func (h *Handler) ListCaseAssignments(w http.ResponseWriter, r *http.Request) {
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	orgID, err := parseOrgID(r)
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid organization ID")
+		return
+	}
+
+	// Verify caller is an org admin or owner.
+	orgRole, err := h.service.authz.GetCallerOrgRole(r.Context(), ac, orgID)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if orgRole != RoleOwner && orgRole != RoleAdmin {
+		httputil.RespondError(w, http.StatusForbidden, "org admin access required")
+		return
+	}
+
+	if h.caseAssignmentLister == nil {
+		httputil.RespondError(w, http.StatusNotImplemented, "case assignment lister not configured")
+		return
+	}
+
+	assignments, err := h.caseAssignmentLister.ListOrgCaseAssignments(r.Context(), orgID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusInternalServerError, "failed to list case assignments")
+		return
+	}
+
+	httputil.RespondJSON(w, http.StatusOK, assignments)
 }
 
 // --- Helpers ---
