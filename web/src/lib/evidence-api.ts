@@ -1,5 +1,8 @@
 import { authenticatedFetch, type ApiResponse } from '@/lib/api';
-import type { EvidenceItem, RedactionDraft, RedactionManagementView, RedactionPurpose } from '@/types';
+import type {
+  EvidenceItem, RedactionDraft, RedactionManagementView, RedactionPurpose, CaptureMetadata,
+  Platform, CaptureMethod, AvailabilityStatus, VerificationStatus, GeoSource, PlatformContentType
+} from '@/types';
 
 export interface EvidenceListParams {
   q?: string;
@@ -115,5 +118,60 @@ export async function getRedactionManagementView(
 ): Promise<ApiResponse<RedactionManagementView>> {
   return authenticatedFetch<RedactionManagementView>(
     `/api/evidence/${evidenceId}/redactions`
+  );
+}
+
+// --- Berkeley Protocol capture metadata ---
+
+export async function getCaptureMetadata(
+  evidenceId: string
+): Promise<ApiResponse<CaptureMetadata>> {
+  return authenticatedFetch<CaptureMetadata>(
+    `/api/evidence/${evidenceId}/capture-metadata`
+  );
+}
+
+export interface CaptureMetadataInput {
+  source_url?: string;
+  canonical_url?: string;
+  platform?: Platform;
+  platform_content_type?: PlatformContentType;
+  capture_method: CaptureMethod;
+  capture_timestamp: string;
+  publication_timestamp?: string;
+  creator_account_handle?: string;
+  creator_account_display_name?: string;
+  creator_account_url?: string;
+  creator_account_id?: string;
+  content_description?: string;
+  content_language?: string;
+  geo_latitude?: number;
+  geo_longitude?: number;
+  geo_place_name?: string;
+  geo_source?: GeoSource;
+  availability_status?: AvailabilityStatus;
+  was_live?: boolean;
+  was_deleted?: boolean;
+  capture_tool_name?: string;
+  capture_tool_version?: string;
+  browser_name?: string;
+  browser_version?: string;
+  browser_user_agent?: string;
+  network_context?: { vpn_used?: boolean; tor_used?: boolean; proxy_used?: boolean; capture_ip_region?: string; notes?: string };
+  preservation_notes?: string;
+  verification_status?: VerificationStatus;
+  verification_notes?: string;
+}
+
+export async function upsertCaptureMetadata(
+  evidenceId: string,
+  data: CaptureMetadataInput
+): Promise<ApiResponse<{ data: CaptureMetadata; warnings?: { field: string; message: string }[] }>> {
+  return authenticatedFetch<{ data: CaptureMetadata; warnings?: { field: string; message: string }[] }>(
+    `/api/evidence/${evidenceId}/capture-metadata`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }
   );
 }

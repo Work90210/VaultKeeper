@@ -29,7 +29,7 @@ func TestRoleRepository_CRUD(t *testing.T) {
 	}
 
 	// Assign
-	cr, err := repo.Assign(ctx, c.ID, userID, "investigator", adminID)
+	cr, err := repo.Assign(ctx, c.ID, userID, "investigator", adminID, nil)
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestRoleRepository_CRUD(t *testing.T) {
 	}
 
 	// Duplicate
-	_, err = repo.Assign(ctx, c.ID, userID, "investigator", adminID)
+	_, err = repo.Assign(ctx, c.ID, userID, "investigator", adminID, nil)
 	if err == nil {
 		t.Error("expected error for duplicate")
 	}

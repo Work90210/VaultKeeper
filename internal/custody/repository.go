@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -41,8 +42,13 @@ func (r *PGRepository) Insert(ctx context.Context, e Event) error {
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	// Advisory lock per case to serialize hash chain writes
-	lockID := int64(e.CaseID[0])<<56 | int64(e.CaseID[1])<<48 | int64(e.CaseID[2])<<40 | int64(e.CaseID[3])<<32 | int64(e.CaseID[4])<<24 | int64(e.CaseID[5])<<16 | int64(e.CaseID[6])<<8 | int64(e.CaseID[7])
+	// Advisory lock per case to serialize hash chain writes.
+	// XOR-fold the full 16-byte UUID into a 64-bit lock ID to avoid
+	// collisions that would occur by truncating to the first 8 bytes.
+	lockID := int64(0)
+	for i := 0; i < 8; i++ {
+		lockID |= int64(e.CaseID[i]^e.CaseID[i+8]) << (56 - i*8)
+	}
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, lockID); err != nil {
 		return fmt.Errorf("lock custody chain: %w", err)
 	}
@@ -115,13 +121,25 @@ func (r *PGRepository) list(ctx context.Context, filterCol string, filterID uuid
 		if err != nil {
 			return nil, 0, fmt.Errorf("invalid cursor: %w", err)
 		}
-		cursorID, err := uuid.Parse(string(decoded))
+		// Cursor format: "timestamp|uuid" for correct keyset pagination
+		parts := strings.SplitN(string(decoded), "|", 2)
+		if len(parts) != 2 {
+			return nil, 0, fmt.Errorf("invalid cursor format")
+		}
+		cursorTS, err := time.Parse(time.RFC3339Nano, parts[0])
+		if err != nil {
+			return nil, 0, fmt.Errorf("invalid cursor timestamp: %w", err)
+		}
+		cursorID, err := uuid.Parse(parts[1])
 		if err != nil {
 			return nil, 0, fmt.Errorf("invalid cursor UUID: %w", err)
 		}
-		conditions = append(conditions, fmt.Sprintf("id < $%d", argIdx))
-		args = append(args, cursorID)
-		argIdx++
+		// Keyset pagination: (timestamp, id) < (cursorTS, cursorID)
+		conditions = append(conditions, fmt.Sprintf(
+			"(timestamp < $%d OR (timestamp = $%d AND id < $%d))",
+			argIdx, argIdx, argIdx+1))
+		args = append(args, cursorTS, cursorID)
+		argIdx += 2
 	}
 
 	where := strings.Join(conditions, " AND ")

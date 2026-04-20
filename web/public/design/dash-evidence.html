@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Evidence — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('evidence', `<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><span class="here">Evidence</span>`);
+
+const ev = [
+  {ref:"E-0918", kind:"VIDEO", glyph:"▸", name:"Butcha_drone_04.mp4", meta:"218 MB · 04:12 · H.265", st:"sealed", tags:["geo","metadata"], bp:5, bpMax:6, bpLabel:"5/6 phases"},
+  {ref:"E-0917", kind:"DOC", glyph:"¶", name:"Field intake — 19 Apr 2026", meta:"12 pp · PDF/A", st:"sealed", tags:["witness","signed"], bp:6, bpMax:6, bpLabel:"6/6 phases"},
+  {ref:"E-0916", kind:"AUDIO", glyph:"♪", name:"Intercept 14:03 EET", meta:"17 MB · 00:42 · flac", st:"sealed", tags:["russian","translated"], bp:4, bpMax:6, bpLabel:"4/6 phases"},
+  {ref:"E-0915", kind:"IMG", glyph:"◩", name:"Checkpoint perimeter", meta:"22 MB · RAW+JPG · c2pa", st:"sealed", tags:["c2pa","exif"], bp:6, bpMax:6, bpLabel:"6/6 phases"},
+  {ref:"E-0914", kind:"DOC", glyph:"¶", name:"Raiffeisen transfer ledger", meta:"3,842 rows · CSV", st:"hold", tags:["banking","legal-hold"], bp:3, bpMax:6, bpLabel:"3/6 phases"},
+  {ref:"E-0913", kind:"FORENSIC", glyph:"◆", name:"SM-S911 image, full disk", meta:"128 GB · E01 · 14 hashes", st:"sealed", tags:["forensic"], bp:4, bpMax:6, bpLabel:"4/6 phases"},
+  {ref:"E-0912", kind:"DOC", glyph:"¶", name:"W-0144 sworn statement v3", meta:"6 pp · signed", st:"draft", tags:["witness","protected"], bp:2, bpMax:6, bpLabel:"2/6 phases"},
+  {ref:"E-0911", kind:"IMG", glyph:"◩", name:"Satellite — 18 Apr 09:12Z", meta:"81 MB · Sentinel-2", st:"sealed", tags:["osint","sentinel"], bp:5, bpMax:6, bpLabel:"5/6 phases"},
+  {ref:"E-0910", kind:"VIDEO", glyph:"▸", name:"Body-cam BC-17 excerpt", meta:"402 MB · 08:17", st:"sealed", tags:["bodycam"], bp:4, bpMax:6, bpLabel:"4/6 phases"},
+  {ref:"E-0909", kind:"DOC", glyph:"¶", name:"Translation — RU→EN · W-0099", meta:"PDF · parallel", st:"sealed", tags:["translation"], bp:6, bpMax:6, bpLabel:"6/6 phases"},
+  {ref:"E-0908", kind:"AUDIO", glyph:"♪", name:"Radio chatter seg-3", meta:"4 MB · 00:11", st:"broken", tags:["chain-break"], bp:1, bpMax:6, bpLabel:"1/6 phases"},
+  {ref:"E-0907", kind:"IMG", glyph:"◩", name:"Vehicle plate · BX-4281", meta:"6 MB · JPG", st:"sealed", tags:["osint"], bp:3, bpMax:6, bpLabel:"3/6 phases"}
+];
+const stP = {sealed:'sealed',hold:'hold',draft:'draft',broken:'broken'};
+const stL = {sealed:'Sealed',hold:'Legal hold',draft:'Draft',broken:'Chain broken'};
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Case · ICC-UKR-2024 · Berkeley Protocol phases 2–4</span>
+      <h1>Evidence <em>locker</em></h1>
+      <p class="sub">Every upload is chunked, hashed client-side (SHA-256 + BLAKE3) and RFC 3161 timestamped at the gateway. Phase indicators show each exhibit's progress through the Berkeley Protocol's six-phase investigative cycle.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="#">Import archive</a>
+      <a class="btn" href="#">Upload exhibit <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="panel" style="margin-bottom:22px">
+    <div class="fbar">
+      <div class="fsearch"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--muted)"><circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/></svg><input placeholder="hash, filename, tag, contributor…"/></div>
+      <span class="chip active">All <span class="x">·12,417</span></span>
+      <span class="chip">Document <span class="chev">4,218</span></span>
+      <span class="chip">Image / video <span class="chev">3,901</span></span>
+      <span class="chip">Audio <span class="chev">2,104</span></span>
+      <span class="chip">Forensic <span class="chev">382</span></span>
+      <span class="chip">Legal hold <span class="chev">1</span></span>
+      <span class="chip">Has redactions <span class="chev">▾</span></span>
+      <span class="chip">Contributor <span class="chev">▾</span></span>
+      <span class="chip" style="margin-left:auto">⊞ Grid</span>
+      <span class="chip">☰ Table</span>
+    </div>
+    <div class="panel-body">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px">
+        ${ev.map(e=>{
+          const bpColor = e.bp>=5?'var(--ok)':e.bp>=3?'var(--accent)':'#b35c5c';
+          const bpPct = Math.round((e.bp/e.bpMax)*100);
+          const bpDots = Array.from({length:6},(_, i)=>`<span style="width:6px;height:6px;border-radius:50%;background:${i<e.bp?bpColor:'var(--bg-2)'}"></span>`).join('');
+          return `
+          <div class="ev-card" onclick="location='dash-evidence-detail.html'">
+            <div class="ev-thumb">
+              <span class="chip-k">${e.kind}</span>
+              <span class="chip-s"><span class="pl ${stP[e.st]}" style="font-size:10px;padding:2px 7px">${stL[e.st]}</span></span>
+              <span class="glyph">${e.glyph}</span>
+            </div>
+            <div class="ev-meta">
+              <div class="ref">${e.name}</div>
+              <div class="sm"><span>${e.ref}</span><span>${e.meta}</span></div>
+              <div class="tags">${e.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:4px;padding-top:8px;border-top:1px solid var(--line)">
+                <div style="display:flex;gap:3px;align-items:center">${bpDots}</div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.04em;color:${bpColor}">${e.bpLabel}</span>
+              </div>
+            </div>
+          </div>
+        `}).join('')}
+      </div>
+      <div style="margin-top:22px;display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.02em">
+        <span>12 of 12,417 · page 1 of 1,035</span>
+        <span style="display:flex;gap:8px"><span class="chip">« Prev</span><span class="chip active">1</span><span class="chip">2</span><span class="chip">3</span><span class="chip">… 1035</span><span class="chip">Next »</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2-wide">
+    <div class="panel"><div class="panel-h"><h3>Upload queue</h3><span class="meta">3 in flight</span></div><div class="panel-body" style="display:flex;flex-direction:column;gap:14px">
+      ${[
+        {n:"Butcha_drone_05.mp4",sz:"412 MB",p:78,st:"sha256 + timestamp"},
+        {n:"W-0212_statement_signed.pdf",sz:"1.4 MB",p:100,st:"sealing…"},
+        {n:"Intercept_14:08.flac",sz:"19 MB",p:34,st:"uploading · 4/12 chunks"}
+      ].map(u=>`
+        <div style="display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center">
+          <span style="width:28px;height:28px;border-radius:7px;background:var(--bg-2);display:grid;place-items:center;font-family:'Fraunces',serif;font-size:14px;color:var(--accent)">↑</span>
+          <div>
+            <div style="font-family:'Fraunces',serif;font-size:14.5px;letter-spacing:-.005em">${u.n}</div>
+            <div style="height:4px;background:var(--bg-2);border-radius:2px;overflow:hidden;margin-top:8px"><div style="height:100%;width:${u.p}%;background:${u.p===100?'var(--ok)':'var(--accent)'}"></div></div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);margin-top:4px;letter-spacing:.04em;text-transform:uppercase">${u.sz} · ${u.st}</div>
+          </div>
+          <span class="mono" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">${u.p}%</span>
+        </div>
+      `).join('')}
+    </div></div>
+
+    <div class="panel"><div class="panel-h"><h3>Integrity summary</h3><span class="meta">real-time</span></div><div class="panel-body">
+      <dl class="kvs">
+        <dt>Hash algorithm</dt><dd>SHA-256 primary · BLAKE3 secondary</dd>
+        <dt>Timestamp authority</dt><dd><code>ts-eu-west</code> · RFC 3161</dd>
+        <dt>Last verification</dt><dd>14:22:04 · 0 mismatches</dd>
+        <dt>Chain breaks</dt><dd><span class="pl broken">1</span> on E-0908 — isolated, pending re-ingest</dd>
+        <dt>Storage backend</dt><dd>MinIO · EU-WEST-2 · 1.8 TB used</dd>
+        <dt>Validator</dt><dd><a class="linkarrow" href="validator.html">Offline verify (0.3 MB binary) →</a></dd>
+      </dl>
+    </div></div>
+  </div>
+`;
+</script></body></html>

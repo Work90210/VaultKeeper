@@ -1,5 +1,8 @@
 # Secrets & runtime state — never commit
 .env
+.env.*
+.env.generated*
+*.gitignored
 authorized_keys
 *.pem
 *.key

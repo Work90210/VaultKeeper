@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Empty states — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+.empty{border:1px dashed var(--line-2);border-radius:var(--radius);background:var(--paper);padding:64px 40px;display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:center;min-height:320px}
+@media (max-width:860px){.empty{grid-template-columns:1fr;padding:40px 24px}}
+.empty .copy h2{font-family:"Fraunces",serif;font-weight:400;font-size:34px;letter-spacing:-.02em;line-height:1.1;margin-bottom:10px}
+.empty .copy h2 em{color:var(--accent);font-style:italic}
+.empty .copy p{color:var(--muted);font-size:14.5px;line-height:1.6;max-width:52ch}
+.empty .copy .steps{margin-top:22px;padding-top:20px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px;font-size:13.5px;color:var(--ink-2)}
+.empty .copy .steps div{display:grid;grid-template-columns:22px 1fr;gap:12px;align-items:start}
+.empty .copy .steps .n{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--accent);padding-top:2px;letter-spacing:.04em}
+.empty .copy .cta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
+.empty .art{aspect-ratio:1/.85;position:relative;border-radius:14px;background:linear-gradient(135deg,var(--bg-2),var(--bg));border:1px solid var(--line);overflow:hidden;display:grid;place-items:center}
+.empty .art .g{position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:28px 28px;opacity:.5}
+.empty .art .glyph{font-family:"Fraunces",serif;font-size:96px;color:var(--accent);opacity:.2;position:relative;z-index:1;line-height:1}
+.empty .art .chip{position:absolute;z-index:2;font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.06em;padding:6px 10px;border-radius:999px;background:var(--paper);border:1px solid var(--line);color:var(--muted);text-transform:uppercase;white-space:nowrap;box-shadow:var(--shadow-sm)}
+.empty .art .c1{top:22px;left:22px}
+.empty .art .c2{bottom:22px;right:22px;color:var(--accent);border-color:var(--accent-soft)}
+.empty .art .c3{top:50%;left:50%;transform:translate(-50%,-50%);font-family:"Fraunces",serif;font-style:italic;font-size:14px;color:var(--ink);letter-spacing:-.005em;text-transform:none;padding:10px 16px}
+
+.walk{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:32px 36px}
+.walk .steps-hz{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:26px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+@media (max-width:860px){.walk .steps-hz{grid-template-columns:1fr}}
+.walk .steps-hz .s{padding:22px;border-right:1px solid var(--line);position:relative}
+.walk .steps-hz .s:last-child{border-right:none}
+@media (max-width:860px){.walk .steps-hz .s{border-right:none;border-bottom:1px solid var(--line)}.walk .steps-hz .s:last-child{border-bottom:none}}
+.walk .s .k{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.walk .s.done .k{color:var(--ok)}
+.walk .s.cur .k{color:var(--accent)}
+.walk .s h4{font-family:"Fraunces",serif;font-weight:400;font-size:19px;letter-spacing:-.01em;margin:8px 0 6px;line-height:1.2}
+.walk .s p{font-size:12.5px;color:var(--muted);line-height:1.5}
+.walk .s .dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--line-2);background:var(--paper);position:absolute;top:-6px;left:22px}
+.walk .s.done .dot{background:var(--ok);border-color:var(--ok)}
+.walk .s.cur .dot{background:var(--accent);border-color:var(--accent)}
+</style>
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('cases', `<a href="dash.html">Workspace</a><span class="sep">/</span><span class="here">Empty states · first-run</span>`);
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Specimen · zero-data surfaces</span>
+      <h1>First <em>touch</em></h1>
+      <p class="sub">A VaultKeeper that's empty isn't broken — it's a courthouse on day one. These screens set the tone: quiet, exact, reassuring. They teach the next action without shouting about it.</p>
+    </div>
+  </section>
+
+  <div class="walk" style="margin-bottom:32px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:20px;flex-wrap:wrap">
+      <div>
+        <span class="eyebrow-m">First-run · instance setup</span>
+        <h2 style="font-family:'Fraunces',serif;font-weight:400;font-size:34px;letter-spacing:-.02em;margin-top:10px">Eurojust · Hague — <em style="color:var(--accent);font-style:italic">step 3 of 5</em></h2>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">you can leave and resume · nothing sealed yet</div>
+    </div>
+    <div class="steps-hz">
+      <div class="s done"><span class="dot"></span><span class="k">Step 01 · done</span><h4>Instance identity</h4><p>Named <code>vke-eurojust-hague</code>, three regional replicas registered.</p></div>
+      <div class="s done"><span class="dot"></span><span class="k">Step 02 · done</span><h4>Root key ceremony</h4><p>Three HSMs paired. 2-of-3 quorum policy sealed into genesis block.</p></div>
+      <div class="s cur"><span class="dot"></span><span class="k">Step 03 · you are here</span><h4>Storage backends</h4><p>Connect MinIO (or any S3) + a mirror. Verification upload runs as a sealed event.</p></div>
+      <div class="s"><span class="dot"></span><span class="k">Step 04</span><h4>Retention policy</h4><p>Default tenures, witness carve-outs, review cadence, legal-hold defaults.</p></div>
+      <div class="s"><span class="dot"></span><span class="k">Step 05</span><h4>First case</h4><p>Create an opening case. First exhibit lands in the chain.</p></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:22px">
+      <a class="btn" href="#">Connect storage <span class="arr">→</span></a>
+      <a class="btn ghost" href="#">Resume later</a>
+      <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);align-self:center">progress written to draft ceremony only · no chain entries yet</span>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:22px">
+
+    <div class="empty">
+      <div class="copy">
+        <span class="eyebrow-m">Cases · zero-state</span>
+        <h2>Nothing <em>yet</em>.</h2>
+        <p>When you create your first case it becomes the <em class="a">genesis entry</em> for your organisation's chain. There is no "draft" mode — creation itself is a sealed, signed event countersigned by your RFC 3161 timestamp authority.</p>
+        <div class="steps">
+          <div><span class="n">01</span><span>Name the matter, choose the jurisdiction.</span></div>
+          <div><span class="n">02</span><span>Nominate a custodian and a two-of-three key quorum.</span></div>
+          <div><span class="n">03</span><span>Optionally federate with a peer instance — CIJA, KSC, Bellingcat.</span></div>
+        </div>
+        <div class="cta">
+          <a class="btn" href="#">Create first case <span class="arr">→</span></a>
+          <a class="btn ghost" href="#">Import from CSV / Excel</a>
+        </div>
+      </div>
+      <div class="art">
+        <div class="g"></div>
+        <span class="glyph">¶</span>
+        <span class="chip c1">chain head · genesis pending</span>
+        <span class="chip c2">0 · 0 · 0</span>
+        <span class="chip c3">waiting for first exhibit</span>
+      </div>
+    </div>
+
+    <div class="empty">
+      <div class="copy">
+        <span class="eyebrow-m">Evidence · zero-state</span>
+        <h2>The <em>locker</em> is empty.</h2>
+        <p>Drag files anywhere on this page, paste a URL, or drop a whole folder. Each file is chunked and hashed in your browser before any byte reaches the server. If a single byte is off on the way in, the upload fails and nothing is sealed.</p>
+        <div class="steps">
+          <div><span class="n">·</span><span>Supports PDF/A, MP4/MOV, FLAC/WAV, E01 forensic images, ZIP archives up to 64 GB.</span></div>
+          <div><span class="n">·</span><span>C2PA-signed imagery is verified on ingest; broken signatures are preserved, never silently fixed.</span></div>
+        </div>
+        <div class="cta">
+          <a class="btn" href="#">Upload first exhibit <span class="arr">→</span></a>
+          <a class="btn ghost" href="#">Connect intake API</a>
+        </div>
+      </div>
+      <div class="art">
+        <div class="g"></div>
+        <span class="glyph">◩</span>
+        <span class="chip c1">drop anywhere</span>
+        <span class="chip c2">SHA-256 · BLAKE3</span>
+        <span class="chip c3">0 exhibits · 0 MB</span>
+      </div>
+    </div>
+
+    <div class="empty">
+      <div class="copy">
+        <span class="eyebrow-m">Witnesses · zero-state</span>
+        <h2>Nobody on the <em>register</em>.</h2>
+        <p>The first witness you add triggers the pseudonym vault ceremony. Real names never touch disk without your two-of-three quorum; even you cannot read them back without countersign. This is by design.</p>
+        <div class="steps">
+          <div><span class="n">01</span><span>Open the intake form — we'll generate a pseudonym before you type.</span></div>
+          <div><span class="n">02</span><span>Pair your HSM and those of two colleagues for the first ceremony.</span></div>
+        </div>
+        <div class="cta">
+          <a class="btn" href="#">Begin intake <span class="arr">→</span></a>
+          <a class="btn ghost" href="#">Pair an HSM first</a>
+        </div>
+      </div>
+      <div class="art">
+        <div class="g"></div>
+        <span class="glyph">◉</span>
+        <span class="chip c1">mapping vault · dormant</span>
+        <span class="chip c2">2-of-3 quorum required</span>
+        <span class="chip c3">no names, no handles</span>
+      </div>
+    </div>
+
+    <div class="empty" style="background:#2a2620;color:var(--bg);border-color:transparent">
+      <div class="copy">
+        <span class="eyebrow-m" style="color:var(--muted-2);border-color:rgba(255,255,255,.16);background:transparent">Chain · zero-state</span>
+        <h2 style="color:var(--bg)">Genesis block <em style="color:var(--accent-soft)">not yet sealed</em>.</h2>
+        <p style="color:var(--muted-2)">Your audit chain begins with the genesis block. No evidence can be sealed before it exists. Three HSMs, three analysts, one minute. Once sealed, the chain grows forever — no one, including us, can rewind it.</p>
+        <div class="steps" style="border-color:rgba(255,255,255,.16);color:var(--muted-2)">
+          <div><span class="n" style="color:var(--accent-soft)">·</span><span>Everyone who will ever countersign needs to be physically present or verified by video.</span></div>
+          <div><span class="n" style="color:var(--accent-soft)">·</span><span>Ceremony minutes are themselves written as the second block.</span></div>
+        </div>
+        <div class="cta">
+          <a class="btn" style="background:var(--bg);color:var(--ink);border-color:var(--bg)" href="#">Schedule ceremony <span class="arr">→</span></a>
+          <a class="btn ghost" style="color:var(--bg);border-color:rgba(255,255,255,.2)" href="#">Read ceremony guide</a>
+        </div>
+      </div>
+      <div class="art" style="background:linear-gradient(135deg,#1a1713,#2a2620);border-color:rgba(255,255,255,.1)">
+        <div class="g" style="background-image:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px);opacity:1"></div>
+        <span class="glyph" style="color:var(--accent-soft);opacity:.3">⬡</span>
+        <span class="chip c1" style="background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.14);color:var(--muted-2)">genesis · not sealed</span>
+        <span class="chip c2" style="background:rgba(0,0,0,.4);border-color:var(--accent);color:var(--accent-soft)">3 keys needed</span>
+        <span class="chip c3" style="background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.14);color:var(--bg)">sealing takes ≈ 60 s</span>
+      </div>
+    </div>
+
+  </div>
+`;
+</script></body></html>

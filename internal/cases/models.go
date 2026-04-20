@@ -62,17 +62,19 @@ type PaginatedResult[T any] struct {
 }
 
 type CaseRole struct {
-	ID        uuid.UUID `json:"id"`
-	CaseID    uuid.UUID `json:"case_id"`
-	UserID    string    `json:"user_id"`
-	Role      string    `json:"role"`
-	GrantedBy string    `json:"granted_by"`
-	GrantedAt time.Time `json:"granted_at"`
+	ID               uuid.UUID  `json:"id"`
+	CaseID           uuid.UUID  `json:"case_id"`
+	UserID           string     `json:"user_id"`
+	Role             string     `json:"role"`
+	RoleDefinitionID *uuid.UUID `json:"role_definition_id,omitempty"`
+	GrantedBy        string     `json:"granted_by"`
+	GrantedAt        time.Time  `json:"granted_at"`
 }
 
 type AssignRoleInput struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
+	UserID           string `json:"user_id"`
+	Role             string `json:"role"`
+	RoleDefinitionID string `json:"role_definition_id"`
 }
 
 // CaseAssignmentView is a denormalized view of a case role assignment,

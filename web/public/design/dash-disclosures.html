@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Disclosures — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('disclosures', `<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><span class="here">Disclosures</span>`);
+
+const ds = [
+  {ref:"DISC-2026-019", to:"Defence · M. Petrenko counsel", ex:48, st:"review", due:"Fri 25 Apr", who:["a","b"], note:"redactions pending countersign"},
+  {ref:"DISC-2026-018", to:"Prosecution · OTP Hague", ex:182, st:"sent", due:"18 Apr", who:["a","c"], note:"ack received · 9 clarifications"},
+  {ref:"DISC-2026-017", to:"Federated · CIJA Berlin", ex:612, st:"sent", due:"16 Apr", who:["a"], note:"federated sub-chain · mirror"},
+  {ref:"DISC-2026-016", to:"Trial chamber", ex:12, st:"draft", due:"—", who:["b"], note:"awaiting exhibit E-0917"},
+  {ref:"DISC-2026-015", to:"Defence · second-chair", ex:91, st:"sent", due:"11 Apr", who:["a","d"], note:"signed bundle verified"}
+];
+const sp = {review:'pl hold',sent:'pl sealed',draft:'pl draft'};
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Case · ICC-UKR-2024 · Berkeley Protocol Reporting</span>
+      <h1>Disclosure <em>bundles</em></h1>
+      <p class="sub">A disclosure bundle is a one-click ZIP of exhibits, custody log, hash manifest, and (where required) redaction maps — plus the open validator binary so the recipient's clerk can verify offline, without talking to us.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="#">Templates</a>
+      <a class="btn" href="#">New disclosure <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="d-kpis" style="margin-bottom:22px">
+    <div class="d-kpi"><div class="k">This quarter</div><div class="v">19</div><div class="sub">sent across 3 cases</div></div>
+    <div class="d-kpi"><div class="k">Pending your review</div><div class="v">3</div><div class="delta n">● DISC-2026-019 due Fri</div></div>
+    <div class="d-kpi"><div class="k">Avg. bundle</div><div class="v">214</div><div class="sub">exhibits · 4.1 GB median</div></div>
+    <div class="d-kpi"><div class="k">Rejected · ever</div><div class="v">0</div><div class="sub">on custody grounds</div></div>
+  </div>
+
+  <div class="g2-wide">
+    <div class="panel">
+      <div class="panel-h"><h3>All disclosures</h3><span class="meta">5 of 42</span></div>
+      <table class="tbl">
+        <thead><tr><th>Bundle</th><th>Recipient</th><th>Exhibits</th><th>Status</th><th>Due</th><th>Owners</th><th></th></tr></thead>
+        <tbody>
+          ${ds.map(d=>`
+            <tr>
+              <td><div class="ref">${d.ref}<small>${d.note}</small></div></td>
+              <td style="font-size:13px;color:var(--ink-2)">${d.to}</td>
+              <td class="num">${d.ex}</td>
+              <td><span class="${sp[d.st]}">${d.st}</span></td>
+              <td class="mono">${d.due}</td>
+              <td><span class="avs">${d.who.map(c=>`<span class="av ${c}">${c.toUpperCase()}</span>`).join('')}</span></td>
+              <td class="actions"><a class="linkarrow" href="#">Open →</a></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h3>Bundle wizard · <em>DISC-2026-019</em></h3><span class="meta">step 3 of 5</span></div>
+      <div class="panel-body">
+        <div style="display:flex;flex-direction:column;gap:0">
+          ${[
+            {t:"1 · Scope", d:"48 exhibits selected · witness statements excluded", ok:1},
+            {t:"2 · Redactions", d:"Applied Martyna's draft v4 · 12 passages", ok:1},
+            {t:"3 · Countersigns", d:"1 of 2 obtained · awaiting H. Morel", ok:0, cur:1},
+            {t:"4 · Manifest", d:"SHA-256 · BLAKE3 · RFC 3161 timestamp", ok:0},
+            {t:"5 · Deliver", d:"Encrypted bundle + validator · 4.2 GB", ok:0}
+          ].map((s,i,a)=>`
+            <div style="display:grid;grid-template-columns:28px 1fr;gap:14px;padding:12px 0;${i<a.length-1?'border-bottom:1px solid var(--line)':''}">
+              <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid ${s.ok?'var(--ok)':s.cur?'var(--accent)':'var(--line-2)'};background:${s.ok?'var(--ok)':'transparent'};color:${s.ok?'#fff':s.cur?'var(--accent)':'var(--muted)'};display:grid;place-items:center;font-size:11px;font-family:'JetBrains Mono',monospace">${s.ok?'✓':i+1}</span>
+              <div><strong style="font-family:'Fraunces',serif;font-size:15px;color:${s.cur||s.ok?'var(--ink)':'var(--muted)'}">${s.t}</strong><div style="font-size:12.5px;color:var(--muted);margin-top:3px">${s.d}</div></div>
+            </div>
+          `).join('')}
+        </div>
+        <a class="btn" style="margin-top:14px;width:100%;justify-content:center" href="#">Continue step 3 <span class="arr">→</span></a>
+      </div>
+    </div>
+  </div>
+`;
+</script></body></html>

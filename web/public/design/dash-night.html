@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Night session — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+html[data-theme="dark"]{
+  --bg:#171412; --bg-2:#1f1b17; --paper:#201c18;
+  --ink:#f2ece0; --ink-2:#d6cdbd; --muted:#93897a; --muted-2:#6a6155;
+  --line:rgba(242,236,224,.08); --line-2:rgba(242,236,224,.14);
+  --accent:#e4895e; --accent-soft:#f2b08c;
+  --ok:#6b9a5a;
+  color-scheme:dark;
+}
+html[data-theme="dark"] body{background:var(--bg);color:var(--ink);background-image:radial-gradient(900px 500px at 80% -10%,rgba(228,137,94,.08),transparent 60%),radial-gradient(700px 420px at -10% 30%,rgba(228,137,94,.06),transparent 60%)}
+html[data-theme="dark"] .d-side{background:#1a1613}
+html[data-theme="dark"] .d-nav a.active{background:#e4895e;color:#171412}
+html[data-theme="dark"] .d-nav a.active .ico{color:#171412}
+html[data-theme="dark"] .d-nav a.active .badge{background:rgba(23,20,18,.3);color:#171412}
+html[data-theme="dark"] .d-top{background:color-mix(in oklab,var(--bg) 82%,transparent)}
+html[data-theme="dark"] .panel,html[data-theme="dark"] .d-kpi,html[data-theme="dark"] .ev-card,html[data-theme="dark"] .d-org,html[data-theme="dark"] .d-side .who{background:var(--paper)}
+html[data-theme="dark"] .ev-thumb{background:linear-gradient(135deg,#2a2520,#201c18)}
+html[data-theme="dark"] .tbl tbody tr:hover{background:var(--bg-2)}
+html[data-theme="dark"] .chip{background:var(--bg-2);color:var(--ink-2)}
+html[data-theme="dark"] .chip.active{background:var(--ink);color:var(--bg);border-color:transparent}
+html[data-theme="dark"] .pl.sealed{background:rgba(107,154,90,.18);color:#9ac282}
+html[data-theme="dark"] .pl.disc{background:rgba(228,137,94,.18);color:var(--accent-soft)}
+html[data-theme="dark"] .pl.hold{background:rgba(228,137,94,.22);color:var(--accent-soft)}
+html[data-theme="dark"] .pl.draft{background:rgba(147,137,122,.2);color:var(--muted)}
+html[data-theme="dark"] .pl.live{background:rgba(107,154,90,.18);color:#9ac282}
+html[data-theme="dark"] kbd{background:var(--paper);border-color:var(--line-2);color:var(--ink);box-shadow:0 1px 0 rgba(0,0,0,.3)}
+.theme-toggle{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;gap:4px;padding:4px;border:1px solid var(--line-2);border-radius:999px;background:var(--paper);box-shadow:var(--shadow-sm);font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.04em}
+.theme-toggle button{border:none;background:none;padding:6px 14px;border-radius:999px;color:var(--muted);font:inherit;cursor:pointer}
+.theme-toggle button.on{background:var(--ink);color:var(--bg)}
+.night-wash{background:linear-gradient(180deg,rgba(228,137,94,.08),transparent 45%);padding:8px 18px;border:1px solid var(--line);border-radius:10px;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.04em;display:inline-flex;gap:8px;align-items:center}
+.night-wash::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(228,137,94,.2)}
+</style></head><body>
+<div class="dash" id="d-shell"></div>
+<div class="theme-toggle">
+  <button onclick="document.documentElement.setAttribute('data-theme','light')">☀ Day</button>
+  <button class="on">☾ Night</button>
+</div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('overview', `<a href="dash.html">Workspace</a><span class="sep">/</span><span class="here">Night session</span>`);
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Overview · night session · muted accents</span>
+      <h1>Hours past <em>midnight</em></h1>
+      <p class="sub">Night mode isn't a darker skin — it's a quieter one. Warm off-black paper, dimmed accents, reduced contrast on secondary text. Meant for a 3 a.m. disclosure review, not for looking good in a product screenshot.</p>
+    </div>
+    <div class="actions">
+      <span class="night-wash">shift ends 04:30 · auto-lock in 12 min</span>
+    </div>
+  </section>
+
+  <div class="d-kpis" style="margin-bottom:22px">
+    <div class="d-kpi"><div class="k">Active cases</div><div class="v">38</div><div class="sub">3 at chamber · 7 federated</div></div>
+    <div class="d-kpi"><div class="k">Sealed · 24 h</div><div class="v">412</div><div class="delta p">+ 48 vs. yesterday</div></div>
+    <div class="d-kpi"><div class="k">Pending countersign</div><div class="v">3</div><div class="delta n">● 1 due Fri 25 Apr</div></div>
+    <div class="d-kpi"><div class="k">Chain integrity</div><div class="v">100<em>%</em></div><div class="sub">0 breaks · last verified 14:22</div></div>
+  </div>
+
+  <div class="g2-wide">
+    <div class="panel"><div class="panel-h"><h3>Quiet hours · activity</h3><span class="meta">00:00–04:30 UTC</span></div><div class="panel-body" style="padding:0">
+      ${[
+        ['03:42','H. Morel','a','countersigned DISC-2026-019','f208…bc91'],
+        ['03:18','Amir H.','c','scored C-0412 at 0.91','2c14…a1be'],
+        ['02:51','Martyna K.','b','geo-fuzz applied on E-0915','d9a7…c021'],
+        ['02:14','CIJA Berlin','e','3 ops merged from sub-chain /CIJA','91ab…8204'],
+        ['01:47','ts-eu-west','e','RFC 3161 timestamp','ts:9fa1']
+      ].map(r=>`
+        <div style="padding:14px 26px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:72px 36px 1fr auto;gap:14px;align-items:center;font-size:13px">
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--muted)">${r[0]}</span>
+          <span class="avs"><span class="av ${r[2]}">${r[1][0]}</span></span>
+          <span>${r[1]} <span style="color:var(--muted);font-size:12px">· ${r[3]}</span></span>
+          <span class="mono" style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-size:11.5px">${r[4]}</span>
+        </div>
+      `).join('')}
+    </div></div>
+
+    <div class="panel"><div class="panel-h"><h3>Night protocol</h3><span class="meta">quiet-hours policy</span></div><div class="panel-body">
+      <dl class="kvs">
+        <dt>Display</dt><dd>Warm off-black paper · accents dimmed −18%</dd>
+        <dt>Auto-lock</dt><dd>After 15 min idle (vs 60 min in day mode)</dd>
+        <dt>Destructive actions</dt><dd>Require re-auth even if session is valid</dd>
+        <dt>Keyboard</dt><dd>Panic-lock on <kbd>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd> · always</dd>
+        <dt>Audit log</dt><dd>Night entries flagged <code>q_hrs=true</code> for later review</dd>
+        <dt>Notifications</dt><dd>Muted except break-the-glass & duress unlock</dd>
+      </dl>
+    </div></div>
+  </div>
+`;
+</script></body></html>

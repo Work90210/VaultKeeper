@@ -37,7 +37,7 @@ func (g *GDPRRouteRegistrar) RegisterRoutes(r chi.Router) {
 // Returns true if the caller may proceed.
 func (h *Handler) ensureEvidenceOrgMembership(ctx context.Context, evidenceID uuid.UUID) bool {
 	if h.orgChecker == nil || h.caseLookupOrg == nil {
-		return true // not wired — skip check (backwards compat)
+		return false // not wired — deny access (fail closed)
 	}
 	ac, ok := auth.GetAuthContext(ctx)
 	if !ok {
@@ -151,16 +151,16 @@ func (h *Handler) ResolveErasureRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Org membership gate: resolve erasure request → evidence → case → org.
-	if h.orgChecker != nil && h.caseLookupOrg != nil {
-		erasureReq, err := h.service.FindErasureRequest(r.Context(), id)
-		if err != nil {
-			httputil.RespondError(w, http.StatusNotFound, "erasure request not found")
-			return
-		}
-		if !h.ensureEvidenceOrgMembership(r.Context(), erasureReq.EvidenceID) {
-			httputil.RespondError(w, http.StatusForbidden, "not a member of this organization")
-			return
-		}
+	// Unconditional — ensureEvidenceOrgMembership returns false (deny) when the
+	// org checker is not wired, ensuring fail-closed behaviour.
+	erasureReq, err := h.service.FindErasureRequest(r.Context(), id)
+	if err != nil {
+		httputil.RespondError(w, http.StatusNotFound, "erasure request not found")
+		return
+	}
+	if !h.ensureEvidenceOrgMembership(r.Context(), erasureReq.EvidenceID) {
+		httputil.RespondError(w, http.StatusNotFound, "erasure request not found")
+		return
 	}
 
 	var body resolveErasureRequestBody

@@ -3,6 +3,7 @@ package migration
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -15,7 +16,8 @@ import (
 func ComputeManifestHash(entries []ManifestEntry) string {
 	lines := make([]string, 0, len(entries))
 	for _, e := range entries {
-		lines = append(lines, e.FilePath+"|"+strings.ToLower(e.OriginalHash))
+		encoded, _ := json.Marshal(e.FilePath)
+		lines = append(lines, string(encoded)+"|"+strings.ToLower(e.OriginalHash))
 	}
 	sort.Strings(lines)
 	joined := strings.Join(lines, "\n")
@@ -39,7 +41,8 @@ func ComputeManifestHash(entries []ManifestEntry) string {
 func ComputeMigrationHash(sourceSystem string, startedAt time.Time, items []IngestedItem) string {
 	lines := make([]string, 0, len(items))
 	for _, it := range items {
-		lines = append(lines, it.ManifestEntry.FilePath+"|"+strings.ToLower(it.ComputedHash))
+		encoded, _ := json.Marshal(it.ManifestEntry.FilePath)
+		lines = append(lines, string(encoded)+"|"+strings.ToLower(it.ComputedHash))
 	}
 	sort.Strings(lines)
 

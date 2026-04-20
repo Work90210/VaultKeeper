@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -45,13 +46,16 @@ type Config struct {
 	LogLevel              slog.Level
 	MaxUploadSize         int64
 	ServerPort            int
-	WitnessEncryptionKey  string
-	MasterEncryptionKey   string
+	WitnessEncryptionKey      string
+	WitnessEncryptionKeyBytes []byte
+	MasterEncryptionKey       string
+	MasterEncryptionKeyBytes  []byte
 	MaxConcurrentSessions int
 	CaseReferenceRegex    string
 	CORSOrigins           []string
 	BackupDestination     string
 	BackupEncKey          string
+	BackupEncKeyBytes     []byte
 	ArchiveStorageBucket  string
 	ArchiveStoragePath    string
 	AdminUserIDs          []string
@@ -61,7 +65,12 @@ type Config struct {
 	// source_root that does not live under this root. Empty means
 	// migration HTTP ingestion is disabled (CLI dry-run still works).
 	MigrationStagingRoot string
-	Warnings             []string
+
+	// Federation — instance identity for cross-border evidence exchange.
+	InstanceID          string
+	InstanceDisplayName string
+
+	Warnings []string
 }
 
 func LoadFromEnv() (Config, error) {
@@ -251,6 +260,32 @@ func LoadFromEnv() (Config, error) {
 			errs = append(errs, "MASTER_ENCRYPTION_KEY is required in production")
 		}
 	}
+	// Enforce minimum key length (32 bytes / 64 hex chars) when a key is supplied,
+	// regardless of environment, to catch misconfiguration before runtime failures.
+	if cfg.WitnessEncryptionKey != "" {
+		if len(cfg.WitnessEncryptionKey) < 64 {
+			errs = append(errs, "WITNESS_ENCRYPTION_KEY must be at least 64 hex characters (32 bytes)")
+		} else {
+			decoded, err := hex.DecodeString(cfg.WitnessEncryptionKey)
+			if err != nil {
+				errs = append(errs, "WITNESS_ENCRYPTION_KEY must be valid hex")
+			} else {
+				cfg.WitnessEncryptionKeyBytes = decoded
+			}
+		}
+	}
+	if cfg.MasterEncryptionKey != "" {
+		if len(cfg.MasterEncryptionKey) < 64 {
+			errs = append(errs, "MASTER_ENCRYPTION_KEY must be at least 64 hex characters (32 bytes)")
+		} else {
+			decoded, err := hex.DecodeString(cfg.MasterEncryptionKey)
+			if err != nil {
+				errs = append(errs, "MASTER_ENCRYPTION_KEY must be valid hex")
+			} else {
+				cfg.MasterEncryptionKeyBytes = decoded
+			}
+		}
+	}
 
 	if value := strings.TrimSpace(os.Getenv("MAX_CONCURRENT_SESSIONS")); value != "" {
 		parsed, err := strconv.Atoi(value)
@@ -277,10 +312,31 @@ func LoadFromEnv() (Config, error) {
 	if cfg.BackupDestination != "" && cfg.BackupEncKey == "" {
 		errs = append(errs, "BACKUP_ENC_KEY is required when BACKUP_DESTINATION is set")
 	}
+	if cfg.BackupEncKey != "" && len(cfg.BackupEncKey) < 64 {
+		errs = append(errs, "BACKUP_ENC_KEY must be at least 64 hex characters (32 bytes)")
+	}
+	if cfg.BackupEncKey != "" {
+		decoded, err := hex.DecodeString(cfg.BackupEncKey)
+		if err != nil || len(decoded) < 32 {
+			errs = append(errs, "BACKUP_ENC_KEY must be valid hex encoding 32+ bytes")
+		} else {
+			cfg.BackupEncKeyBytes = decoded
+		}
+	}
 	cfg.ArchiveStorageBucket = strings.TrimSpace(os.Getenv("ARCHIVE_STORAGE_BUCKET"))
 	cfg.ArchiveStoragePath = strings.TrimSpace(os.Getenv("ARCHIVE_STORAGE_PATH"))
 	cfg.AdminUserIDs = parseCSV(os.Getenv("ADMIN_USER_IDS"))
 	cfg.MigrationStagingRoot = strings.TrimSpace(os.Getenv("MIGRATION_STAGING_ROOT"))
+
+	// Federation identity (optional — defaults allow dev without config).
+	cfg.InstanceID = strings.TrimSpace(os.Getenv("INSTANCE_ID"))
+	if cfg.InstanceID == "" {
+		cfg.InstanceID = "vaultkeeper-dev"
+	}
+	cfg.InstanceDisplayName = strings.TrimSpace(os.Getenv("INSTANCE_DISPLAY_NAME"))
+	if cfg.InstanceDisplayName == "" {
+		cfg.InstanceDisplayName = "VaultKeeper (dev)"
+	}
 
 	if len(errs) > 0 {
 		return Config{}, fmt.Errorf("configuration validation failed: %s", strings.Join(errs, "; "))

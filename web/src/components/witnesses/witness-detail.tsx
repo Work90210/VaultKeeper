@@ -3,19 +3,14 @@
 import type { Witness } from '@/types';
 import {
   ArrowLeft,
-  User,
-  Mail,
-  MapPin,
   Shield,
-  Calendar,
-  FileText,
   AlertTriangle,
 } from 'lucide-react';
 
-const PROTECTION_STYLES: Record<string, { color: string; bg: string; label: string }> = {
-  standard: { color: 'var(--status-active)', bg: 'var(--status-active-bg)', label: 'Standard' },
-  protected: { color: 'var(--status-closed)', bg: 'var(--status-closed-bg)', label: 'Protected' },
-  high_risk: { color: 'var(--status-hold)', bg: 'var(--status-hold-bg)', label: 'High Risk' },
+const PROTECTION_PILL: Record<string, { cls: string; label: string }> = {
+  standard: { cls: 'pl sealed', label: 'Standard' },
+  protected: { cls: 'pl hold', label: 'Protected' },
+  high_risk: { cls: 'pl broken', label: 'High Risk' },
 };
 
 function formatDate(iso: string): string {
@@ -38,51 +33,36 @@ export function WitnessDetail({
   canEdit: boolean;
 }) {
   const protection =
-    PROTECTION_STYLES[witness.protection_status] || PROTECTION_STYLES.standard;
+    PROTECTION_PILL[witness.protection_status] || PROTECTION_PILL.standard;
 
   return (
-    <div
-      className="max-w-4xl mx-auto"
-      style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}
-    >
+    <div style={{ maxWidth: '860px', margin: '0 auto' }}>
       {/* Header */}
-      <header className="mb-[var(--space-xl)]">
+      <header style={{ marginBottom: '24px' }}>
         <button
           onClick={onBack}
-          className="btn-ghost text-xs uppercase tracking-wider flex items-center gap-[var(--space-xs)] mb-[var(--space-md)]"
+          className="btn ghost sm"
           type="button"
+          style={{ marginBottom: '16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
           <ArrowLeft size={14} />
           Back to case
         </button>
 
-        <div className="flex items-start justify-between gap-[var(--space-md)]">
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
           <div>
-            <div className="flex items-center gap-[var(--space-sm)] mb-[var(--space-xs)]">
-              <span
-                className="font-[family-name:var(--font-mono)] text-xs tracking-wide"
-                style={{ color: 'var(--text-tertiary)' }}
-              >
-                {witness.witness_code}
-              </span>
-              <span
-                className="badge"
-                style={{ backgroundColor: protection.bg, color: protection.color }}
-              >
-                {protection.label}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <span className="tag">{witness.witness_code}</span>
+              <span className={protection.cls}>{protection.label}</span>
             </div>
-            <h1
-              className="font-[family-name:var(--font-heading)] text-2xl"
-              style={{ color: 'var(--text-primary)' }}
-            >
+            <h1 style={{ fontFamily: '"Fraunces", serif', fontSize: '28px', letterSpacing: '-.01em', color: 'var(--ink)', fontWeight: 400 }}>
               {witness.identity_visible
                 ? witness.full_name || 'Unnamed Witness'
                 : `Witness ${witness.witness_code}`}
             </h1>
           </div>
           {canEdit && onEdit && (
-            <button type="button" onClick={onEdit} className="btn-secondary text-xs">
+            <button type="button" onClick={onEdit} className="btn ghost sm">
               Edit witness
             </button>
           )}
@@ -91,180 +71,129 @@ export function WitnessDetail({
 
       {/* Identity section */}
       {witness.identity_visible ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-[var(--space-md)] mb-[var(--space-lg)]">
-          <div className="card-inset p-[var(--space-md)] flex items-start gap-[var(--space-sm)]">
-            <div
-              className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-              style={{ backgroundColor: 'var(--amber-subtle)' }}
-            >
-              <User size={14} style={{ color: 'var(--amber-accent)' }} />
-            </div>
-            <div>
-              <dt className="field-label" style={{ marginBottom: '2px' }}>Full Name</dt>
-              <dd className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {witness.full_name || '\u2014'}
-              </dd>
-            </div>
+        <div className="panel" style={{ marginBottom: '22px' }}>
+          <div className="panel-h">
+            <h3>Identity</h3>
           </div>
-
-          <div className="card-inset p-[var(--space-md)] flex items-start gap-[var(--space-sm)]">
-            <div
-              className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-              style={{ backgroundColor: 'var(--amber-subtle)' }}
-            >
-              <Mail size={14} style={{ color: 'var(--amber-accent)' }} />
-            </div>
-            <div>
-              <dt className="field-label" style={{ marginBottom: '2px' }}>Contact</dt>
-              <dd className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {witness.contact_info || '\u2014'}
-              </dd>
-            </div>
-          </div>
-
-          <div className="card-inset p-[var(--space-md)] flex items-start gap-[var(--space-sm)]">
-            <div
-              className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-              style={{ backgroundColor: 'var(--amber-subtle)' }}
-            >
-              <MapPin size={14} style={{ color: 'var(--amber-accent)' }} />
-            </div>
-            <div>
-              <dt className="field-label" style={{ marginBottom: '2px' }}>Location</dt>
-              <dd className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {witness.location || '\u2014'}
-              </dd>
-            </div>
+          <div className="panel-body">
+            <dl className="kvs">
+              <dt>Full name</dt>
+              <dd><strong>{witness.full_name || '\u2014'}</strong></dd>
+              <dt>Contact</dt>
+              <dd>{witness.contact_info || '\u2014'}</dd>
+              <dt>Location</dt>
+              <dd>{witness.location || '\u2014'}</dd>
+            </dl>
           </div>
         </div>
       ) : (
         <div
-          className="flex items-center gap-[var(--space-sm)] p-[var(--space-md)] rounded-[var(--radius-md)] mb-[var(--space-lg)]"
           style={{
-            backgroundColor: 'var(--status-closed-bg)',
-            borderLeft: '3px solid var(--status-closed)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '14px 18px',
+            borderRadius: '10px',
+            marginBottom: '22px',
+            background: 'rgba(91,74,107,.08)',
+            borderLeft: '3px solid #5b4a6b',
           }}
         >
-          <Shield size={14} style={{ color: 'var(--status-closed)' }} />
-          <p className="text-xs" style={{ color: 'var(--status-closed)' }}>
+          <Shield size={14} style={{ color: '#5b4a6b' }} />
+          <p style={{ fontSize: '13px', color: '#5b4a6b', margin: 0 }}>
             Identity information restricted for your role.
           </p>
         </div>
       )}
 
-      {/* Statement */}
-      <div className="mb-[var(--space-lg)]">
-        <h2 className="field-label">Statement summary</h2>
-        <div className="card-inset p-[var(--space-md)] mt-[var(--space-xs)]">
-          <p
-            className="text-sm leading-relaxed whitespace-pre-wrap"
-            style={{
-              color: witness.statement_summary
-                ? 'var(--text-secondary)'
-                : 'var(--text-tertiary)',
-            }}
-          >
+      {/* Statement summary */}
+      <div className="panel" style={{ marginBottom: '22px' }}>
+        <div className="panel-h">
+          <h3>Statement <em>summary</em></h3>
+        </div>
+        <div className="panel-body">
+          <p style={{
+            fontSize: '13.5px',
+            lineHeight: 1.6,
+            whiteSpace: 'pre-wrap',
+            color: witness.statement_summary ? 'var(--ink-2)' : 'var(--muted)',
+            margin: 0,
+          }}>
             {witness.statement_summary || 'No statement recorded.'}
           </p>
         </div>
       </div>
 
       {/* Linked evidence */}
-      <div className="mb-[var(--space-lg)]">
-        <h2 className="field-label" style={{ marginBottom: 'var(--space-sm)' }}>
-          Linked evidence ({witness.related_evidence.length})
-        </h2>
-        <div className="card-inset overflow-hidden" style={{ padding: 0 }}>
-          {witness.related_evidence.length === 0 ? (
-            <div className="p-[var(--space-lg)] text-center">
-              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                No evidence linked to this witness.
-              </p>
-            </div>
-          ) : (
-            <div>
-              {witness.related_evidence.map((id, i) => (
-                <a
-                  key={id}
-                  href={`/en/evidence/${id}`}
-                  className="table-row flex items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)]"
-                  style={{
-                    textDecoration: 'none',
-                    borderBottom:
-                      i < witness.related_evidence.length - 1
-                        ? '1px solid var(--border-subtle)'
-                        : 'none',
-                  }}
-                >
-                  <FileText
-                    size={15}
-                    strokeWidth={1.5}
-                    style={{ color: 'var(--text-tertiary)' }}
-                  />
-                  <span
-                    className="font-[family-name:var(--font-mono)] text-xs"
-                    style={{ color: 'var(--amber-accent)' }}
-                  >
-                    {id.slice(0, 12)}&hellip;
-                  </span>
-                  <span
-                    className="text-xs ml-auto"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    View &rarr;
-                  </span>
-                </a>
-              ))}
-            </div>
-          )}
+      <div className="panel" style={{ marginBottom: '22px' }}>
+        <div className="panel-h">
+          <h3>Linked <em>evidence</em></h3>
+          <span className="meta">{witness.related_evidence.length} items</span>
         </div>
+        {witness.related_evidence.length === 0 ? (
+          <div className="panel-body" style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
+              No evidence linked to this witness.
+            </p>
+          </div>
+        ) : (
+          <div className="panel-body flush">
+            <table className="tbl">
+              <tbody>
+                {witness.related_evidence.map((id) => (
+                  <tr key={id}>
+                    <td>
+                      <a
+                        href={`/en/evidence/${id}`}
+                        className="ref"
+                        style={{ textDecoration: 'none' }}
+                      >
+                        {id.slice(0, 12)}&hellip;
+                      </a>
+                    </td>
+                    <td className="actions">
+                      <a href={`/en/evidence/${id}`} className="linkarrow" style={{ textDecoration: 'none' }}>
+                        View &rarr;
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Metadata row */}
-      <div
-        className="grid grid-cols-2 gap-[var(--space-md)] mb-[var(--space-lg)]"
-      >
-        <div className="card-inset p-[var(--space-md)] flex items-start gap-[var(--space-sm)]">
-          <div
-            className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-            style={{ backgroundColor: 'var(--amber-subtle)' }}
-          >
-            <Calendar size={14} style={{ color: 'var(--amber-accent)' }} />
-          </div>
-          <div>
-            <dt className="field-label" style={{ marginBottom: '2px' }}>Created</dt>
-            <dd className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              {formatDate(witness.created_at)}
-            </dd>
-          </div>
+      {/* Metadata */}
+      <div className="panel" style={{ marginBottom: '22px' }}>
+        <div className="panel-h">
+          <h3>Metadata</h3>
         </div>
-        <div className="card-inset p-[var(--space-md)] flex items-start gap-[var(--space-sm)]">
-          <div
-            className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-            style={{ backgroundColor: 'var(--amber-subtle)' }}
-          >
-            <Calendar size={14} style={{ color: 'var(--amber-accent)' }} />
-          </div>
-          <div>
-            <dt className="field-label" style={{ marginBottom: '2px' }}>Updated</dt>
-            <dd className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              {formatDate(witness.updated_at)}
-            </dd>
-          </div>
+        <div className="panel-body">
+          <dl className="kvs">
+            <dt>Created</dt>
+            <dd><strong>{formatDate(witness.created_at)}</strong></dd>
+            <dt>Updated</dt>
+            <dd><strong>{formatDate(witness.updated_at)}</strong></dd>
+          </dl>
         </div>
       </div>
 
       {/* Protection notice for high-risk */}
       {witness.protection_status === 'high_risk' && (
         <div
-          className="flex items-center gap-[var(--space-sm)] p-[var(--space-md)] rounded-[var(--radius-md)]"
           style={{
-            backgroundColor: 'var(--status-hold-bg)',
-            borderLeft: '3px solid var(--status-hold)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '14px 18px',
+            borderRadius: '10px',
+            background: 'rgba(168,62,43,.08)',
+            borderLeft: '3px solid var(--accent)',
           }}
         >
-          <AlertTriangle size={14} style={{ color: 'var(--status-hold)' }} />
-          <p className="text-xs" style={{ color: 'var(--status-hold)' }}>
+          <AlertTriangle size={14} style={{ color: 'var(--accent)' }} />
+          <p style={{ fontSize: '13px', color: 'var(--accent)', margin: 0 }}>
             This witness has high-risk protection status. All access is logged and restricted.
           </p>
         </div>

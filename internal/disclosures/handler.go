@@ -161,7 +161,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.getCaseRole(r.Context(), disclosure.CaseID.String(), ac.UserID, ac.SystemRole); err != nil {
-		httputil.RespondError(w, http.StatusForbidden, "insufficient permissions")
+		httputil.RespondError(w, http.StatusNotFound, "not found")
 		return
 	}
 

@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Overview — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<link rel="stylesheet" href="assets/dash.css?v=5">
+</head>
+<body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('overview',
+  '<a href="index.html">VaultKeeper</a><span class="sep">/</span><span class="here">Overview</span>'
+);
+
+// Use shared case data from dash.js (with fallback)
+var CASES = window.VK_CASES || [
+  {id:'all',name:'All cases',sub:'Cross-case overview',status:'active'},
+  {id:'icc-ukr-2024',name:'ICC-UKR-2024',sub:'Crimes against humanity \xb7 Butcha',status:'active',role:'Lead',exhibits:'12,417',witnesses:24,corrob:4,disclosures:2},
+  {id:'ksc-23-042',name:'KSC-23-042',sub:'Witness intimidation \xb7 Pristina',status:'active',role:'Analyst',exhibits:'1,204',witnesses:8,corrob:2,disclosures:1},
+  {id:'rscsl-12',name:'RSCSL-Residual-12',sub:'Sierra Leone residual',status:'active',role:'Observer',exhibits:'842',witnesses:3,corrob:1,disclosures:0},
+  {id:'irmct-99',name:'IRMCT-99-17',sub:'Archival re-verification',status:'hold',role:'Clerk',exhibits:'28,918',witnesses:0,corrob:0,disclosures:0}
+];
+if(!window.vkCurrentCase) window.vkCurrentCase = 'all';
+
+// Listen for case changes from the shared shell
+window.onCaseChanged = function(){ renderContent(); };
+
+function renderContent(){
+  var el = document.getElementById('d-content');
+  var cc = window.vkCurrentCase;
+  if(cc === 'all') {
+    renderAllCases(el);
+  } else {
+    var c = CASES.find(function(x){return x.id===cc});
+    renderCaseScoped(el, c);
+  }
+}
+
+function renderAllCases(el){
+  el.innerHTML = '<section class="d-pagehead"><div>'+
+    '<span class="eyebrow-m">Monday \xb7 19 April 2026 \xb7 14:22 UTC+1</span>'+
+    '<h1>Good afternoon, <em>H\u00e9l\u00e8ne.</em></h1>'+
+    '<p class="sub">Three cases active across the workspace. Two disclosures are due this week, and a federated merge from CIJA is waiting for your countersign on ICC-UKR-2024.</p>'+
+    '</div><div class="actions">'+
+    '<a class="btn ghost" href="dash-cases.html">All cases</a>'+
+    '<a class="btn" href="dash-evidence.html">Upload evidence <span class="arr">\u2192</span></a>'+
+    '</div></section>'+
+
+    '<div class="d-kpis" style="margin-bottom:28px">'+
+    '<div class="d-kpi"><div class="k">Exhibits sealed \xb7 today</div><div class="v">142</div><div class="delta">\u25b2 18 vs. yesterday</div></div>'+
+    '<div class="d-kpi"><div class="k">Chain integrity</div><div class="v">100<em>%</em></div><div class="sub">48,217 events \xb7 zero breaks</div></div>'+
+    '<div class="d-kpi"><div class="k">Pending corroborations</div><div class="v">7</div><div class="delta n">\u25cf 2 awaiting you</div></div>'+
+    '<div class="d-kpi"><div class="k">Last RFC 3161 stamp</div><div class="v" style="font-size:22px;font-family:\'JetBrains Mono\',monospace;letter-spacing:-.01em;padding-top:6px">14:22:04</div><div class="sub">ts-eu-west \xb7 signed \u2713</div></div>'+
+    '</div>'+
+
+    '<div class="panel" style="margin-bottom:22px"><div class="panel-h"><h3>Berkeley Protocol <em>compliance</em></h3><span class="meta" style="display:flex;align-items:center;gap:6px"><span style="padding:2px 7px;border-radius:4px;background:rgba(184,66,28,.06);border:1px solid rgba(184,66,28,.12);font-size:9px;letter-spacing:.06em;color:var(--accent)">OHCHR / UC BERKELEY</span> 6-phase cycle</span></div>'+
+    '<div class="panel-body">'+
+      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin-bottom:20px">'+
+      [{n:'1 \xb7 Inquiry',pct:83},{n:'2 \xb7 Assessment',pct:69},{n:'3 \xb7 Collection',pct:99},{n:'4 \xb7 Preservation',pct:100},{n:'5 \xb7 Verification',pct:58},{n:'6 \xb7 Analysis',pct:43}].map(function(p){
+        var col=p.pct>=90?'var(--ok)':p.pct>=60?'var(--accent)':'#b35c5c';
+        return '<div style="padding:14px 16px;border-right:1px solid var(--line);text-align:center">'+
+          '<div style="font-family:JetBrains Mono,monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">'+p.n+'</div>'+
+          '<div style="font-family:Fraunces,serif;font-size:28px;letter-spacing:-.02em;color:'+col+'">'+p.pct+'<span style="font-size:14px;color:var(--muted)">%</span></div>'+
+          '<div style="height:4px;background:var(--bg-2);border-radius:2px;overflow:hidden;margin:8px auto 6px;max-width:80px"><div style="height:100%;width:'+p.pct+'%;background:'+col+';border-radius:2px"></div></div></div>';
+      }).join('')+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;border-top:1px solid var(--line)">'+
+        '<div style="font-size:13px;color:var(--muted)"><strong style="color:var(--ink)">4,108 exhibits</strong> need attention \u2014 most missing Phase 5 (verification) or Phase 6 (analysis).</div>'+
+        '<a class="linkarrow" href="dash-evidence.html" style="flex-shrink:0">View by phase gap \u2192</a>'+
+      '</div>'+
+    '</div></div>'+
+
+    '<div class="g2-wide" style="margin-bottom:22px"><div class="panel"><div class="panel-h"><h3>Your cases <em>in flight</em></h3><span class="meta">3 active \xb7 1 on hold</span></div>'+
+    '<table class="tbl"><thead><tr><th>Case</th><th>Role</th><th>Exhibits</th><th>Chain</th><th>Last activity</th><th></th></tr></thead><tbody>'+
+    CASES.filter(function(c){return c.id!=='all'}).map(function(c){
+      var chain = c.status==='hold'?'<span class="pl hold">Legal hold</span>':'<div class="chain"><span class="node on"></span><span class="seg"></span><span class="node on"></span><span class="seg"></span><span class="node on"></span><span class="seg"></span><span class="node on"></span><span class="seg"></span><span class="node '+(c.corrob>0?'br':'on')+'"></span></div>';
+      var time = c.id==='icc-ukr-2024'?'2 min ago':c.id==='ksc-23-042'?'18 min ago':c.id==='rscsl-12'?'Yesterday':'3 d ago';
+      return '<tr style="cursor:pointer" onclick="window.vkCurrentCase=\''+c.id+'\';window.vkUpdateCasePicker();renderContent()"><td><div class="ref">'+c.name+'<small>'+c.sub+'</small></div></td><td><span class="tag">'+c.role+'</span></td><td class="num">'+c.exhibits+'</td><td>'+chain+'</td><td class="mono">'+time+'</td><td class="actions"><span class="linkarrow">Open \u2192</span></td></tr>';
+    }).join('')+'</tbody></table></div>'+
+
+    '<div class="panel"><div class="panel-h"><h3>Needs you</h3><span class="meta">5 items</span></div><div class="panel-body" style="padding:14px 18px"><div class="tl-list">'+
+    '<div class="tl-item accent"><div><div class="what"><strong>Countersign</strong> federated merge <em>VKE1\xb791ab\u2026</em> from <strong>CIJA</strong>.</div><div class="who-line">ICC-UKR-2024 \xb7 12 ops \xb7 due today</div></div><div class="sig">14:21</div></div>'+
+    '<div class="tl-item accent"><div><div class="what"><strong>Review</strong> redaction draft on <em>W-0144 statement</em>.</div><div class="who-line">Martyna \xb7 3 passages flagged</div></div><div class="sig">13:48</div></div>'+
+    '<div class="tl-item"><div><div class="what"><strong>Approve</strong> disclosure package <em>DISC-2026-019</em> for defence counsel.</div><div class="who-line">Exports 48 exhibits \xb7 Fri cutoff</div></div><div class="sig">11:02</div></div>'+
+    '<div class="tl-item"><div><div class="what">Corroboration <em>C-0412</em> scored 0.78 \u2014 awaiting second analyst.</div><div class="who-line">Amir H. assigned</div></div><div class="sig">10:14</div></div>'+
+    '<div class="tl-item"><div><div class="what">Inquiry log entry flagged: <em>provenance gap</em> in exhibit E-0918.</div><div class="who-line">Auto-detected \xb7 2 witnesses to contact</div></div><div class="sig">08:30</div></div>'+
+    '</div></div></div></div>'+
+
+    '<div class="panel"><div class="panel-h"><h3>Recent activity \xb7 signed &amp; sealed</h3><a class="linkarrow" href="dash-audit.html">Full audit log \u2192</a></div>'+
+    '<div class="panel-body" style="padding:18px 22px"><div class="tl-list">'+
+    '<div class="tl-item"><div><div class="what"><em>Martyna</em> applied geo-fuzz (50km) to "Andriivka" in <strong>W-0144</strong></div><div class="who-line">sig d9a7\u2026 \xb7 ICC-UKR-2024 \xb7 ts 14:21:11</div></div><div class="sig">2m</div></div>'+
+    '<div class="tl-item"><div><div class="what"><em>Amir H.</em> corrected timestamp 17:40 \u2192 17:52 on W-0144</div><div class="who-line">sig 2c14\u2026 \xb7 signed Ed25519</div></div><div class="sig">3m</div></div>'+
+    '<div class="tl-item"><div><div class="what"><em>witness-node-02</em> countersigned block <strong>f208\u2026</strong> \xb7 3 ops sealed</div><div class="who-line">merge commit \xb7 CRDT converged</div></div><div class="sig">4m</div></div>'+
+    '<div class="tl-item"><div><div class="what"><em>Juliane</em> pseudonymised "Col. M." \u2192 <strong>S-038</strong></div><div class="who-line">linked to 3 exhibits \xb7 sig a1be\u2026</div></div><div class="sig">6m</div></div>'+
+    '</div></div></div>';
+}
+
+function renderCaseScoped(el, c){
+  var statusPill = c.status==='hold'?'<span class="pl hold">Legal hold</span>':'<span class="pl sealed">Active</span>';
+  el.innerHTML = '<section class="d-pagehead"><div>'+
+    '<span class="eyebrow-m">Case workspace \xb7 '+c.role+'</span>'+
+    '<h1><em>'+c.name+'</em></h1>'+
+    '<p class="sub">'+c.sub+' \xb7 '+statusPill+'</p>'+
+    '</div><div class="actions">'+
+    '<a class="btn ghost" href="dash-evidence.html">Evidence <span style="font-family:JetBrains Mono,monospace;font-size:11px;opacity:.6;margin-left:4px">'+c.exhibits+'</span></a>'+
+    '<a class="btn" href="dash-evidence.html">Upload evidence <span class="arr">\u2192</span></a>'+
+    '</div></section>'+
+
+    '<div class="d-kpis" style="margin-bottom:28px">'+
+    '<div class="d-kpi"><div class="k">Exhibits</div><div class="v">'+c.exhibits.replace(',','')+'</div><div class="sub">sealed on chain</div></div>'+
+    '<div class="d-kpi"><div class="k">Witnesses</div><div class="v">'+c.witnesses+'</div><div class="sub">pseudonymised</div></div>'+
+    '<div class="d-kpi"><div class="k">Corroborations</div><div class="v">'+c.corrob+'</div><div class="delta n">'+(c.corrob>0?'\u25cf pending review':'all clear')+'</div></div>'+
+    '<div class="d-kpi"><div class="k">Disclosures</div><div class="v">'+c.disclosures+'</div><div class="sub">'+(c.disclosures>0?'packages pending':'none pending')+'</div></div>'+
+    '</div>'+
+
+    renderCaseActivity(c)+
+    renderCaseTeam(c);
+}
+
+function renderCaseActivity(c){
+  var activities = {
+    'icc-ukr-2024': [
+      {w:'<em>Martyna</em> applied geo-fuzz (50km) to "Andriivka" in <strong>W-0144</strong>',wl:'sig d9a7\u2026 \xb7 ts 14:21:11',t:'2m',a:false},
+      {w:'<em>Amir H.</em> corrected timestamp 17:40 \u2192 17:52 on W-0144',wl:'sig 2c14\u2026 \xb7 signed Ed25519',t:'3m',a:false},
+      {w:'<em>witness-node-02</em> countersigned block <strong>f208\u2026</strong> \xb7 3 ops sealed',wl:'merge commit \xb7 CRDT converged',t:'4m',a:false},
+      {w:'<strong>Countersign needed:</strong> federated merge <em>VKE1\xb791ab\u2026</em> from CIJA',wl:'12 ops \xb7 due today',t:'14:21',a:true},
+      {w:'<em>H. Morel</em> sealed evidence upload <strong>E-0918 \xb7 Butcha_drone_04.mp4</strong>',wl:'218 MB \xb7 SHA-256 verified',t:'12m',a:false}
+    ],
+    'ksc-23-042': [
+      {w:'<em>D. Markovic</em> uploaded <strong>3 witness statements</strong>',wl:'sig f3b1\u2026 \xb7 sealed',t:'18m',a:false},
+      {w:'<em>Juliane</em> flagged intimidation pattern in <strong>W-0088</strong>',wl:'cross-ref with W-0072',t:'1h',a:false},
+      {w:'New corroboration <em>C-0501</em> scored 0.84',wl:'awaiting second analyst',t:'2h',a:true}
+    ],
+    'rscsl-12': [
+      {w:'<em>K. Sesay</em> completed batch re-verification of <strong>842 exhibits</strong>',wl:'all hashes match \xb7 chain intact',t:'Yesterday',a:false},
+      {w:'Residual mechanism report <em>RM-2026-04</em> generated',wl:'auto-compiled from 3 sources',t:'2d',a:false}
+    ],
+    'irmct-99': [
+      {w:'<strong>Legal hold</strong> placed by Registrar on all exhibits',wl:'pending tribunal review',t:'3d',a:true},
+      {w:'Archival batch <em>B-1742</em> queued for re-verification',wl:'28,918 exhibits \xb7 estimated 14h',t:'3d',a:false}
+    ]
+  };
+  var items = activities[c.id] || [];
+  return '<div class="g2-wide" style="margin-bottom:22px"><div class="panel"><div class="panel-h"><h3>Recent activity</h3></div>'+
+    '<div class="panel-body" style="padding:14px 18px"><div class="tl-list">'+
+    items.map(function(it){
+      return '<div class="tl-item'+(it.a?' accent':'')+'"><div><div class="what">'+it.w+'</div><div class="who-line">'+it.wl+'</div></div><div class="sig">'+it.t+'</div></div>';
+    }).join('')+'</div></div></div>'+
+
+    '<div class="panel"><div class="panel-h"><h3>Needs you</h3></div>'+
+    '<div class="panel-body" style="padding:14px 18px"><div class="tl-list">'+
+    items.filter(function(it){return it.a}).map(function(it){
+      return '<div class="tl-item accent"><div><div class="what">'+it.w+'</div><div class="who-line">'+it.wl+'</div></div><div class="sig">'+it.t+'</div></div>';
+    }).join('')+
+    (items.filter(function(it){return it.a}).length===0?'<p style="color:var(--muted);font-size:13px;padding:8px 0">Nothing pending \u2014 you\u2019re all caught up.</p>':'')+
+    '</div></div></div></div>';
+}
+
+function renderCaseTeam(c){
+  var teams = {
+    'icc-ukr-2024':[{n:'H\u00e9l\u00e8ne Morel',r:'Lead Investigator',av:'H',col:'#c87e5e'},{n:'Martyna Kovacs',r:'Redaction Analyst',av:'M',col:'#4a6b3a'},{n:'Amir Haddad',r:'Evidence Technician',av:'A',col:'#3a4a6b'},{n:'Juliane Wirth',r:'Witness Liaison',av:'J',col:'#6b3a4a'}],
+    'ksc-23-042':[{n:'H\u00e9l\u00e8ne Morel',r:'Analyst',av:'H',col:'#c87e5e'},{n:'Dragan Markovic',r:'Lead Investigator',av:'D',col:'#4a6b3a'}],
+    'rscsl-12':[{n:'H\u00e9l\u00e8ne Morel',r:'Observer',av:'H',col:'#c87e5e'},{n:'Kadiatu Sesay',r:'Archivist',av:'K',col:'#8a6a3a'}],
+    'irmct-99':[{n:'H\u00e9l\u00e8ne Morel',r:'Clerk',av:'H',col:'#c87e5e'}]
+  };
+  var members = teams[c.id]||[];
+  return '<div class="panel" style="margin-bottom:22px"><div class="panel-h"><h3>Case team</h3><span class="meta">'+members.length+' member'+(members.length!==1?'s':'')+'</span></div>'+
+    '<div class="panel-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px">'+
+    members.map(function(m){
+      return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0"><span style="width:36px;height:36px;border-radius:50%;background:'+m.col+';color:#fff;display:grid;place-items:center;font-family:Fraunces,serif;font-style:italic;font-size:15px;flex-shrink:0">'+m.av+'</span><div><div style="font-size:14px;font-weight:500">'+m.n+'</div><div style="font-size:12px;color:var(--muted)">'+m.r+'</div></div></div>';
+    }).join('')+'</div></div>';
+}
+
+// ---- Init ----
+renderContent();
+</script>
+</body>
+</html>

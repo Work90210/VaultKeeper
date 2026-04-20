@@ -30,35 +30,53 @@ export function EvidencePageClient({
 
   const handleUploadComplete = useCallback(() => {
     router.refresh();
+    setShowUploader(false);
   }, [router]);
 
   return (
-    <div className="space-y-[var(--space-md)]">
-      {/* Upload controls — day-to-day single-file upload only.
-          Bulk-import from another system lives under Settings →
-          Data import (it's a one-off case-setup action, not daily
-          workflow). */}
-      {canUpload && (
-        <>
-          <button
-            type="button"
-            onClick={() => setShowUploader((prev) => !prev)}
-            className={showUploader ? 'btn-secondary' : 'btn-primary'}
-          >
-            {showUploader ? 'Hide uploader' : 'Upload evidence'}
-          </button>
+    <>
+      {/* Page header */}
+      <section className="d-pagehead">
+        <div>
+          <span className="eyebrow-m">Berkeley Protocol phases 2&ndash;4</span>
+          <h1>Evidence <em>locker</em></h1>
+          <p className="sub">
+            Every upload is chunked, hashed client-side (SHA-256 + BLAKE3) and
+            RFC 3161 timestamped at the gateway. Phase indicators show each
+            exhibit&apos;s progress through the Berkeley Protocol&apos;s
+            six-phase investigative cycle.
+          </p>
+        </div>
+        {canUpload && (
+          <div className="actions">
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => setShowUploader((prev) => !prev)}
+            >
+              {showUploader ? 'Hide uploader' : 'Import archive'}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setShowUploader(true)}
+            >
+              Upload exhibit <span className="arr">&rarr;</span>
+            </button>
+          </div>
+        )}
+      </section>
 
-          {showUploader && (
-            <EvidenceUploader
-              caseId={caseId}
-              accessToken={accessToken}
-              onUploadComplete={handleUploadComplete}
-            />
-          )}
-        </>
+      {/* Uploader panel */}
+      {showUploader && canUpload && (
+        <EvidenceUploader
+          caseId={caseId}
+          accessToken={accessToken}
+          onUploadComplete={handleUploadComplete}
+        />
       )}
 
-      {/* Evidence grid */}
+      {/* Evidence card grid with filter bar */}
       <EvidenceGrid
         caseId={caseId}
         evidence={evidence}
@@ -67,6 +85,54 @@ export function EvidencePageClient({
         currentQuery={currentQuery}
         currentClassification={currentClassification}
       />
-    </div>
+
+      {/* Bottom panels */}
+      <div className="g2-wide">
+        <div className="panel">
+          <div className="panel-h">
+            <h3>Upload queue</h3>
+            <span className="meta">&mdash;</span>
+          </div>
+          <div
+            className="panel-body"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              padding: '24px 0',
+              textAlign: 'center',
+              color: 'var(--muted)',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: '12px',
+            }}
+          >
+            No uploads in progress.
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-h">
+            <h3>Integrity summary</h3>
+            <span className="meta">real-time</span>
+          </div>
+          <div className="panel-body">
+            <dl className="kvs">
+              <dt>Hash algorithm</dt>
+              <dd>SHA-256 primary &middot; BLAKE3 secondary</dd>
+              <dt>Timestamp authority</dt>
+              <dd><code>ts-eu-west</code> &middot; RFC 3161</dd>
+              <dt>Total items</dt>
+              <dd>{evidence.length}</dd>
+              <dt>Validator</dt>
+              <dd>
+                <a className="linkarrow" href="/validator">
+                  Offline verify (0.3 MB binary) &rarr;
+                </a>
+              </dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

@@ -21,8 +21,18 @@ type Repository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (Witness, error)
 	FindByCase(ctx context.Context, caseID uuid.UUID, page Pagination) ([]Witness, int, error)
 	Update(ctx context.Context, id uuid.UUID, w Witness) (Witness, error)
+	// FindAll returns all witnesses for administrative key rotation. Must only be called from admin-only paths.
 	FindAll(ctx context.Context) ([]Witness, error)
 	UpdateEncryptedFields(ctx context.Context, id uuid.UUID, fullName, contactInfo, location []byte) error
+}
+
+// scopedWitnessRepo is an optional extension satisfied by PGRepository.
+// When the underlying repo implements this interface the service uses
+// case-scoped SQL to prevent cross-case IDOR. Test fakes fall back to the
+// unscoped Repository methods.
+type scopedWitnessRepo interface {
+	FindCaseID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	FindByIDScoped(ctx context.Context, caseID, id uuid.UUID) (Witness, error)
 }
 
 type dbPool interface {
@@ -118,6 +128,34 @@ func (r *PGRepository) FindByID(ctx context.Context, id uuid.UUID) (Witness, err
 	return w, nil
 }
 
+// FindCaseID returns the case_id for a witness without scope filtering.
+// Used to bootstrap the caseID before a scoped FindByID call.
+func (r *PGRepository) FindCaseID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	var caseID uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT case_id FROM witnesses WHERE id = $1`, id).Scan(&caseID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrNotFound
+		}
+		return uuid.Nil, fmt.Errorf("find case_id for witness %s: %w", id, err)
+	}
+	return caseID, nil
+}
+
+// FindByIDScoped returns a witness by ID scoped to the given case.
+// Satisfies the scopedWitnessRepo interface for IDOR prevention.
+func (r *PGRepository) FindByIDScoped(ctx context.Context, caseID, id uuid.UUID) (Witness, error) {
+	query := fmt.Sprintf(`SELECT %s FROM witnesses WHERE id = $1 AND case_id = $2`, witnessColumns)
+	w, err := scanWitness(r.pool.QueryRow(ctx, query, id, caseID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Witness{}, ErrNotFound
+		}
+		return Witness{}, fmt.Errorf("find witness by id scoped: %w", err)
+	}
+	return w, nil
+}
+
 func (r *PGRepository) FindByCase(ctx context.Context, caseID uuid.UUID, page Pagination) ([]Witness, int, error) {
 	page = ClampPagination(page)
 
@@ -173,13 +211,13 @@ func (r *PGRepository) Update(ctx context.Context, id uuid.UUID, w Witness) (Wit
 		full_name_encrypted = $1, contact_info_encrypted = $2, location_encrypted = $3,
 		protection_status = $4, statement_summary = $5, related_evidence = $6,
 		judge_identity_visible = $7, updated_at = now()
-		WHERE id = $8
+		WHERE id = $8 AND case_id = $9
 		RETURNING %s`, witnessColumns)
 
 	result, err := scanWitness(r.pool.QueryRow(ctx, query,
 		w.FullNameEncrypted, w.ContactInfoEncrypted, w.LocationEncrypted,
 		w.ProtectionStatus, w.StatementSummary, w.RelatedEvidence,
-		w.JudgeIdentityVisible, id,
+		w.JudgeIdentityVisible, id, w.CaseID,
 	))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -200,6 +238,21 @@ func (r *PGRepository) FindAll(ctx context.Context) ([]Witness, error) {
 	return scanWitnessRows(rows)
 }
 
+// FindAllPaginated returns a batch of witnesses ordered by ID for use in
+// administrative key rotation. Callers should iterate with increasing offsets
+// until an empty slice is returned.
+func (r *PGRepository) FindAllPaginated(ctx context.Context, limit, offset int) ([]Witness, error) {
+	query := fmt.Sprintf(`SELECT %s FROM witnesses ORDER BY id ASC LIMIT $1 OFFSET $2`, witnessColumns)
+	rows, err := r.pool.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("find all witnesses paginated: %w", err)
+	}
+	defer rows.Close()
+	return scanWitnessRows(rows)
+}
+
+// UpdateEncryptedFields updates the encrypted identity fields for a witness.
+// Called exclusively from the admin-only key-rotation job (system admin required).
 func (r *PGRepository) UpdateEncryptedFields(ctx context.Context, id uuid.UUID, fullName, contactInfo, location []byte) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE witnesses SET full_name_encrypted = $1, contact_info_encrypted = $2,

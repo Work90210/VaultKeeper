@@ -23,12 +23,19 @@ type OrgMembershipChecker interface {
 	IsActiveMember(ctx context.Context, orgID uuid.UUID, userID string) (bool, error)
 }
 
+// EvidenceCaseResolver resolves the case that owns an evidence item.
+// Used to prevent IDOR when creating records scoped to evidence.
+type EvidenceCaseResolver interface {
+	GetCaseIDByEvidence(ctx context.Context, evidenceID uuid.UUID) (uuid.UUID, error)
+}
+
 // Handler provides HTTP endpoints for the investigation subsystem.
 type Handler struct {
-	service       *Service
-	audit         auth.AuditLogger
-	orgChecker    OrgMembershipChecker                                          // optional — org boundary enforcement
-	caseLookupOrg func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error) // returns org ID for a case
+	service              *Service
+	audit                auth.AuditLogger
+	orgChecker           OrgMembershipChecker                                          // optional — org boundary enforcement
+	caseLookupOrg        func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error) // returns org ID for a case
+	evidenceCaseResolver EvidenceCaseResolver                                          // optional — resolves case from evidence ID
 }
 
 // NewHandler creates a new investigation HTTP handler.
@@ -43,6 +50,13 @@ func (h *Handler) SetOrgMembershipChecker(checker OrgMembershipChecker, caseLook
 	h.caseLookupOrg = caseLookup
 }
 
+// SetEvidenceCaseResolver wires the evidence-to-case resolver. When set,
+// CreateAssessment and CreateVerificationRecord look up the case server-side
+// rather than accepting it from the request body, preventing IDOR attacks.
+func (h *Handler) SetEvidenceCaseResolver(resolver EvidenceCaseResolver) {
+	h.evidenceCaseResolver = resolver
+}
+
 // requireOrgMembership verifies that the caller belongs to the organization that
 // owns the given case. System admins bypass this check. Returns true if access is
 // allowed, false if a 403 was written to the response.
@@ -51,7 +65,8 @@ func (h *Handler) requireOrgMembership(w http.ResponseWriter, r *http.Request, a
 		return true
 	}
 	if h.orgChecker == nil || h.caseLookupOrg == nil {
-		return true
+		httputil.RespondError(w, http.StatusForbidden, "access denied")
+		return false
 	}
 	orgID, err := h.caseLookupOrg(r.Context(), caseID)
 	if err != nil {
@@ -218,6 +233,9 @@ func (h *Handler) GetInquiryLog(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
+	if !h.requireOrgMembership(w, r, ac, log.CaseID) {
+		return
+	}
 	httputil.RespondJSON(w, http.StatusOK, log)
 }
 
@@ -229,6 +247,14 @@ func (h *Handler) UpdateInquiryLog(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+	existing, err := h.service.GetInquiryLog(r.Context(), id, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, existing.CaseID) {
 		return
 	}
 	var input InquiryLogInput
@@ -262,21 +288,27 @@ func (h *Handler) CreateAssessment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		CaseID string `json:"case_id"`
-		AssessmentInput
-	}
-	if err := decodeBody(r, &body); err != nil {
-		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+	// Resolve case_id server-side from the evidence item to prevent IDOR.
+	if h.evidenceCaseResolver == nil {
+		httputil.RespondError(w, http.StatusInternalServerError, "service not configured")
 		return
 	}
-	caseID, err := uuid.Parse(body.CaseID)
+	caseID, err := h.evidenceCaseResolver.GetCaseIDByEvidence(r.Context(), evidenceID)
 	if err != nil {
-		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+	if !h.requireOrgMembership(w, r, &ac, caseID) {
 		return
 	}
 
-	created, err := h.service.CreateAssessment(r.Context(), evidenceID, caseID, body.AssessmentInput, ac.UserID)
+	var input AssessmentInput
+	if err := decodeBody(r, &input); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	created, err := h.service.CreateAssessment(r.Context(), evidenceID, caseID, input, ac.UserID)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -285,7 +317,8 @@ func (h *Handler) CreateAssessment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListAssessments(w http.ResponseWriter, r *http.Request) {
-	if requireAuth(w, r) == nil {
+	ac := requireAuth(w, r)
+	if ac == nil {
 		return
 	}
 	evidenceID, err := uuid.Parse(chi.URLParam(r, "evidenceID"))
@@ -293,7 +326,19 @@ func (h *Handler) ListAssessments(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
 		return
 	}
-	assessments, err := h.service.GetAssessmentsByEvidence(r.Context(), evidenceID)
+	if h.evidenceCaseResolver == nil {
+		httputil.RespondError(w, http.StatusInternalServerError, "evidence case resolver not configured")
+		return
+	}
+	caseID, err := h.evidenceCaseResolver.GetCaseIDByEvidence(r.Context(), evidenceID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, caseID) {
+		return
+	}
+	assessments, err := h.service.GetAssessmentsByEvidence(r.Context(), caseID, evidenceID, ac.UserID)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -316,6 +361,9 @@ func (h *Handler) GetAssessment(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
+	if !h.requireOrgMembership(w, r, ac, assessment.CaseID) {
+		return
+	}
 	httputil.RespondJSON(w, http.StatusOK, assessment)
 }
 
@@ -333,21 +381,35 @@ func (h *Handler) CreateVerificationRecord(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var body struct {
-		CaseID string `json:"case_id"`
-		VerificationRecordInput
-	}
-	if err := decodeBody(r, &body); err != nil {
-		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+	// Resolve case_id server-side from the evidence item to prevent IDOR.
+	if h.evidenceCaseResolver == nil {
+		httputil.RespondError(w, http.StatusInternalServerError, "service not configured")
 		return
 	}
-	caseID, err := uuid.Parse(body.CaseID)
+	caseID, err := h.evidenceCaseResolver.GetCaseIDByEvidence(r.Context(), evidenceID)
 	if err != nil {
-		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+	if !h.requireOrgMembership(w, r, &ac, caseID) {
 		return
 	}
 
-	created, err := h.service.CreateVerificationRecord(r.Context(), evidenceID, caseID, body.VerificationRecordInput, ac.UserID, ac.SystemRole.String())
+	var input VerificationRecordInput
+	if err := decodeBody(r, &input); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Resolve the caller's case role (e.g. "investigator", "prosecutor") so that the
+	// service can enforce case-level permissions rather than system-level roles.
+	caseRole, err := h.service.GetCaseRole(r.Context(), caseID, ac.UserID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusForbidden, "insufficient role")
+		return
+	}
+
+	created, err := h.service.CreateVerificationRecord(r.Context(), evidenceID, caseID, input, ac.UserID, caseRole)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -356,12 +418,25 @@ func (h *Handler) CreateVerificationRecord(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) ListVerificationRecords(w http.ResponseWriter, r *http.Request) {
-	if requireAuth(w, r) == nil {
+	ac := requireAuth(w, r)
+	if ac == nil {
 		return
 	}
 	evidenceID, err := uuid.Parse(chi.URLParam(r, "evidenceID"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+	if h.evidenceCaseResolver == nil {
+		httputil.RespondError(w, http.StatusInternalServerError, "service not configured")
+		return
+	}
+	caseID, err := h.evidenceCaseResolver.GetCaseIDByEvidence(r.Context(), evidenceID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, caseID) {
 		return
 	}
 	records, err := h.service.ListVerificationRecords(r.Context(), evidenceID)
@@ -385,6 +460,9 @@ func (h *Handler) GetVerificationRecord(w http.ResponseWriter, r *http.Request) 
 	record, err := h.service.GetVerificationRecord(r.Context(), id, ac.UserID)
 	if err != nil {
 		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, record.CaseID) {
 		return
 	}
 	httputil.RespondJSON(w, http.StatusOK, record)
@@ -455,6 +533,9 @@ func (h *Handler) GetCorroborationClaim(w http.ResponseWriter, r *http.Request) 
 		respondError(w, err)
 		return
 	}
+	if !h.requireOrgMembership(w, r, ac, claim.CaseID) {
+		return
+	}
 	httputil.RespondJSON(w, http.StatusOK, claim)
 }
 
@@ -467,12 +548,25 @@ func (h *Handler) RemoveEvidenceFromClaim(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) GetClaimsByEvidence(w http.ResponseWriter, r *http.Request) {
-	if requireAuth(w, r) == nil {
+	ac := requireAuth(w, r)
+	if ac == nil {
 		return
 	}
 	evidenceID, err := uuid.Parse(chi.URLParam(r, "evidenceID"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
+		return
+	}
+	if h.evidenceCaseResolver == nil {
+		httputil.RespondError(w, http.StatusInternalServerError, "service not configured")
+		return
+	}
+	caseID, err := h.evidenceCaseResolver.GetCaseIDByEvidence(r.Context(), evidenceID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, caseID) {
 		return
 	}
 	claims, err := h.service.GetClaimsByEvidence(r.Context(), evidenceID)
@@ -549,6 +643,9 @@ func (h *Handler) GetAnalysisNote(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
+	if !h.requireOrgMembership(w, r, ac, note.CaseID) {
+		return
+	}
 	httputil.RespondJSON(w, http.StatusOK, note)
 }
 
@@ -560,6 +657,14 @@ func (h *Handler) UpdateAnalysisNote(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+	existing, err := h.service.GetAnalysisNote(r.Context(), id, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, existing.CaseID) {
 		return
 	}
 	var input AnalysisNoteInput
@@ -670,18 +775,28 @@ func (h *Handler) GetTemplateInstance(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
+	if !h.requireOrgMembership(w, r, ac, inst.CaseID) {
+		return
+	}
 	httputil.RespondJSON(w, http.StatusOK, inst)
 }
 
 func (h *Handler) UpdateTemplateInstance(w http.ResponseWriter, r *http.Request) {
-	ac, ok := auth.GetAuthContext(r.Context())
-	if !ok {
-		httputil.RespondError(w, http.StatusUnauthorized, "authentication required")
+	ac := requireAuth(w, r)
+	if ac == nil {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+	existing, err := h.service.GetTemplateInstance(r.Context(), id, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, existing.CaseID) {
 		return
 	}
 	var body struct {
@@ -769,13 +884,15 @@ func (h *Handler) GetReport(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
+	if !h.requireOrgMembership(w, r, ac, report.CaseID) {
+		return
+	}
 	httputil.RespondJSON(w, http.StatusOK, report)
 }
 
 func (h *Handler) PublishReport(w http.ResponseWriter, r *http.Request) {
-	ac, ok := auth.GetAuthContext(r.Context())
-	if !ok {
-		httputil.RespondError(w, http.StatusUnauthorized, "authentication required")
+	ac := requireAuth(w, r)
+	if ac == nil {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -783,7 +900,21 @@ func (h *Handler) PublishReport(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
-	published, err := h.service.PublishReport(r.Context(), id, ac.UserID, ac.SystemRole.String())
+	existing, err := h.service.GetReport(r.Context(), id, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, existing.CaseID) {
+		return
+	}
+	// Resolve the caller's case role so the service enforces case-level permissions.
+	publishCaseRole, err := h.service.GetCaseRole(r.Context(), existing.CaseID, ac.UserID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusForbidden, "insufficient role")
+		return
+	}
+	published, err := h.service.PublishReport(r.Context(), id, ac.UserID, publishCaseRole)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -798,19 +929,22 @@ func (h *Handler) ListSafetyProfiles(w http.ResponseWriter, r *http.Request) {
 	if ac == nil {
 		return
 	}
-	// CRIT-02: enforce role — only prosecutor/judge can list all safety profiles
-	if !CanReadSafetyProfile(ac.SystemRole.String()) {
-		slog.Warn("safety profile list access denied",
-			"actor", ac.UserID, "role", ac.SystemRole.String())
-		httputil.RespondError(w, http.StatusForbidden, "insufficient role")
-		return
-	}
 	caseID, err := uuid.Parse(chi.URLParam(r, "caseID"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
 		return
 	}
 	if !h.requireOrgMembership(w, r, ac, caseID) {
+		return
+	}
+	// CRIT-02: enforce case role — only prosecutor/judge/investigator can list safety profiles.
+	// Must load the case role (not system role) because CanReadSafetyProfile checks
+	// against case-level roles ("prosecutor", "judge", "investigator").
+	caseRole, err := h.service.GetCaseRole(r.Context(), caseID, ac.UserID)
+	if err != nil || !CanReadSafetyProfile(caseRole) {
+		slog.Warn("safety profile list access denied",
+			"actor", ac.UserID, "case_id", caseID, "case_role", caseRole)
+		httputil.RespondError(w, http.StatusForbidden, "insufficient role")
 		return
 	}
 	profiles, err := h.service.ListSafetyProfiles(r.Context(), caseID, ac.UserID)
@@ -840,7 +974,7 @@ func (h *Handler) GetMySafetyProfile(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondError(w, http.StatusInternalServerError, "invalid user ID")
 		return
 	}
-	profile, err := h.service.GetSafetyProfile(r.Context(), caseID, userID)
+	profile, err := h.service.GetSafetyProfile(r.Context(), caseID, userID, ac.UserID)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -872,7 +1006,14 @@ func (h *Handler) UpsertSafetyProfile(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	profile, warnings, err := h.service.UpsertSafetyProfile(r.Context(), caseID, userID, input, ac.UserID, ac.SystemRole.String())
+	// CRIT-02: load the caller's CASE role so CanWriteSafetyProfile can compare
+	// against "prosecutor"/"judge" rather than system roles.
+	actorCaseRole, err := h.service.GetCaseRole(r.Context(), caseID, ac.UserID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusForbidden, "insufficient role")
+		return
+	}
+	profile, warnings, err := h.service.UpsertSafetyProfile(r.Context(), caseID, userID, input, ac.UserID, actorCaseRole)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -927,14 +1068,21 @@ func (h *Handler) ListVerificationsByCase(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) TransitionReportStatus(w http.ResponseWriter, r *http.Request) {
-	ac, ok := auth.GetAuthContext(r.Context())
-	if !ok {
-		httputil.RespondError(w, http.StatusUnauthorized, "authentication required")
+	ac := requireAuth(w, r)
+	if ac == nil {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+	existing, err := h.service.GetReport(r.Context(), id, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, existing.CaseID) {
 		return
 	}
 	var body struct {
@@ -944,7 +1092,13 @@ func (h *Handler) TransitionReportStatus(w http.ResponseWriter, r *http.Request)
 		httputil.RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	updated, err := h.service.TransitionReportStatus(r.Context(), id, body.Status, ac.UserID, ac.SystemRole.String())
+	// Resolve the caller's case role so the service enforces case-level permissions.
+	transitionCaseRole, err := h.service.GetCaseRole(r.Context(), existing.CaseID, ac.UserID)
+	if err != nil {
+		httputil.RespondError(w, http.StatusForbidden, "insufficient role")
+		return
+	}
+	updated, err := h.service.TransitionReportStatus(r.Context(), id, body.Status, ac.UserID, transitionCaseRole)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -953,14 +1107,21 @@ func (h *Handler) TransitionReportStatus(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) UpdateReport(w http.ResponseWriter, r *http.Request) {
-	ac, ok := auth.GetAuthContext(r.Context())
-	if !ok {
-		httputil.RespondError(w, http.StatusUnauthorized, "authentication required")
+	ac := requireAuth(w, r)
+	if ac == nil {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+	existing, err := h.service.GetReport(r.Context(), id, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, existing.CaseID) {
 		return
 	}
 	var input ReportInput

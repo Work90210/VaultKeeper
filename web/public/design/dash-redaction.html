@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Redaction — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('redact', `<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><a href="dash-evidence.html">Evidence</a><span class="sep">/</span><span class="here">E-0912 · Redaction editor</span>`);
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">E-0912 · W-0144 sworn statement v3 · draft v4</span>
+      <h1>Collaborative <em>redaction</em></h1>
+      <p class="sub">Four analysts in one document. Every mark, every pseudonym swap, every gloss is a signed CRDT op written to the same chain as ingest. Defence replay works keystroke-by-keystroke.</p>
+    </div>
+    <div class="actions">
+      <span class="avs" style="margin-right:8px"><span class="av a">H</span><span class="av b">M</span><span class="av c">A</span><span class="av d">J</span></span>
+      <a class="btn ghost" href="#">Version history</a>
+      <a class="btn" href="#">Seal draft v4 <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="panel" style="margin-bottom:22px">
+    <div class="fbar">
+      <span class="chip active">Mark redaction</span>
+      <span class="chip">Pseudonymise</span>
+      <span class="chip">Translate gloss</span>
+      <span class="chip">Add note</span>
+      <span class="chip">Geo-fuzz</span>
+      <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted)">Page <strong style="color:var(--ink);font-weight:500">2</strong> of 6 · 12 marks in draft</span>
+      <span class="chip">◂ Prev</span><span class="chip">Next ▸</span>
+    </div>
+    <div class="panel-body" style="padding:30px;background:var(--bg-2)">
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start">
+        <div class="doc-paper">
+          <span class="pn">P. 02 / 06</span>
+          <p>The statement was recorded at the regional intake office on <mark>19 April 2026 at approximately 14:21 local time</mark>, in the presence of two intermediaries.</p>
+          <p>The witness, hereafter <mark class="pseudo">W-0144</mark>, recalls arriving at the checkpoint near <mark>Andriivka</mark> at <span style="text-decoration:line-through;color:var(--muted)">17:40</span> <strong>17:52</strong> local time, after the second convoy had passed.</p>
+          <p>She identified the officer in command as <mark class="pseudo">subject S-038</mark>, <span class="redact">&nbsp;redacted — operational source reference&nbsp;</span>, who she recognised from prior encounters at the administrative building.</p>
+          <p>The witness further reported that the officer referenced <mark>"Unit 28B"</mark> and instructed subordinates to <span class="redact">&nbsp;redacted — ongoing enquiry&nbsp;</span>.</p>
+          <p>The statement was given voluntarily, in the presence of two intermediaries, one of whom is <span class="redact">&nbsp;redacted — witness-identifying&nbsp;</span> unrelated to other proceedings.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="panel" style="margin:0">
+            <div class="panel-h" style="padding:12px 14px"><h3 style="font-size:15px">Marks · this page</h3><span class="meta">12</span></div>
+            <div class="panel-body" style="padding:4px 0">
+              ${[
+                {t:"Andriivka → geo-fuzz 50 km",who:"Martyna",c:"b",sig:"d9a7",k:"geo"},
+                {t:"17:40 → 17:52",who:"Amir H.",c:"c",sig:"2c14",k:"edit"},
+                {t:"Col. M. → S-038",who:"Juliane",c:"d",sig:"a1be",k:"pseudo"},
+                {t:"Strike — operational source ref",who:"W. Nyoka",c:"e",sig:"e3f0",k:"redact"},
+                {t:"Strike — ongoing enquiry",who:"H. Morel",c:"a",sig:"7f22",k:"redact"},
+                {t:"Strike — witness-identifying",who:"W. Nyoka",c:"e",sig:"e3f1",k:"redact"}
+              ].map(m=>`
+                <div style="display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12.5px">
+                  <span class="avs" style="margin-top:1px"><span class="av ${m.c}" style="width:22px;height:22px;font-size:10px;border-width:1.5px">${m.who[0]}</span></span>
+                  <div><div style="color:var(--ink-2)">${m.t}</div><div style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10.5px;margin-top:2px">${m.who} · sig ${m.sig}…</div></div>
+                  <span class="tag">${m.k}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="panel" style="margin:0">
+            <div class="panel-h" style="padding:12px 14px"><h3 style="font-size:15px">Presence</h3><span class="meta">4 live</span></div>
+            <div class="panel-body" style="padding:14px;display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+              <div style="display:flex;align-items:center;gap:10px"><span class="avs"><span class="av a">H</span></span><span>H. Morel <span style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px">· page 2</span></span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="avs"><span class="av b">M</span></span><span>Martyna <span style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px">· page 3 · typing</span></span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="avs"><span class="av c">A</span></span><span>Amir H. <span style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px">· page 4</span></span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="avs"><span class="av d">J</span></span><span>Juliane <span style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px">· idle 2m</span></span></div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:4px;letter-spacing:.04em;text-transform:uppercase">head · f208…bc91 · 142 ms p95</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+`;
+</script></body></html>

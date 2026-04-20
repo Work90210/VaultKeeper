@@ -2,6 +2,7 @@ package evidence
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -203,10 +204,10 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/versions", h.GetVersionHistory)
 		r.Get("/custody", h.GetCustodyLog)
 		r.Patch("/", h.UpdateMetadata)
-		r.Delete("/", h.Destroy)
+		r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Delete("/", h.Destroy)
 		r.With(rateLimitMiddleware(uploadLimiter)).Post("/version", h.UploadNewVersion)
-		r.Post("/redact", h.ApplyRedactions)
-		r.Post("/redact/preview", h.PreviewRedactions)
+		r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/redact", h.ApplyRedactions)
+		r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/redact/preview", h.PreviewRedactions)
 
 		// Berkeley Protocol capture metadata
 		r.With(rateLimitMiddleware(captureMetadataLimiter)).Put("/capture-metadata", h.UpsertCaptureMetadata)
@@ -224,6 +225,13 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	caseID, err := uuid.Parse(chi.URLParam(r, "caseID"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
+		return
+	}
+
+	// Verify the caller has a role on this case before accepting the upload.
+	// Returns 404 (not 403) to avoid leaking case existence to unauthorized callers.
+	if _, ok := h.loadCallerCaseRole(r.Context(), caseID); !ok {
+		httputil.RespondError(w, http.StatusNotFound, "not found")
 		return
 	}
 
@@ -285,10 +293,11 @@ func (h *Handler) ListByCase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Sprint 9: resolve the caller's case role so the repository layer can
-	// apply the classification access matrix. Missing role → 403.
+	// apply the classification access matrix. Missing role → 404 (avoids
+	// leaking the existence of cases the caller cannot access).
 	role, ok := h.loadCallerCaseRole(r.Context(), caseID)
 	if !ok {
-		httputil.RespondError(w, http.StatusForbidden, "no role on this case")
+		httputil.RespondError(w, http.StatusNotFound, "not found")
 		return
 	}
 
@@ -372,7 +381,7 @@ func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, sanitizeFilename(filename)))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 
@@ -409,7 +418,7 @@ func (h *Handler) GetThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "private, max-age=86400")
 	w.WriteHeader(http.StatusOK)
 
 	io.Copy(w, reader) //nolint:errcheck
@@ -445,17 +454,27 @@ func (h *Handler) GetVersionHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetCustodyLog(w http.ResponseWriter, r *http.Request) {
+	_, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid evidence ID")
 		return
 	}
-	// Note: custody log is intentionally NOT gated behind enforceItemAccess.
-	// The listing paths already hide classified UUIDs from unauthorised
-	// roles, so this endpoint is reachable only by callers who legitimately
-	// know the ID. Adding an access gate here would also block case
-	// auditors (observer/victim_rep) from reviewing the audit trail for
-	// items they can see in their listing.
+
+	item, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), item) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
 
 	limit := 50
 	if l := r.URL.Query().Get("limit"); l != "" {
@@ -499,7 +518,13 @@ func (h *Handler) GetCustodyLog(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	httputil.RespondPaginated(w, http.StatusOK, items, total, "", len(events) == limit)
+	var nextCursor string
+	if len(events) == limit {
+		last := events[len(events)-1]
+		raw := last.Timestamp.Truncate(time.Microsecond).UTC().Format(time.RFC3339Nano) + "|" + last.ID.String()
+		nextCursor = base64.RawURLEncoding.EncodeToString([]byte(raw))
+	}
+	httputil.RespondPaginated(w, http.StatusOK, items, total, nextCursor, len(events) == limit)
 }
 
 func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
@@ -530,6 +555,17 @@ func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.enforceItemAccess(r.Context(), current) {
 		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
+	role, roleOK := h.loadCallerCaseRole(r.Context(), current.CaseID)
+	if !roleOK {
+		httputil.RespondError(w, http.StatusNotFound, "not found")
+		return
+	}
+	metadataWriteRoles := map[string]bool{"investigator": true, "prosecutor": true, "defence": true, "judge": true}
+	if !metadataWriteRoles[role] {
+		httputil.RespondError(w, http.StatusForbidden, "insufficient role to update evidence metadata")
 		return
 	}
 
@@ -614,6 +650,9 @@ func parsePagination(r *http.Request) Pagination {
 		if err == nil && parsed > 0 {
 			limit = parsed
 		}
+	}
+	if limit > MaxPageLimit {
+		limit = MaxPageLimit
 	}
 	return Pagination{
 		Limit:  limit,
@@ -738,6 +777,11 @@ func (h *Handler) UploadNewVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.enforceItemAccess(r.Context(), parent) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
 	userID, err := uuid.Parse(ac.UserID)
 	if err != nil {
 		slog.Error("invalid user ID in auth context", "raw", ac.UserID, "error", err)
@@ -799,6 +843,18 @@ func (h *Handler) ApplyRedactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enforce org membership and classification access before operating on the
+	// item. A RoleCaseAdmin from Org A must not be able to redact Org B evidence.
+	current, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), current) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
 	var body struct {
 		Redactions []RedactionArea `json:"redactions"`
 	}
@@ -833,6 +889,18 @@ func (h *Handler) PreviewRedactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enforce org membership and classification access before streaming a
+	// preview. A RoleCaseAdmin from Org A must not preview Org B evidence.
+	current, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+	if !h.enforceItemAccess(r.Context(), current) {
+		httputil.RespondError(w, http.StatusNotFound, "evidence not found")
+		return
+	}
+
 	var body struct {
 		Redactions []RedactionArea `json:"redactions"`
 	}
@@ -848,7 +916,18 @@ func (h *Handler) PreviewRedactions(w http.ResponseWriter, r *http.Request) {
 	}
 	defer reader.Close()
 
+	allowedPreviewMIMEs := map[string]bool{
+		"image/jpeg":      true,
+		"image/png":       true,
+		"application/pdf": true,
+	}
+	if !allowedPreviewMIMEs[mimeType] {
+		httputil.RespondError(w, http.StatusUnsupportedMediaType, "unsupported preview MIME type")
+		return
+	}
+
 	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, reader) //nolint:errcheck
 }
@@ -962,11 +1041,16 @@ func (h *Handler) GetCaptureMetadata(w http.ResponseWriter, r *http.Request) {
 
 	role, roleOK := h.loadCallerCaseRole(r.Context(), current.CaseID)
 	if !roleOK {
-		slog.Warn("could not resolve case role for capture metadata read",
-			"evidence_id", id, "case_id", current.CaseID)
+		httputil.RespondError(w, http.StatusForbidden, "could not resolve case role")
+		return
 	}
 	redacted := metadata.RedactForRole(role)
 	httputil.RespondJSON(w, http.StatusOK, redacted)
+}
+
+func sanitizeFilename(s string) string {
+	r := strings.NewReplacer(`"`, "", `\`, "", "\r", "", "\n", "", "\x00", "", ";", "", "=", "", "/", "-")
+	return r.Replace(s)
 }
 
 func respondServiceError(w http.ResponseWriter, err error) {

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -98,6 +100,25 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.DisplayName != nil && len(*input.DisplayName) > 100 {
+		httputil.RespondError(w, http.StatusBadRequest, "display_name must be 100 characters or less")
+		return
+	}
+	if input.Bio != nil && len(*input.Bio) > 2000 {
+		httputil.RespondError(w, http.StatusBadRequest, "bio must be 2000 characters or less")
+		return
+	}
+	if input.Timezone != nil {
+		if len(*input.Timezone) > 64 {
+			httputil.RespondError(w, http.StatusBadRequest, "timezone must be 64 characters or less")
+			return
+		}
+		if _, tzErr := time.LoadLocation(*input.Timezone); tzErr != nil {
+			httputil.RespondError(w, http.StatusBadRequest, "timezone is not a valid IANA timezone")
+			return
+		}
+	}
+
 	p := Profile{UserID: ac.UserID}
 	if input.DisplayName != nil {
 		p.DisplayName = *input.DisplayName
@@ -109,6 +130,11 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		p.Timezone = *input.Timezone
 	}
 	if input.AvatarURL != nil {
+		parsed, parseErr := url.Parse(*input.AvatarURL)
+		if parseErr != nil || parsed.Scheme != "https" {
+			httputil.RespondError(w, http.StatusBadRequest, "avatar_url must be an HTTPS URL")
+			return
+		}
 		p.AvatarURL = *input.AvatarURL
 	}
 

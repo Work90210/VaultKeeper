@@ -28,7 +28,7 @@ export default async function EvidenceDetailPage({
     if (res.error === 'not found') notFound();
     return (
       <Shell>
-        <div className="max-w-4xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+        <div className="d-content">
           <div className="banner-error">{res.error}</div>
         </div>
       </Shell>
@@ -51,55 +51,13 @@ export default async function EvidenceDetailPage({
 
   return (
     <Shell>
-      <div className="max-w-4xl mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-[var(--space-xs)] mb-[var(--space-lg)]">
-          <a
-            href="/en/cases"
-            className="link-subtle text-xs uppercase tracking-wider font-medium"
-          >
-            Cases
-          </a>
-          <span
-            className="text-xs"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            /
-          </span>
-          <a
-            href={`/en/cases/${evidence.case_id}`}
-            className="link-subtle text-xs uppercase tracking-wider font-medium"
-          >
-            {caseData?.reference_code || 'Case'}
-          </a>
-          <span
-            className="text-xs"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            /
-          </span>
-          <a
-            href={`/en/cases/${evidence.case_id}/evidence`}
-            className="link-subtle text-xs uppercase tracking-wider font-medium"
-          >
-            Evidence
-          </a>
-          <span
-            className="text-xs"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            /
-          </span>
-          <span
-            className="text-xs uppercase tracking-wider font-medium"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            {evidence.evidence_number}
-          </span>
-        </div>
-
-        <EvidenceDetail evidence={evidence} canEdit={canEdit} accessToken={session.accessToken as string} username={session.user.name || session.user.email || 'User'} />
-      </div>
+      <EvidenceDetail
+        evidence={evidence}
+        canEdit={canEdit}
+        accessToken={session.accessToken as string}
+        username={session.user.name || session.user.email || 'User'}
+        caseReferenceCode={caseData?.reference_code || 'Case'}
+      />
     </Shell>
   );
 }

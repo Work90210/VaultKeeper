@@ -2,16 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import type { CaseRole, OrgMembership } from '@/types';
-
-const CASE_ROLES = [
-  { value: 'investigator', label: 'Investigator' },
-  { value: 'prosecutor', label: 'Prosecutor' },
-  { value: 'defence', label: 'Defence' },
-  { value: 'judge', label: 'Judge' },
-  { value: 'observer', label: 'Observer' },
-  { value: 'victim_representative', label: 'Victim Representative' },
-] as const;
+import type { CaseRole, OrgMembership, RoleDefinition } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -54,7 +45,7 @@ export function CaseMembersPanel({ caseId, members, canManage, organizationId, a
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
           {members.map((m) => (
-            <MemberItem key={m.id} member={m} caseId={caseId} canManage={canManage} />
+            <MemberItem key={m.id} member={m} caseId={caseId} canManage={canManage} accessToken={accessToken} />
           ))}
         </div>
       )}
@@ -62,7 +53,7 @@ export function CaseMembersPanel({ caseId, members, canManage, organizationId, a
   );
 }
 
-function MemberItem({ member, caseId, canManage }: { member: CaseRole; caseId: string; canManage: boolean }) {
+function MemberItem({ member, caseId, canManage, accessToken }: { member: CaseRole; caseId: string; canManage: boolean; accessToken?: string }) {
   const router = useRouter();
   const [removing, setRemoving] = useState(false);
 
@@ -70,7 +61,10 @@ function MemberItem({ member, caseId, canManage }: { member: CaseRole; caseId: s
     if (!confirm('Remove this member from the case?')) return;
     setRemoving(true);
     try {
-      await fetch(`${API_BASE}/api/cases/${caseId}/roles/${member.id}`, { method: 'DELETE', credentials: 'include' });
+      await fetch(`${API_BASE}/api/cases/${caseId}/roles/${member.id}`, {
+        method: 'DELETE',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
       router.refresh();
     } finally {
       setRemoving(false);
@@ -136,33 +130,38 @@ function AddMemberForm({
 }) {
   const router = useRouter();
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [role, setRole] = useState('investigator');
+  const [roleDefId, setRoleDefId] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [orgMembers, setOrgMembers] = useState<OrgMembership[]>([]);
+  const [roleDefs, setRoleDefs] = useState<RoleDefinition[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
 
-  // Fetch org members when the form opens
+  // Fetch org members and role definitions when the form opens
   useEffect(() => {
     if (!organizationId || !accessToken) return;
     setLoadingMembers(true);
-    fetch(`${API_BASE}/api/organizations/${organizationId}/members`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body) => {
-        const members: OrgMembership[] = Array.isArray(body)
-          ? body
-          : (body?.data ?? []);
-        setOrgMembers(members);
-      })
-      .catch(() => {
-        setOrgMembers([]);
-      })
-      .finally(() => {
-        setLoadingMembers(false);
-      });
-  }, [organizationId, accessToken]);
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    Promise.all([
+      fetch(`${API_BASE}/api/organizations/${organizationId}/members`, { headers })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body) => {
+          const members: OrgMembership[] = Array.isArray(body) ? body : (body?.data ?? []);
+          setOrgMembers(members);
+        }),
+      fetch(`${API_BASE}/api/organizations/${organizationId}/role-definitions`, { headers })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body) => {
+          const defs: RoleDefinition[] = Array.isArray(body) ? body : (body?.data ?? []);
+          setRoleDefs(defs);
+          if (defs.length > 0 && !roleDefId) {
+            setRoleDefId(defs[0].id);
+          }
+        }),
+    ])
+      .catch(() => { setOrgMembers([]); })
+      .finally(() => { setLoadingMembers(false); });
+  }, [organizationId, accessToken, roleDefId]);
 
   // Filter out users already assigned to the case
   const existingUserIds = useMemo(
@@ -187,8 +186,11 @@ function AddMemberForm({
           'Content-Type': 'application/json',
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        credentials: 'include',
-        body: JSON.stringify({ user_id: selectedUserId, role }),
+        body: JSON.stringify({
+          user_id: selectedUserId,
+          role: roleDefs.find((d) => d.id === roleDefId)?.slug ?? 'investigator',
+          role_definition_id: roleDefId,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -260,13 +262,13 @@ function AddMemberForm({
         <div>
           <label className="field-label">Role</label>
           <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
+            value={roleDefId}
+            onChange={(e) => setRoleDefId(e.target.value)}
             className="input-field"
           >
-            {CASE_ROLES.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
+            {roleDefs.map((rd) => (
+              <option key={rd.id} value={rd.id}>
+                {rd.name}
               </option>
             ))}
           </select>

@@ -296,7 +296,7 @@ func TestRoleRepository_Assign_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := repo.Assign(ctx, uuid.New(), uuid.New().String(), "investigator", uuid.New().String())
+	_, err := repo.Assign(ctx, uuid.New(), uuid.New().String(), "investigator", uuid.New().String(), nil)
 	if err == nil {
 		t.Fatal("expected error for cancelled context in Assign, got nil")
 	}

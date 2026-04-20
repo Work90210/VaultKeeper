@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import type { Disclosure } from '@/types';
 
 export function DisclosureList({
@@ -14,105 +13,73 @@ export function DisclosureList({
   onCreateNew?: () => void;
   canCreate: boolean;
 }) {
-  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
-
   return (
-    <div className="space-y-[var(--space-md)]">
-      <div className="flex items-center justify-between">
-        <h3
-          className="font-[family-name:var(--font-heading)] text-lg"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          Disclosures
-        </h3>
-        {canCreate && onCreateNew && (
-          <button onClick={onCreateNew} className="btn-primary">
-            Create Disclosure
-          </button>
-        )}
+    <div className="panel">
+      <div className="panel-h">
+        <h3>Disclosures</h3>
+        <span className="meta">{disclosures.length} total</span>
       </div>
-
+      {canCreate && onCreateNew && (
+        <div className="fbar">
+          <span style={{ marginLeft: 'auto' }}>
+            <button onClick={onCreateNew} className="btn">
+              Create Disclosure <span className="arr">&rarr;</span>
+            </button>
+          </span>
+        </div>
+      )}
       {disclosures.length === 0 ? (
-        <div className="card py-[var(--space-2xl)] text-center">
-          <p
-            className="font-[family-name:var(--font-heading)] text-xl"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
+        <div className="panel-body" style={{ textAlign: 'center', padding: '40px 16px' }}>
+          <p style={{ fontFamily: "'Fraunces', serif", fontSize: 20, color: 'var(--muted)', marginBottom: 6 }}>
             No disclosures
           </p>
-          <p className="mt-[var(--space-xs)] text-sm" style={{ color: 'var(--text-tertiary)' }}>
+          <p style={{ fontSize: '13.5px', color: 'var(--muted)' }}>
             Evidence disclosures to defence or other parties will appear here.
           </p>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
-                <th className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                  Date
-                </th>
-                <th className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                  Recipient
-                </th>
-                <th className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                  Items
-                </th>
-                <th className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                  Redacted
-                </th>
-                <th className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                  Notes
-                </th>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Recipient</th>
+              <th>Items</th>
+              <th>Redacted</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {disclosures.map((d) => (
+              <tr key={d.id} onClick={() => onSelect(d.id)} style={{ cursor: 'pointer' }}>
+                <td style={{ color: 'var(--ink)' }}>
+                  {new Date(d.disclosed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                </td>
+                <td style={{ fontSize: '13px', color: 'var(--ink-2)' }}>
+                  {d.disclosed_to}
+                </td>
+                <td className="mono" style={{ color: 'var(--accent)' }}>
+                  {d.evidence_ids.length}
+                </td>
+                <td>
+                  {d.redacted ? (
+                    <span className="pl hold">redacted</span>
+                  ) : (
+                    <span className="chip">full</span>
+                  )}
+                </td>
+                <td style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {d.notes || '\u2014'}
+                </td>
+                <td className="actions">
+                  <a className="linkarrow" href="#" onClick={(e) => { e.preventDefault(); onSelect(d.id); }}>
+                    Open &rarr;
+                  </a>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {disclosures.map((d) => (
-                <tr
-                  key={d.id}
-                  onClick={() => onSelect(d.id)}
-                  onMouseEnter={() => setHoveredRow(d.id)}
-                  onMouseLeave={() => setHoveredRow(null)}
-                  style={{
-                    cursor: 'pointer',
-                    borderBottom: '1px solid var(--border-primary)',
-                    backgroundColor: hoveredRow === d.id ? 'var(--bg-secondary)' : 'transparent',
-                  }}
-                >
-                  <td className="px-[var(--space-md)] py-[var(--space-sm)]" style={{ color: 'var(--text-primary)' }}>
-                    {new Date(d.disclosed_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-[var(--space-md)] py-[var(--space-sm)]" style={{ color: 'var(--text-secondary)' }}>
-                    {d.disclosed_to}
-                  </td>
-                  <td className="px-[var(--space-md)] py-[var(--space-sm)]">
-                    <span
-                      className="font-[family-name:var(--font-mono)] text-xs"
-                      style={{ color: 'var(--accent-primary)' }}
-                    >
-                      {d.evidence_ids.length}
-                    </span>
-                  </td>
-                  <td className="px-[var(--space-md)] py-[var(--space-sm)]">
-                    {d.redacted && (
-                      <span
-                        className="inline-block px-[var(--space-xs)] py-0.5 rounded text-xs font-medium"
-                        style={{ backgroundColor: 'rgba(180, 140, 50, 0.12)', color: 'rgb(160, 120, 30)' }}
-                      >
-                        Redacted
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-[var(--space-md)] py-[var(--space-sm)]">
-                    <span className="text-sm line-clamp-1" style={{ color: 'var(--text-tertiary)' }}>
-                      {d.notes || '—'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

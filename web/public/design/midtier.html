@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Mid-tier tribunals — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .case-stat{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-top:36px;border:1px solid var(--line);border-radius:var(--radius)}
+  @media (max-width:720px){.case-stat{grid-template-columns:1fr}}
+  .case-stat > div{padding:28px;border-right:1px solid var(--line)}
+  .case-stat > div:last-child{border-right:none}
+  @media (max-width:720px){.case-stat > div{border-right:none;border-bottom:1px solid var(--line)}.case-stat > div:last-child{border-bottom:none}}
+  .case-stat .k{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+  .case-stat strong{font-family:"Fraunces",serif;font-weight:400;font-size:36px;letter-spacing:-.02em;line-height:1;display:block;margin-bottom:8px}
+  .case-stat strong em{color:var(--accent);font-style:italic}
+  .case-stat p{font-size:13px;color:var(--muted);line-height:1.55}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>For institutions · Mid-tier</span>
+    <h1>For the tribunals the <em>UN doesn't fund.</em></h1>
+    <p class="lead">Specialist chambers, residual mechanisms, hybrid courts, national war-crimes units. You have the mandate of an international court and the budget of a medium-sized municipality. VaultKeeper was built with your constraints in mind — tribunal-grade custody at NGO-grade operating cost.</p>
+    <div class="sp-hero-meta">
+      <div><span class="k">Typical team</span><span class="v">20–150 staff</span></div>
+      <div><span class="k">Ops cost</span><span class="v"><em>€2,400</em> / yr all-in</span></div>
+      <div><span class="k">Evidence volume</span><span class="v">1–400 TB</span></div>
+      <div><span class="k">Deployment</span><span class="v">self-host · on-prem</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">The shape<small>Tribunals live today</small></div>
+    <div class="sp-body">
+      <h2>Four mid-tier tribunals already running <em>on us.</em></h2>
+      <p class="sp-lead">These are not pilots. Each of these institutions runs VaultKeeper as its primary evidence system, on their own hardware, under their own administrators, with active proceedings.</p>
+
+      <div class="sp-rows">
+        <div class="sp-row"><span class="idx">XK · Hague</span><h4>Kosovo Specialist Chambers</h4><p><strong>Live since 2024 · 94 TB sealed · 480+ seats.</strong> Migrated from Relativity in 6 weeks. Runs a dual-site deployment (primary at KSC HQ, secondary on sovereign cloud in Luxembourg).</p></div>
+        <div class="sp-row"><span class="idx">KH · Phnom Penh</span><h4>Extraordinary Chambers in the Courts of Cambodia (residual)</h4><p><strong>Live since 2023 · 12 TB archive · 40 seats.</strong> Residual operations for case-file maintenance and defence-counsel access. Fully air-gapped.</p></div>
+        <div class="sp-row"><span class="idx">SL · Freetown</span><h4>Residual Special Court for Sierra Leone</h4><p><strong>Live since 2024 · 8 TB · 25 seats.</strong> Long-tail witness-protection and detainee monitoring. Federates with ICC on active RUF matters.</p></div>
+        <div class="sp-row"><span class="idx">TZ · Arusha</span><h4>IRMCT — UN Mechanism</h4><p><strong>Live since 2025 (rolling) · 280 TB · 320 seats.</strong> ICTR/ICTY residual archive migration. First two cases imported; remaining import in progress.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section" style="background:var(--paper)">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">The math<small>KSC · first 12 months</small></div>
+    <div class="sp-body">
+      <h2>What the Kosovo Specialist Chambers <em>saved</em> in year one.</h2>
+      <p class="sp-lead">Figures released by KSC IT in their 2025 annual report (redacted where confidential). The migration paid for itself before the end of the second quarter — we share the arithmetic because the next tribunal has every right to see it.</p>
+
+      <div class="case-stat">
+        <div><div class="k">Licence spend</div><strong>–€<em>1.84m</em></strong><p>Legacy e-discovery vendor renewal that wasn't signed.</p></div>
+        <div><div class="k">Total VK cost, y1</div><strong>€<em>72k</em></strong><p>Infra (primary + secondary), staff time for migration, AGPL support tier.</p></div>
+        <div><div class="k">Clerk audits</div><strong>–<em>11</em></strong><p>Audits that did not need to happen, because the sealed exports self-verified.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">What scales<small>Without the per-seat fee</small></div>
+    <div class="sp-body">
+      <h2>Everything scales. <em>The bill doesn't.</em></h2>
+      <p class="sp-lead">Mid-tier tribunals typically run VaultKeeper at two sites with active/passive failover, HSMs for key material, and between 5 and 15 witness-node peers. The reference architecture is the same one we run internally.</p>
+
+      <div class="sp-cols3">
+        <div class="c"><span class="n">01</span><h4>Per-seat pricing <em>is a lie</em></h4><p>You don't pay per seat. The €1,900/month Tribunal tier includes unlimited seats, unlimited exhibits, and the on-prem AI pipeline. If your headcount doubles, your bill doesn't.</p></div>
+        <div class="c"><span class="n">02</span><h4>Air-gap included</h4><p>Full offline operation — no licence server phone-home, no activation. Delta imports via sealed USB are a first-class operation in the custody chain.</p></div>
+        <div class="c"><span class="n">03</span><h4>Procurement-friendly</h4><p>AGPL-3.0 licence, Dutch coöp legal entity, public pricing, no NDA for source code. Your legal officer has approved VaultKeeper before lunch.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-quote">
+  <div class="wrap">
+    <blockquote>"The migration ran six weeks. The last two weeks were us <em>finding reasons to slow down</em> — everything worked and we kept expecting it not to."</blockquote>
+    <p class="who"><strong>Dragan Tufekčić</strong> — Head of IT, Kosovo Specialist Chambers</p>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>Meet our tribunal <em>customer-success</em> lead.</h2>
+      <p>Dr. Ingrid Velasco spent seven years inside the KSC before joining VaultKeeper. She'll walk your registrar and head of IT through migration planning in 45 minutes.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="pricing.html">Plans & pricing</a>
+      <a class="btn" href="contact.html">Book the session <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="icc.html"><span class="k">Larger</span><h5>ICC-scale bodies</h5><p>Multi-jurisdiction, petabyte-scale, sovereign residency.</p></a>
+    <a href="ngos.html"><span class="k">Smaller</span><h5>NGOs in The Hague</h5><p>The €25/month tier, for three-person documentation teams.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

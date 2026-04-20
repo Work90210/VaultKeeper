@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Settings — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+.s-nav{position:sticky;top:0;display:flex;flex-direction:column;gap:1px;font-size:13px}
+.s-nav a{padding:10px 14px;border-left:2px solid var(--line);color:var(--muted);transition:all .15s;border-radius:0 6px 6px 0}
+.s-nav a:hover{color:var(--ink);background:var(--bg-2)}
+.s-nav a.active{border-left-color:var(--accent);color:var(--ink);font-weight:500;background:var(--paper)}
+.s-nav .s-label{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-2);padding:18px 14px 6px}
+.s-nav .s-label:first-child{padding-top:0}
+.member-row{display:grid;grid-template-columns:36px 1.4fr 1fr 1fr auto;gap:16px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);font-size:13.5px;transition:background .12s}
+.member-row:hover{background:var(--bg-2)}
+.member-row:last-child{border-bottom:none}
+.member-row .av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-family:"Fraunces",serif;font-style:italic;font-size:15px;color:#fff;flex-shrink:0}
+.member-row .name{font-weight:500;line-height:1.2}
+.member-row .name small{display:block;font-weight:400;font-size:12px;color:var(--muted);margin-top:1px}
+.member-row .cases-list{display:flex;gap:4px;flex-wrap:wrap}
+.role-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:500;letter-spacing:.01em}
+.role-badge.admin{background:rgba(184,66,28,.1);color:var(--accent)}
+.role-badge.lead{background:rgba(74,107,58,.1);color:var(--ok)}
+.role-badge.analyst{background:rgba(58,74,107,.1);color:#3a4a6b}
+.role-badge.viewer{background:var(--bg-2);color:var(--muted)}
+.role-badge.clerk{background:rgba(107,58,74,.1);color:#6b3a4a}
+.case-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.04em;border:1px solid var(--line);background:var(--paper);color:var(--ink-2)}
+.case-chip .cd{width:5px;height:5px;border-radius:50%;background:var(--ok)}
+.case-chip.hold .cd{background:var(--accent)}
+.perm-grid{width:100%;border-collapse:collapse;font-size:13px}
+.perm-grid thead th{text-align:center;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:400;padding:10px 12px;border-bottom:1px solid var(--line);background:color-mix(in oklab,var(--paper) 50%,var(--bg-2))}
+.perm-grid thead th:first-child{text-align:left}
+.perm-grid tbody td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:center}
+.perm-grid tbody td:first-child{text-align:left;font-size:13px;color:var(--ink-2)}
+.perm-grid tbody tr:last-child td{border-bottom:none}
+.perm-check{width:18px;height:18px;border-radius:4px;border:1.5px solid var(--line-2);display:inline-grid;place-items:center;background:var(--paper)}
+.perm-check.on{background:var(--ok);border-color:var(--ok)}
+.perm-check.on::after{content:"\2713";color:#fff;font-size:11px;font-weight:700}
+.perm-check.partial{background:var(--bg-2);border-color:var(--line-2)}
+.perm-check.partial::after{content:"\2014";color:var(--muted);font-size:11px;font-weight:700}
+.invite-bar{display:flex;gap:10px;padding:18px;border-top:1px solid var(--line);background:color-mix(in oklab,var(--paper) 50%,var(--bg))}
+.invite-bar input{flex:1;padding:10px 14px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--paper);font:inherit;font-size:13.5px;outline:none;transition:border-color .2s}
+.invite-bar input:focus{border-color:var(--accent)}
+.invite-bar select{padding:10px 12px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--paper);font:inherit;font-size:13px;color:var(--ink-2);outline:none;cursor:pointer}
+.invite-bar .btn{padding:10px 18px;font-size:13px}
+.toggle{width:38px;height:22px;border-radius:11px;background:var(--bg-2);border:1px solid var(--line-2);position:relative;cursor:pointer;transition:background .2s}
+.toggle.on{background:var(--ok);border-color:var(--ok)}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15);transition:transform .2s}
+.toggle.on::after{transform:translateX(16px)}
+.org-switch-row{display:grid;grid-template-columns:36px 1fr auto;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);transition:background .12s;cursor:pointer}
+.org-switch-row:hover{background:var(--bg-2)}
+.org-switch-row:last-child{border-bottom:none}
+.org-switch-row .oa{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-family:"Fraunces",serif;font-style:italic;font-size:16px;color:var(--bg)}
+.org-switch-row.current{background:var(--bg-2)}
+.org-switch-row.current::after{content:"Current";font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+</style>
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script src="assets/settings-components.js"></script>
+<script>
+renderDashShell('settings', '<a href="dash.html">Workspace</a><span class="sep">/</span><span class="here">Settings</span>');
+
+var activeTab = 'team';
+
+/* ---- Data ---- */
+
+var MEMBERS = [
+  {av:'H',col:'#c87e5e',name:'Hélène Morel',email:'h.morel@eurojust.example',role:'admin',cases:['ICC-UKR-2024','KSC-23-042','RSCSL-12','IRMCT-99'],status:'online',lastSeen:'Now',keys:'Ed25519 · YubiHSM2'},
+  {av:'M',col:'#4a6b3a',name:'Martyna Kovacs',email:'m.kovacs@eurojust.example',role:'analyst',cases:['ICC-UKR-2024'],status:'online',lastSeen:'2 min ago',keys:'Ed25519 · YubiHSM2'},
+  {av:'A',col:'#3a4a6b',name:'Amir Haddad',email:'a.haddad@eurojust.example',role:'analyst',cases:['ICC-UKR-2024'],status:'online',lastSeen:'14 min ago',keys:'Ed25519 · Nitrokey'},
+  {av:'J',col:'#6b3a4a',name:'Juliane Wirth',email:'j.wirth@eurojust.example',role:'lead',cases:['ICC-UKR-2024','KSC-23-042'],status:'offline',lastSeen:'3 h ago',keys:'Ed25519 · YubiHSM2'},
+  {av:'D',col:'#4a6b3a',name:'Dragan Markovic',email:'d.markovic@ksc.example',role:'lead',cases:['KSC-23-042'],status:'offline',lastSeen:'1 d ago',keys:'Ed25519 · Nitrokey'},
+  {av:'K',col:'#8a6a3a',name:'Kadiatu Sesay',email:'k.sesay@rscsl.example',role:'clerk',cases:['RSCSL-12'],status:'offline',lastSeen:'2 d ago',keys:'Ed25519 · Software'},
+  {av:'W',col:'#5b4a6b',name:'Werner Nyoka',email:'w.nyoka@eurojust.example',role:'admin',cases:['IRMCT-99'],status:'online',lastSeen:'8 min ago',keys:'Ed25519 · YubiHSM2'},
+  {av:'R',col:'#8a6a3a',name:'Reto Hämmerli',email:'r.hammerli@eurojust.example',role:'viewer',cases:[],status:'offline',lastSeen:'11 h ago',keys:'Ed25519 · Nitrokey HSM'}
+];
+
+var ROLES = [
+  {id:'admin',label:'Admin',desc:'Full access. Manage team, cases, settings, keys. Can assign roles and switch organisations.'},
+  {id:'lead',label:'Lead Investigator',desc:'Create and manage assigned cases. Upload evidence, manage witnesses, approve disclosures. Cannot change org settings.'},
+  {id:'analyst',label:'Analyst',desc:'View and annotate evidence on assigned cases. Create corroborations, flag items. Cannot approve disclosures or manage witnesses.'},
+  {id:'clerk',label:'Clerk',desc:'Upload and catalogue evidence. Manage metadata and chain-of-custody records. Read-only for witness data.'},
+  {id:'viewer',label:'Viewer',desc:'Read-only access to assigned cases. Can view evidence and reports but cannot modify anything. Audit log visible.'}
+];
+
+var PERMS = [
+  {name:'View evidence',admin:true,lead:true,analyst:true,clerk:true,viewer:true},
+  {name:'Upload evidence',admin:true,lead:true,analyst:false,clerk:true,viewer:false},
+  {name:'Seal / countersign',admin:true,lead:true,analyst:false,clerk:false,viewer:false},
+  {name:'Manage witnesses',admin:true,lead:true,analyst:false,clerk:false,viewer:false},
+  {name:'Create corroborations',admin:true,lead:true,analyst:true,clerk:false,viewer:false},
+  {name:'Approve disclosures',admin:true,lead:true,analyst:false,clerk:false,viewer:false},
+  {name:'Redaction tools',admin:true,lead:true,analyst:'partial',clerk:false,viewer:false},
+  {name:'Generate reports',admin:true,lead:true,analyst:true,clerk:true,viewer:false},
+  {name:'View audit log',admin:true,lead:true,analyst:true,clerk:true,viewer:true},
+  {name:'Manage team',admin:true,lead:false,analyst:false,clerk:false,viewer:false},
+  {name:'Organisation settings',admin:true,lead:false,analyst:false,clerk:false,viewer:false},
+  {name:'Key ceremonies',admin:true,lead:false,analyst:false,clerk:false,viewer:false},
+  {name:'Switch organisation',admin:true,lead:false,analyst:false,clerk:false,viewer:false},
+  {name:'Danger zone actions',admin:true,lead:false,analyst:false,clerk:false,viewer:false}
+];
+
+var KEYS_DATA = [
+  {n:"Key A",who:"H. Morel",hw:"YubiHSM2",last:"signed \xb7 2 min ago",status:'active'},
+  {n:"Key B",who:"W. Nyoka",hw:"YubiHSM2",last:"signed \xb7 14 min ago",status:'active'},
+  {n:"Key C",who:"R. H\u00e4mmerli",hw:"Nitrokey HSM",last:"offline \xb7 11 h ago",status:'offline'}
+];
+
+var ORGS = [
+  {c:'var(--ink)',letter:'E',name:'Eurojust \xb7 Hague',sub:'3 active cases \xb7 8 members',current:true},
+  {c:'#4a6b3a',letter:'I',name:'ICC \xb7 The Hague',sub:'12 active cases \xb7 34 members',current:false},
+  {c:'#3a4a6b',letter:'C',name:'CIJA \xb7 Brussels',sub:'5 active cases \xb7 12 members',current:false},
+  {c:'#6b3a4a',letter:'K',name:'KSC \xb7 The Hague',sub:'2 active cases \xb7 6 members',current:false},
+  {c:'#8a6a3a',letter:'U',name:'UNHCR \xb7 Geneva',sub:'8 active cases \xb7 22 members',current:false},
+  {c:'#5b4a6b',letter:'R',name:'RSCSL \xb7 Freetown',sub:'1 active case \xb7 3 members',current:false}
+];
+
+var PENDING_INVITES = [
+  {email:'s.petrov@cija.example',role:'analyst',by:'H. Morel \xb7 2 d ago'},
+  {email:'n.okafor@icc.example',role:'lead',by:'H. Morel \xb7 2 d ago'}
+];
+
+var API_KEYS = [
+  {name:'CI Pipeline',prefix:'vke_ci_****f8a2',scope:'Evidence upload',created:'12 Mar 2026',by:'H. Morel'},
+  {name:'Federation Sync',prefix:'vke_fed_****3b71',scope:'Full access',created:'4 Jan 2026',by:'W. Nyoka'}
+];
+
+/* ---- Nav config ---- */
+
+var NAV_SECTIONS = [
+  {label:'People', items:[
+    {id:'team', text:'Team members'},
+    {id:'roles', text:'Roles & permissions'},
+    {id:'invites', text:'Pending invites'}
+  ]},
+  {label:'Organisation', items:[
+    {id:'org', text:'General'},
+    {id:'orgs', text:'Switch organisation'},
+    {id:'sso', text:'SSO & identity'}
+  ]},
+  {label:'Security', items:[
+    {id:'policy', text:'Retention policy'},
+    {id:'keys', text:'Keys & ceremonies'},
+    {id:'storage', text:'Storage'},
+    {id:'api', text:'API keys'}
+  ]},
+  {label:'System', labelStyle:'color:#b35c5c', items:[
+    {id:'danger', text:'Danger zone', inactiveStyle:'color:#b35c5c'}
+  ]}
+];
+
+var TAB_RENDERERS = {
+  team: renderTeam,
+  roles: renderRoles,
+  invites: renderInvites,
+  org: renderOrg,
+  orgs: renderOrgSwitch,
+  sso: renderSSO,
+  policy: renderPolicy,
+  keys: renderKeys,
+  storage: renderStorage,
+  api: renderAPI,
+  danger: renderDanger
+};
+
+/* ---- Settings shell ---- */
+
+function renderSettingsNav() {
+  return '<aside class="s-nav">' +
+    NAV_SECTIONS.map(function(sec) {
+      var labelStyle = sec.labelStyle ? ' style="' + sec.labelStyle + '"' : '';
+      return '<div class="s-label"' + labelStyle + '>' + sec.label + '</div>' +
+        sec.items.map(function(item) {
+          var isActive = activeTab === item.id;
+          var style = !isActive && item.inactiveStyle ? ' style="' + item.inactiveStyle + '"' : '';
+          return '<a href="#" onclick="event.preventDefault();activeTab=\'' + item.id + '\';renderSettings()" class="' + (isActive ? 'active' : '') + '"' + style + '>' + item.text + '</a>';
+        }).join('');
+    }).join('') +
+    '</aside>';
+}
+
+function renderSettings() {
+  var renderer = TAB_RENDERERS[activeTab];
+  var content = renderer ? renderer() : Panel('', '<p style="color:var(--muted)">Coming soon.</p>');
+
+  document.getElementById('d-content').innerHTML =
+    '<section class="d-pagehead"><div>' +
+    '<span class="eyebrow-m">Organisation \xb7 Eurojust \xb7 Hague</span>' +
+    '<h1>Instance <em>settings</em></h1>' +
+    '<p class="sub">Every change is a sealed event. Policy history is immutable and auditable.</p>' +
+    '</div></section>' +
+    '<div style="display:grid;grid-template-columns:200px 1fr;gap:36px;align-items:start">' +
+    renderSettingsNav() + '<div>' + content + '</div></div>';
+}
+
+/* ---- Tab renderers ---- */
+
+function renderTeam() {
+  var cols = '36px 1.4fr 1fr 1fr auto';
+  return PanelRaw(
+    PanelHeader('Team members', MEMBERS.length + ' people'),
+    GridHeader(['', 'Member', 'Role', 'Cases', 'Status'], cols) +
+    MEMBERS.map(function(m) {
+      var casesHtml = m.cases.length
+        ? m.cases.map(CaseChip).join('')
+        : '<span style="color:var(--muted);font-size:12px">No cases assigned</span>';
+      return '<div class="member-row">' +
+        '<span class="av" style="background:' + m.col + '">' + m.av + '</span>' +
+        '<span class="name">' + m.name + '<small>' + m.email + '</small></span>' +
+        '<span>' + RoleBadge(m.role) + '</span>' +
+        '<span class="cases-list">' + casesHtml + '</span>' +
+        StatusDot(m.status, m.lastSeen) +
+        '</div>';
+    }).join('') +
+    InviteBar('Invite')
+  );
+}
+
+function renderRoles() {
+  return '<div style="display:flex;flex-direction:column;gap:18px">' +
+    Panel(
+      PanelHeader('Roles', ROLES.length + ' defined'),
+      '<div style="display:grid;gap:14px">' +
+      ROLES.map(function(r) {
+        var count = MEMBERS.filter(function(m) { return m.role === r.id; }).length;
+        return RoleCard(r, count);
+      }).join('') + '</div>'
+    ) +
+    PanelRaw(
+      PanelHeader('Permission matrix', ''),
+      '<div class="panel-body flush" style="overflow-x:auto;padding:0"><table class="perm-grid"><thead><tr>' +
+      '<th style="min-width:180px">Capability</th>' +
+      ROLES.map(function(r) { return '<th>' + r.label.split(' ')[0] + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      PERMS.map(function(p) {
+        return '<tr><td>' + p.name + '</td>' +
+          ROLES.map(function(r) { return '<td>' + PermCheck(p[r.id]) + '</td>'; }).join('') +
+          '</tr>';
+      }).join('') +
+      '</tbody></table></div>'
+    ) + '</div>';
+}
+
+function renderInvites() {
+  var cols = '1.5fr 1fr 1fr auto';
+  return PanelRaw(
+    PanelHeader('Pending invites', PENDING_INVITES.length + ' pending'),
+    GridHeader(['Email', 'Role', 'Invited by', 'Actions'], cols) +
+    PENDING_INVITES.map(function(inv) {
+      return GridRow([
+        '<span style="font-weight:500">' + inv.email + '</span>',
+        '<span>' + RoleBadge(inv.role) + '</span>',
+        '<span style="color:var(--muted)">' + inv.by + '</span>',
+        '<span style="display:flex;gap:8px">' + LinkArrow('Resend', {style:'font-size:12px'}) + DangerLink('Revoke') + '</span>'
+      ], cols);
+    }).join('') +
+    InviteBar('Send invite')
+  );
+}
+
+function renderOrg() {
+  return Panel(
+    PanelHeader('Organisation', 'sealed 14 d ago'),
+    KVList([
+      ['Display name', '<strong>Eurojust \xb7 Hague</strong> ' + LinkArrow('edit \u2192', {style:'margin-left:10px;font-size:12px'})],
+      ['Instance ID', '<code>vke-eurojust-hague</code> \xb7 3 regional replicas'],
+      ['Legal entity', 'European Union Agency for Criminal Justice Cooperation'],
+      ['Contact', 'secretariat@eurojust.example \xb7 +31 70 412 XXXX'],
+      ['Locale', 'EN (primary) \xb7 NL \xb7 DE \xb7 FR \xb7 UK \xb7 RU'],
+      ['Time zone', 'Europe/Amsterdam \xb7 audit log always UTC']
+    ])
+  );
+}
+
+function renderOrgSwitch() {
+  return PanelRaw(
+    PanelHeader('Switch organisation', 'Admin only'),
+    ORGS.map(OrgRow).join('')
+  ) +
+  '<p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6">Organisation switching is restricted to Admin roles. All switches are logged as sealed audit events. Switching does not revoke access to other organisations.</p>';
+}
+
+function renderSSO() {
+  return Panel(
+    PanelHeader('SSO & identity', 'SAML 2.0'),
+    KVList([
+      ['Provider', 'Keycloak \xb7 self-hosted \xb7 eurojust.example/auth'],
+      ['Protocol', 'SAML 2.0 \xb7 OIDC fallback enabled'],
+      ['MFA required', '<span style="display:flex;align-items:center;gap:10px">' + Toggle(true) + ' All users must use hardware token or TOTP</span>'],
+      ['Session timeout', '8 hours idle \xb7 24 hours max'],
+      ['Auto-provision', '<span style="display:flex;align-items:center;gap:10px">' + Toggle(true) + ' New SSO users get Viewer role by default</span>'],
+      ['Directory sync', 'SCIM 2.0 \xb7 every 15 min \xb7 last sync 4 min ago']
+    ])
+  );
+}
+
+function renderPolicy() {
+  return Panel(
+    PanelHeader('Retention policy', 'quarterly review due in 38 d'),
+    KVList([
+      ['Default retention', 'Case closed + 50 years, then review'],
+      ['Witness records', 'Case closed + 75 years \xb7 never auto-destroyed'],
+      ['Counter-evidence', 'Same as parent case, non-deletable'],
+      ['Auto review cadence', 'Every 90 days \xb7 notify custodian'],
+      ['Legal hold override', 'Blocks all deletion, regardless of policy'],
+      ['Policy history', '4 versions \xb7 last change by W. Nyoka, 14 d ago \xb7 ' + LinkArrow('diff \u2192', {style:'font-size:12px'})]
+    ])
+  );
+}
+
+function renderKeys() {
+  return Panel(
+    PanelHeader('Keys & ceremonies', '2-of-3 quorum'),
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:18px">' +
+    KEYS_DATA.map(KeyCard).join('') + '</div>' +
+    KVList([
+      ['Quorum policy', '2-of-3 for seal \xb7 3-of-3 for re-issue'],
+      ['Next rotation', 'in 11 days \xb7 Mon 30 April, 10:00'],
+      ['Ceremony history', '24 events \xb7 ' + LinkArrow('open ceremonies \u2192', {href:'dash-ceremonies.html', style:'font-size:12px'})]
+    ])
+  );
+}
+
+function renderStorage() {
+  return Panel(
+    PanelHeader('Storage', 'S3-compatible \xb7 MinIO'),
+    KVList([
+      ['Primary', 'MinIO \xb7 EU-WEST-2 \xb7 2.4 TB of 8 TB used'],
+      ['Mirror', 'On-prem NAS \xb7 Hague basement \xb7 2.1 TB of 8 TB'],
+      ['Cold archive', 'LTO-9 tape \xb7 rotated quarterly to secured vault'],
+      ['Object encryption', 'AES-256-GCM \xb7 envelope keys in HSM'],
+      ['Hash algorithms', 'SHA-256 primary \xb7 BLAKE3 secondary']
+    ])
+  );
+}
+
+function renderAPI() {
+  var cols = '1.5fr 1fr 1fr auto';
+  return PanelRaw(
+    PanelHeader('API keys', API_KEYS.length + ' active'),
+    GridHeader(['Key', 'Scope', 'Created', 'Actions'], cols) +
+    API_KEYS.map(function(k) {
+      return GridRow([
+        '<div><div style="font-weight:500">' + k.name + '</div><code style="font-size:11px;margin-top:2px">' + k.prefix + '</code></div>',
+        '<span style="color:var(--ink-2)">' + k.scope + '</span>',
+        '<span style="color:var(--muted);font-size:12px">' + k.created + ' \xb7 ' + k.by + '</span>',
+        '<span style="display:flex;gap:8px">' + LinkArrow('Rotate', {style:'font-size:12px'}) + DangerLink('Revoke') + '</span>'
+      ], cols);
+    }).join('') +
+    '<div style="padding:18px"><button class="btn sm ghost">Generate new key</button></div>'
+  );
+}
+
+function renderDanger() {
+  return Panel(
+    PanelHeader('Danger zone', 'irreversible \xb7 sealed', {titleStyle:'color:#b35c5c'}),
+    KVList([
+      ['Rotate instance key', 'Requires 3-of-3 quorum. All peers must re-validate within 72 h. ' + LinkArrow('rotate \u2192', {style:'color:#b35c5c'})],
+      ['Decommission instance', 'Sealed archive handed to supervisory board. No data deleted. ' + LinkArrow('start \u2192', {style:'color:#b35c5c'})],
+      ['Emergency revocation', 'Broadcast key revocation to all peers within 30 s. ' + LinkArrow('revoke \u2192', {style:'color:#b35c5c'})]
+    ]),
+    {headerStyle:'background:#fbeee8'}
+  );
+}
+
+renderSettings();
+</script>
+</body></html>

@@ -11,6 +11,13 @@ import (
 	"github.com/google/uuid"
 )
 
+// Federation custody chain action types. These are recorded as regular
+// custody events with structured detail JSON.
+const (
+	ActionDisclosedToInstance  = "disclosed_to_instance"
+	ActionImportedFromInstance = "imported_from_instance"
+)
+
 type ChainVerifier interface {
 	VerifyCaseChain(ctx context.Context, caseID uuid.UUID) (ChainVerification, error)
 }
@@ -69,12 +76,14 @@ func (v *PGChainVerifier) VerifyCaseChain(ctx context.Context, caseID uuid.UUID)
 }
 
 func ComputeLogHash(prev string, entry Event) string {
-	data := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+	// Use null byte as separator — it cannot appear in UUID, hex-hash, action,
+	// or RFC3339Nano strings, eliminating pipe-injection ambiguity.
+	data := fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s",
 		prev,
 		entry.ID.String(),
 		entry.ActorUserID,
 		entry.Action,
-		entry.Timestamp.UTC().Format(time.RFC3339Nano),
+		entry.Timestamp.Truncate(time.Microsecond).UTC().Format(time.RFC3339Nano),
 		entry.EvidenceID.String(),
 		entry.CaseID.String(),
 		canonicalJSON(entry.Detail),

@@ -46,7 +46,12 @@ func NewService(repo Repository, encryptor *Encryptor, custody CustodyRecorder, 
 }
 
 // GetCaseID returns the case ID for a witness, for authorization checks.
+// In production it issues a lightweight SELECT case_id query via the scoped
+// repo extension. Test fakes fall back to the full FindByID.
 func (s *Service) GetCaseID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	if scoped, ok := s.repo.(scopedWitnessRepo); ok {
+		return scoped.FindCaseID(ctx, id)
+	}
 	w, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return uuid.Nil, err
@@ -119,8 +124,20 @@ func (s *Service) Create(ctx context.Context, input CreateWitnessInput) (Witness
 }
 
 // Get retrieves a witness with identity filtered by the caller's role.
+// In production, resolves the case_id first then fetches with case scoping
+// to prevent cross-case IDOR. Test fakes fall back to the unscoped FindByID.
 func (s *Service) Get(ctx context.Context, id uuid.UUID, caseRole auth.CaseRole) (WitnessView, error) {
-	w, err := s.repo.FindByID(ctx, id)
+	var w Witness
+	var err error
+	if scoped, ok := s.repo.(scopedWitnessRepo); ok {
+		caseID, caseErr := scoped.FindCaseID(ctx, id)
+		if caseErr != nil {
+			return WitnessView{}, fmt.Errorf("resolve case for witness: %w", caseErr)
+		}
+		w, err = scoped.FindByIDScoped(ctx, caseID, id)
+	} else {
+		w, err = s.repo.FindByID(ctx, id)
+	}
 	if err != nil {
 		return WitnessView{}, err
 	}
@@ -128,8 +145,11 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID, caseRole auth.CaseRole)
 	showIdentity := s.canViewIdentity(w, caseRole)
 
 	if showIdentity {
-		ac, _ := auth.GetAuthContext(ctx)
-		s.recordCustodyEvent(ctx, w.CaseID, "witness_identity_accessed", ac.UserID, map[string]string{
+		actorID := "system"
+		if ac, ok := auth.GetAuthContext(ctx); ok {
+			actorID = ac.UserID
+		}
+		s.recordCustodyEvent(ctx, w.CaseID, "witness_identity_accessed", actorID, map[string]string{
 			"witness_code": w.WitnessCode,
 		})
 	}
@@ -167,8 +187,20 @@ func (s *Service) List(ctx context.Context, caseID uuid.UUID, caseRole auth.Case
 }
 
 // Update updates a witness with re-encrypted identity fields.
+// The pre-fetch is scoped by case in production to prevent cross-case IDOR.
+// Test fakes fall back to the unscoped FindByID.
 func (s *Service) Update(ctx context.Context, id uuid.UUID, input UpdateWitnessInput, actorID string) (WitnessView, error) {
-	existing, err := s.repo.FindByID(ctx, id)
+	var existing Witness
+	var err error
+	if scoped, ok := s.repo.(scopedWitnessRepo); ok {
+		caseID, caseErr := scoped.FindCaseID(ctx, id)
+		if caseErr != nil {
+			return WitnessView{}, caseErr
+		}
+		existing, err = scoped.FindByIDScoped(ctx, caseID, id)
+	} else {
+		existing, err = s.repo.FindByID(ctx, id)
+	}
 	if err != nil {
 		return WitnessView{}, err
 	}

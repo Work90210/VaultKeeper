@@ -61,15 +61,14 @@ func NewMiddleware(jwks *JWKSFetcher, keycloakURL, realm, clientID string, logge
 
 func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth for health check, CORS preflight, WebSocket upgrade
-		// requests (WS endpoints do their own query-param token auth),
-		// and anything under /.well-known/ (public discovery surface
-		// — e.g. the Sprint 10 migration signing key clients fetch to
-		// verify attestation certificate signatures without holding
-		// platform credentials).
-		isWSUpgrade := strings.EqualFold(r.Header.Get("Upgrade"), "websocket") && strings.HasSuffix(r.URL.Path, "/redact/collaborate")
-		isWellKnown := strings.HasPrefix(r.URL.Path, "/.well-known/")
-		if r.URL.Path == "/health" || r.Method == http.MethodOptions || isWSUpgrade || isWellKnown {
+		// Skip auth for health check, CORS preflight, and the public signing
+		// key endpoint used by migration clients to verify attestation
+		// certificate signatures. WebSocket collaboration endpoints use
+		// short-lived ticket authentication validated in the handler itself.
+		isWellKnown := r.URL.Path == "/.well-known/vaultkeeper-signing-key" ||
+			r.URL.Path == "/.well-known/vaultkeeper-instance.json"
+		isFederationReceive := strings.HasPrefix(r.URL.Path, "/api/federation/receive/")
+		if r.URL.Path == "/health" || r.Method == http.MethodOptions || isWellKnown || isFederationReceive {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -162,7 +161,7 @@ func (m *Middleware) validateAndExtract(ctx context.Context, rawToken string) (A
 
 	// Validate issuer
 	if payload.Iss != m.issuer {
-		return AuthContext{}, fmt.Errorf("invalid issuer: got %q, want %q", payload.Iss, m.issuer)
+		return AuthContext{}, fmt.Errorf("invalid issuer: %q", payload.Iss)
 	}
 
 	// Validate audience
@@ -174,15 +173,16 @@ func (m *Middleware) validateAndExtract(ctx context.Context, rawToken string) (A
 	if payload.Exp == 0 {
 		return AuthContext{}, fmt.Errorf("missing exp claim")
 	}
+	const clockSkewLeeway = 10 * time.Second
 	expTime := time.Unix(int64(payload.Exp), 0)
-	if time.Now().After(expTime) {
+	if time.Now().After(expTime.Add(clockSkewLeeway)) {
 		return AuthContext{}, fmt.Errorf("token expired at %s", expTime)
 	}
 
 	// Validate not-before (nbf) if present
 	if payload.Nbf > 0 {
 		nbfTime := time.Unix(int64(payload.Nbf), 0)
-		if time.Now().Before(nbfTime) {
+		if time.Now().Add(clockSkewLeeway).Before(nbfTime) {
 			return AuthContext{}, fmt.Errorf("token not yet valid until %s", nbfTime)
 		}
 	}

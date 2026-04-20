@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,7 +14,9 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -141,7 +144,7 @@ type BackupRunner struct {
 	db          backupDB
 	dumper      pgDumper
 	fs          fileSystem
-	encKey      string
+	encKey      []byte
 	destination string
 	logger      *slog.Logger
 	notifier    BackupNotifier
@@ -165,7 +168,7 @@ func (b *NotificationBridge) NotifyBackupFailed(ctx context.Context, err error) 
 }
 
 // NewBackupRunner creates a BackupRunner.
-func NewBackupRunner(pool *pgxpool.Pool, encKey string, destination string, logger *slog.Logger, notifier BackupNotifier, storage StorageSnapshotter) *BackupRunner {
+func NewBackupRunner(pool *pgxpool.Pool, encKey []byte, destination string, logger *slog.Logger, notifier BackupNotifier, storage StorageSnapshotter) *BackupRunner {
 	return &BackupRunner{
 		db:          pool,
 		dumper:      &realPgDumper{pool: pool},
@@ -216,7 +219,7 @@ func (br *BackupRunner) RunBackup(ctx context.Context) (BackupResult, error) {
 	archive := br.createArchive(pgDump, storageObjects)
 
 	// 5. Encrypt with AES-256-GCM.
-	encrypted, err := Encrypt(bytes.NewReader(archive), []byte(br.encKey))
+	encrypted, err := Encrypt(bytes.NewReader(archive), br.encKey)
 	if err != nil {
 		return br.failBackup(ctx, id, result, fmt.Errorf("encrypt: %w", err))
 	}
@@ -228,6 +231,13 @@ func (br *BackupRunner) RunBackup(ctx context.Context) (BackupResult, error) {
 		return br.failBackup(ctx, id, result, fmt.Errorf("write backup file: %w", err))
 	}
 
+	// 6a. Compute SHA-256 checksum of the written file for later verification.
+	checksum, err := br.computeFileChecksum(destPath)
+	if err != nil {
+		// Non-fatal: log the error but continue — the backup is already written.
+		br.logger.Warn("compute backup checksum failed", "backup_id", id, "error", err)
+	}
+
 	// 7. Update backup_log with success.
 	completedAt := time.Now().UTC()
 	result.Status = "completed"
@@ -235,7 +245,7 @@ func (br *BackupRunner) RunBackup(ctx context.Context) (BackupResult, error) {
 	result.FileCount = 1
 	result.TotalSize = written
 
-	if err := br.updateLogCompleted(ctx, id, completedAt, result.FileCount, written); err != nil {
+	if err := br.updateLogCompleted(ctx, id, completedAt, result.FileCount, written, checksum); err != nil {
 		br.logger.Error("update backup log after success", "backup_id", id, "error", err)
 	}
 
@@ -331,13 +341,15 @@ func (br *BackupRunner) StartScheduler(ctx context.Context, targetHour, targetMi
 	}
 }
 
-// VerifyBackup checks that a backup file exists and its checksum matches.
+// VerifyBackup checks that a backup file exists, its size matches, and its
+// SHA-256 checksum matches the value stored at backup creation time.
 func (br *BackupRunner) VerifyBackup(ctx context.Context, backupID uuid.UUID) error {
 	var status string
 	var sizeBytes *int64
+	var storedChecksum *string
 	err := br.db.QueryRow(ctx, `
-		SELECT status, size_bytes FROM backup_log WHERE id = $1
-	`, backupID).Scan(&status, &sizeBytes)
+		SELECT status, size_bytes, checksum FROM backup_log WHERE id = $1
+	`, backupID).Scan(&status, &sizeBytes, &storedChecksum)
 	if err != nil {
 		return fmt.Errorf("lookup backup %s: %w", backupID, err)
 	}
@@ -356,22 +368,23 @@ func (br *BackupRunner) VerifyBackup(ctx context.Context, backupID uuid.UUID) er
 		return fmt.Errorf("backup file size mismatch: expected %d, got %d", *sizeBytes, info.Size())
 	}
 
-	// Verify file is readable and compute checksum.
-	f, err := br.fs.Open(destPath)
+	// Compute current checksum and compare against the stored reference.
+	actualChecksum, err := br.computeFileChecksum(destPath)
 	if err != nil {
-		return fmt.Errorf("open backup file: %w", err)
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
 		return fmt.Errorf("compute checksum: %w", err)
+	}
+
+	if storedChecksum == nil || *storedChecksum == "" {
+		return fmt.Errorf("backup %s has no stored checksum; integrity cannot be verified", backupID)
+	}
+	if subtle.ConstantTimeCompare([]byte(actualChecksum), []byte(*storedChecksum)) != 1 {
+		return fmt.Errorf("backup %s checksum mismatch: file may be corrupt or tampered", backupID)
 	}
 
 	br.logger.Info("backup verified",
 		"backup_id", backupID,
 		"size_bytes", info.Size(),
-		"sha256", hex.EncodeToString(h.Sum(nil)),
+		"sha256", actualChecksum,
 	)
 
 	return nil
@@ -387,14 +400,29 @@ func (br *BackupRunner) insertLog(ctx context.Context, id uuid.UUID, startedAt t
 	return err
 }
 
-func (br *BackupRunner) updateLogCompleted(ctx context.Context, id uuid.UUID, completedAt time.Time, fileCount int, totalSize int64) error {
+func (br *BackupRunner) updateLogCompleted(ctx context.Context, id uuid.UUID, completedAt time.Time, fileCount int, totalSize int64, checksum string) error {
 	_, err := br.db.Exec(ctx, `
 		UPDATE backup_log
-		SET completed_at = $1, status = 'completed', size_bytes = $2
-		WHERE id = $3
-	`, completedAt, totalSize, id)
+		SET completed_at = $1, status = 'completed', size_bytes = $2, checksum = $3
+		WHERE id = $4
+	`, completedAt, totalSize, checksum, id)
 	_ = fileCount // stored for result; not a separate column
 	return err
+}
+
+// computeFileChecksum opens the file at path and returns its hex-encoded SHA-256.
+func (br *BackupRunner) computeFileChecksum(path string) (string, error) {
+	f, err := br.fs.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("open file: %w", err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", fmt.Errorf("read file: %w", err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (br *BackupRunner) updateLogFailed(ctx context.Context, id uuid.UUID, errMsg string) error {
@@ -407,13 +435,25 @@ func (br *BackupRunner) updateLogFailed(ctx context.Context, id uuid.UUID, errMs
 	return err
 }
 
+// sanitizeBackupErr returns a truncated, safe error string for storage in the
+// backup_log table. Raw error messages can contain file paths, SQL fragments,
+// or other sensitive internal details; truncating at 512 bytes prevents
+// unbounded storage and limits information leakage.
+func sanitizeBackupErr(err error) string {
+	msg := err.Error()
+	if len(msg) > 512 {
+		msg = msg[:512] + "...(truncated)"
+	}
+	return msg
+}
+
 func (br *BackupRunner) failBackup(ctx context.Context, id uuid.UUID, result BackupResult, backupErr error) (BackupResult, error) {
 	result.Status = "failed"
-	result.ErrorMessage = backupErr.Error()
+	result.ErrorMessage = sanitizeBackupErr(backupErr)
 
 	br.logger.Error("backup failed", "backup_id", id, "error", backupErr)
 
-	if err := br.updateLogFailed(ctx, id, backupErr.Error()); err != nil {
+	if err := br.updateLogFailed(ctx, id, sanitizeBackupErr(backupErr)); err != nil {
 		br.logger.Error("update backup log after failure", "backup_id", id, "error", err)
 	}
 
@@ -427,7 +467,7 @@ func (br *BackupRunner) failBackup(ctx context.Context, id uuid.UUID, result Bac
 		if failures >= 3 {
 			level = "CRITICAL"
 		}
-		notifyErr := br.notifier.NotifyBackupFailed(ctx, fmt.Errorf("[%s] backup %s failed (consecutive: %d): %w", level, id, failures, backupErr))
+		notifyErr := br.notifier.NotifyBackupFailed(ctx, fmt.Errorf("[%s] backup %s failed (consecutive: %d); check server logs for details", level, id, failures))
 		if notifyErr != nil {
 			br.logger.Error("send backup failure notification", "error", notifyErr)
 		}
@@ -462,8 +502,17 @@ func (br *BackupRunner) createArchive(pgDump []byte, storageObjects map[string][
 
 	// Add MinIO storage objects.
 	for key, data := range storageObjects {
+		safeName := path.Clean(key)
+		if safeName == ".." || strings.HasPrefix(safeName, "../") || strings.Contains(safeName, "/../") {
+			br.logger.Warn("skipping object with unsafe key", "key", key)
+			continue
+		}
+		if strings.HasPrefix(safeName, "/") {
+			br.logger.Warn("skipping object with absolute path key", "key", key)
+			continue
+		}
 		_ = tw.WriteHeader(&tar.Header{
-			Name:    filepath.Join("evidence", key),
+			Name:    "evidence/" + safeName,
 			Size:    int64(len(data)),
 			Mode:    0o600,
 			ModTime: time.Now().UTC(),
@@ -502,16 +551,22 @@ func (br *BackupRunner) snapshotMinIO(ctx context.Context) (map[string][]byte, e
 		"_manifest.json": manifest,
 	}
 
+	const maxObjectSize = 5 * 1024 * 1024 * 1024 // 5 GiB
+
 	for _, key := range keys {
 		rc, _, _, getErr := br.storage.GetObject(ctx, key)
 		if getErr != nil {
 			return nil, fmt.Errorf("get object %s: %w", key, getErr)
 		}
 
-		data, readErr := io.ReadAll(rc)
+		limited := io.LimitReader(rc, maxObjectSize+1)
+		data, readErr := io.ReadAll(limited)
 		rc.Close()
 		if readErr != nil {
 			return nil, fmt.Errorf("read object %s: %w", key, readErr)
+		}
+		if int64(len(data)) > maxObjectSize {
+			return nil, fmt.Errorf("object %s exceeds maximum size", key)
 		}
 
 		objects[key] = data

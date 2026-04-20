@@ -51,11 +51,13 @@ export async function authenticatedFetch<T>(
   const cookieStore = await cookies();
   const activeOrgId = cookieStore.get('vk-active-org')?.value;
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   const headers: HeadersInit = {
     ...options?.headers,
     Authorization: `Bearer ${session.accessToken}`,
   };
-  if (activeOrgId) {
+  if (activeOrgId && UUID_RE.test(activeOrgId)) {
     (headers as Record<string, string>)['X-Organization-ID'] = activeOrgId;
   }
 

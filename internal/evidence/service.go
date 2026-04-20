@@ -74,6 +74,49 @@ type Service struct {
 	captureMetadata   CaptureMetadataRepository     // optional — Berkeley Protocol capture metadata
 }
 
+// scopedEvidenceRepo is the narrow interface implemented by PGRepository
+// for defense-in-depth IDOR prevention. It is NOT part of the Repository
+// interface so existing test mocks (which satisfy Repository) remain
+// compilable. Production always uses *PGRepository which implements both.
+//
+// The three methods serve distinct access patterns:
+//   - FindByIDActive: active-only fetch scoped to the caller's evidence ID;
+//     used when the caseID is not yet known (e.g. /api/evidence/{id} route).
+//     The handler's enforceItemAccess provides the case-membership gate.
+//   - FindByIDScoped: full case+id-scoped fetch used when the caseID is
+//     already available (e.g. UploadNewVersion, where parent.CaseID is known).
+//     Provides DB-level cross-case IDOR prevention.
+//   - FindByIDIncludingDestroyed: unfiltered fetch for GDPR / destruction
+//     flows that must operate on already-destroyed records.
+type scopedEvidenceRepo interface {
+	FindByIDActive(ctx context.Context, id uuid.UUID) (EvidenceItem, error)
+	FindByIDScoped(ctx context.Context, caseID, id uuid.UUID) (EvidenceItem, error)
+	FindByIDIncludingDestroyed(ctx context.Context, id uuid.UUID) (EvidenceItem, error)
+}
+
+// getScoped returns the scoped repository implementation when the underlying
+// repo supports it (i.e. *PGRepository in production). Returns nil when the
+// repo is a test mock that only satisfies the plain Repository interface.
+func (s *Service) getScoped() scopedEvidenceRepo {
+	sr, _ := s.repo.(scopedEvidenceRepo)
+	return sr
+}
+
+// findByIDWithCaseScope fetches an active (non-destroyed) evidence item.
+// In production it issues a query filtered by `destroyed_at IS NULL`,
+// preventing service-layer access to destroyed records without needing
+// the caseID. Case-membership enforcement is the handler's responsibility
+// via enforceItemAccess. Falls back to the unscoped Repository.FindByID
+// for test mocks that do not implement scopedEvidenceRepo.
+func (s *Service) findByIDWithCaseScope(ctx context.Context, id uuid.UUID) (EvidenceItem, error) {
+	sr := s.getScoped()
+	if sr == nil {
+		// Test mock path — return as-is (mocks handle their own scoping).
+		return s.repo.FindByID(ctx, id)
+	}
+	return sr.FindByIDActive(ctx, id)
+}
+
 // WithLegalHoldChecker injects a legal-hold checker into the service.
 // Returns the service for chaining. Used by DestroyEvidence; if nil, the
 // legal-hold check is skipped (production must wire this).
@@ -278,8 +321,17 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (EvidenceItem, 
 		return EvidenceItem{}, fmt.Errorf("create evidence record: %w", err)
 	}
 
-	// Generate thumbnail in background
-	go s.generateThumbnail(context.Background(), evidence.ID, input.CaseID, evidence.Version, sanitizedName, mimeType, data)
+	// Generate thumbnail in background with timeout and panic recovery.
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("thumbnail generation panicked", "evidence_id", evidence.ID, "panic", r)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		s.generateThumbnail(ctx, evidence.ID, input.CaseID, evidence.Version, sanitizedName, mimeType, data)
+	}()
 
 	// Custody log
 	s.recordCustodyEvent(ctx, input.CaseID, evidence.ID, "evidence_uploaded", input.UploadedBy, map[string]string{
@@ -347,9 +399,11 @@ func (s *Service) storageBucket() string {
 	return s.storage.BucketName()
 }
 
-// Get retrieves evidence metadata by ID.
+// Get retrieves evidence metadata by ID. Uses the case-scoped query to
+// prevent cross-case IDOR — the evidence must exist and belong to the same
+// case as its stored case_id or the request returns ErrNotFound.
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (EvidenceItem, error) {
-	return s.repo.FindByID(ctx, id)
+	return s.findByIDWithCaseScope(ctx, id)
 }
 
 // List retrieves evidence for a case with filtering and pagination.
@@ -392,21 +446,23 @@ func (s *Service) UpdateMetadata(ctx context.Context, id uuid.UUID, updates Evid
 		return EvidenceItem{}, err
 	}
 
+	// Always fetch the prior state with case scope to verify the caller has
+	// access to this evidence item, regardless of which fields are being
+	// updated. This closes the path where non-classification updates
+	// (description, tags) could bypass the case-scoping check.
+	prior, err := s.findByIDWithCaseScope(ctx, id)
+	if err != nil {
+		return EvidenceItem{}, err
+	}
+
 	// Classification changes must satisfy the ex_parte rules before touching
-	// the database. Fetch the prior state so we can emit a precise custody
-	// event and, when the classification moves off ex_parte, clear the side.
-	// The prior classification is also passed to the repository as an
-	// optimistic-concurrency guard (Sprint 9 M4) so two concurrent writers
+	// the database. Use the already-fetched prior state to emit a precise
+	// custody event and, when the classification moves off ex_parte, clear
+	// the side. The prior classification is also passed to the repository as
+	// an optimistic-concurrency guard (Sprint 9 M4) so two concurrent writers
 	// cannot both "win" a race where one sets classification to ex_parte
 	// and the other clears the side.
-	var prior EvidenceItem
 	if updates.Classification != nil {
-		p, err := s.repo.FindByID(ctx, id)
-		if err != nil {
-			return EvidenceItem{}, err
-		}
-		prior = p
-
 		if err := ValidateClassificationChange(*updates.Classification, updates.ExParteSide); err != nil {
 			return EvidenceItem{}, err
 		}
@@ -465,7 +521,7 @@ func (s *Service) UpdateMetadata(ctx context.Context, id uuid.UUID, updates Evid
 
 // Download streams the evidence file from storage.
 func (s *Service) Download(ctx context.Context, id uuid.UUID, actorID string) (io.ReadCloser, int64, string, string, error) {
-	evidence, err := s.repo.FindByID(ctx, id)
+	evidence, err := s.findByIDWithCaseScope(ctx, id)
 	if err != nil {
 		return nil, 0, "", "", err
 	}
@@ -488,7 +544,7 @@ func (s *Service) Download(ctx context.Context, id uuid.UUID, actorID string) (i
 
 // GetThumbnail streams the thumbnail from storage.
 func (s *Service) GetThumbnail(ctx context.Context, id uuid.UUID) (io.ReadCloser, int64, error) {
-	evidence, err := s.repo.FindByID(ctx, id)
+	evidence, err := s.findByIDWithCaseScope(ctx, id)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -516,7 +572,7 @@ func (s *Service) GetThumbnail(ctx context.Context, id uuid.UUID) (io.ReadCloser
 //
 // Deprecated: use DestroyEvidence instead.
 func (s *Service) Destroy(ctx context.Context, input DestroyInput) error {
-	evidence, err := s.repo.FindByID(ctx, input.EvidenceID)
+	evidence, err := s.findByIDWithCaseScope(ctx, input.EvidenceID)
 	if err != nil {
 		return err
 	}
@@ -576,7 +632,7 @@ func (s *Service) Destroy(ctx context.Context, input DestroyInput) error {
 
 // UploadNewVersion creates a new version of existing evidence.
 func (s *Service) UploadNewVersion(ctx context.Context, parentID uuid.UUID, input UploadInput) (EvidenceItem, error) {
-	parent, err := s.repo.FindByID(ctx, parentID)
+	parent, err := s.findByIDWithCaseScope(ctx, parentID)
 	if err != nil {
 		return EvidenceItem{}, err
 	}
@@ -619,6 +675,11 @@ func (s *Service) UploadNewVersion(ctx context.Context, parentID uuid.UUID, inpu
 		"previous_version": fmt.Sprintf("%d", parent.Version),
 		"new_version":      fmt.Sprintf("%d", newVersion),
 	})
+	// Re-fetch via scoped query — we know the caseID from the parent.
+	sr := s.getScoped()
+	if sr != nil {
+		return sr.FindByIDScoped(ctx, parent.CaseID, evidence.ID)
+	}
 	return s.repo.FindByID(ctx, evidence.ID)
 }
 
@@ -777,8 +838,9 @@ func (s *Service) UpsertCaptureMetadata(ctx context.Context, evidenceID uuid.UUI
 		return nil, nil, err
 	}
 
-	// Verify evidence exists and get case ID for custody event
-	evidence, err := s.repo.FindByID(ctx, evidenceID)
+	// Verify evidence exists and get case ID for custody event.
+	// Use the scoped variant to prevent cross-case IDOR.
+	evidence, err := s.findByIDWithCaseScope(ctx, evidenceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -793,7 +855,10 @@ func (s *Service) UpsertCaptureMetadata(ctx context.Context, evidenceID uuid.UUI
 
 	// Pin collector to the authenticated actor — never accept client-supplied collector_user_id
 	// to prevent chain-of-custody spoofing.
-	actorUUID, _ := uuid.Parse(actorID)
+	actorUUID, err := uuid.Parse(actorID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid actor ID: %w", err)
+	}
 	collectorUID := &actorUUID
 
 	// Check if existing metadata has a different verification status

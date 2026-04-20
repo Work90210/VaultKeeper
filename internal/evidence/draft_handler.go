@@ -22,31 +22,55 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/httputil"
 )
 
-// userRateLimiter provides per-user rate limiting.
+// rateLimiterEntry wraps a rate.Limiter with a last-seen timestamp for pruning.
+type rateLimiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+// userRateLimiter provides per-user rate limiting with periodic pruning of
+// stale entries to prevent unbounded memory growth.
 type userRateLimiter struct {
-	mu       sync.Mutex
-	limiters map[string]*rate.Limiter
-	rate     rate.Limit
-	burst    int
+	mu          sync.Mutex
+	limiters    map[string]*rateLimiterEntry
+	rate        rate.Limit
+	burst       int
+	lastPruned  time.Time
 }
 
 func newUserRateLimiter(r rate.Limit, burst int) *userRateLimiter {
 	return &userRateLimiter{
-		limiters: make(map[string]*rate.Limiter),
-		rate:     r,
-		burst:    burst,
+		limiters:   make(map[string]*rateLimiterEntry),
+		rate:       r,
+		burst:      burst,
+		lastPruned: time.Now(),
 	}
 }
 
 func (u *userRateLimiter) allow(userID string) bool {
 	u.mu.Lock()
-	lim, ok := u.limiters[userID]
-	if !ok {
-		lim = rate.NewLimiter(u.rate, u.burst)
-		u.limiters[userID] = lim
+	defer u.mu.Unlock()
+
+	// Prune stale entries every 5 minutes to prevent unbounded map growth.
+	if time.Since(u.lastPruned) > 5*time.Minute {
+		for k, v := range u.limiters {
+			if time.Since(v.lastSeen) > time.Hour {
+				delete(u.limiters, k)
+			}
+		}
+		u.lastPruned = time.Now()
 	}
-	u.mu.Unlock()
-	return lim.Allow()
+
+	entry, ok := u.limiters[userID]
+	if !ok {
+		entry = &rateLimiterEntry{
+			limiter:  rate.NewLimiter(u.rate, u.burst),
+			lastSeen: time.Now(),
+		}
+		u.limiters[userID] = entry
+	}
+	entry.lastSeen = time.Now()
+	return entry.limiter.Allow()
 }
 
 // rateLimitMiddleware rejects requests that exceed the per-user rate limit.
@@ -55,7 +79,7 @@ func rateLimitMiddleware(limiter *userRateLimiter) func(http.Handler) http.Handl
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ac, ok := auth.GetAuthContext(r.Context())
 			if !ok {
-				next.ServeHTTP(w, r)
+				httputil.RespondError(w, http.StatusUnauthorized, "authentication required")
 				return
 			}
 			if !limiter.allow(ac.UserID) {
@@ -560,10 +584,12 @@ func (h *DraftHandler) checkCaseAccessHTTP(w http.ResponseWriter, ctx context.Co
 }
 
 // lookupCaseID retrieves the case_id for a given evidence item.
+// Destroyed items are excluded so that deleted evidence cannot be used to
+// gain access to the case it previously belonged to.
 func (h *DraftHandler) lookupCaseID(ctx context.Context, evidenceID uuid.UUID) (uuid.UUID, error) {
 	var caseID uuid.UUID
 	err := h.db.QueryRow(ctx,
-		`SELECT case_id FROM evidence_items WHERE id = $1`,
+		`SELECT case_id FROM evidence_items WHERE id = $1 AND destroyed_at IS NULL`,
 		evidenceID,
 	).Scan(&caseID)
 	return caseID, err

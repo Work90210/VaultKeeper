@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Analysis notes — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('analysis', `<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><span class="here">Analysis notes</span>`);
+
+const notes = [
+  {ref:"NOTE-184", t:"Command structure — Unit 28B, April 2024", who:"H. Morel", c:"a", tags:["hypothesis","cmd-structure"], links:"14 exhibits · 3 witnesses", ago:"2 d", st:"peer-review", ex:"Working hypothesis is that S-038 reported through M-112, not directly to regional command. See cross-reference with intercept E-0916 at 14:03 EET…"},
+  {ref:"NOTE-183", t:"Timeline reconciliation — 19 Apr checkpoint events", who:"Amir H.", c:"c", tags:["timeline","corroborated"], links:"9 exhibits · 4 witnesses", ago:"3 d", st:"signed", ex:"Revised W-0144 intake time from 17:40 to 17:52 after drone pass confirmation at 17:54. Now consistent with W-0139 and body-cam BC-17 excerpt…"},
+  {ref:"NOTE-182", t:"Unverified — alleged second convoy", who:"Martyna K.", c:"b", tags:["uncorroborated","open"], links:"2 exhibits · 1 witness", ago:"5 d", st:"draft", ex:"Single source currently (W-0139). Flagging as uncorroborated pending independent confirmation. Intercept E-0916 mentions 'second formation' but ambiguous…"},
+  {ref:"NOTE-181", t:"Financial trail — Raiffeisen ledger anomalies", who:"W. Nyoka", c:"e", tags:["financial","in-progress"], links:"1 exhibit", ago:"7 d", st:"draft", ex:"Three transfers on ledger E-0914 show identical round amounts to intermediary accounts within 72h of checkpoint incident. Requesting OLAF review…"},
+  {ref:"NOTE-180", t:"Counter-evidence — defence exculpatory claim", who:"H. Morel", c:"a", tags:["defence","rule-77"], links:"3 exhibits", ago:"9 d", st:"signed", ex:"Defence filed motion asserting S-038 was off-duty on 19 Apr. Our drone footage E-0918 contradicts this at 17:54. Nonetheless, per Rule 77, preserving and disclosing…"},
+  {ref:"NOTE-179", t:"OSINT cross-check · Bellingcat satellite trace", who:"Amir H.", c:"c", tags:["osint","peer"], links:"4 exhibits", ago:"11 d", st:"peer-review", ex:"Sentinel-2 pass on 18 Apr 09:12Z confirms vehicle concentration at coordinates consistent with W-0144 account. Bellingcat read-only peer has independently noted…"}
+];
+const sp={signed:'sealed','peer-review':'disc',draft:'draft'};
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Case · ICC-UKR-2024 · Berkeley Protocol Phase 6</span>
+      <h1>Analysis <em>notes</em></h1>
+      <p class="sub">Phase 6 of the Berkeley Protocol requires documented analytical reasoning with iterative refinement. Every note is a CRDT document tied to the exhibits it cites. Hypotheses, dead-ends, counter-evidence — all sealed into the chain so defence counsel sees the reasoning, not just the conclusion.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="#">Templates</a>
+      <a class="btn" href="#">New note <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="d-kpis" style="margin-bottom:22px">
+    <div class="d-kpi"><div class="k">Notes · this case</div><div class="v">184</div><div class="sub">62 signed · 38 peer-review · 84 draft</div></div>
+    <div class="d-kpi"><div class="k">Uncorroborated · open</div><div class="v">11</div><div class="delta n">● flagged to prosecution</div></div>
+    <div class="d-kpi"><div class="k">Counter-evidence · preserved</div><div class="v">7</div><div class="sub">per Rule 77 disclosure</div></div>
+    <div class="d-kpi"><div class="k">Avg. citations</div><div class="v">6.2</div><div class="sub">exhibits per note</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="fbar">
+      <div class="fsearch"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--muted)"><circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/></svg><input placeholder="reference, tag, author, linked exhibit…"/></div>
+      <span class="chip active">All 184</span>
+      <span class="chip">Signed 62</span>
+      <span class="chip">Peer-review 38</span>
+      <span class="chip">Draft 84</span>
+      <span class="chip">Hypothesis ▾</span>
+      <span class="chip">Author ▾</span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      ${notes.map(n=>`
+        <div style="padding:22px 28px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 220px;gap:32px;align-items:start">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span class="ref" style="display:block"><strong>${n.ref}</strong></span><span class="pl ${sp[n.st]}">${n.st}</span>${n.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+            <a href="#" style="font-family:'Fraunces',serif;font-size:22px;letter-spacing:-.015em;color:var(--ink);line-height:1.2;display:block">${n.t}</a>
+            <p style="color:var(--muted);font-size:13.5px;line-height:1.6;margin-top:8px;max-width:68ch">${n.ex}</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;align-items:flex-end;font-size:12.5px;color:var(--muted);text-align:right">
+            <div style="display:flex;align-items:center;gap:8px"><span class="avs"><span class="av ${n.c}">${n.who[0]}</span></span><span style="font-family:'Fraunces',serif;font-size:14px;color:var(--ink);letter-spacing:-.005em">${n.who}</span></div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase">${n.links}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px">${n.ago} ago</div>
+            <a class="linkarrow" href="#" style="font-size:12.5px">Open →</a>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+`;
+</script></body></html>

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/vaultkeeper/vaultkeeper/internal/auth"
 )
@@ -32,16 +33,24 @@ type CaseStatusChecker interface {
 	HasActiveCases(ctx context.Context, orgID uuid.UUID) (bool, error)
 }
 
+// RoleDefSeeder seeds default case role definitions for a new organization.
+type RoleDefSeeder interface {
+	SeedDefaults(ctx context.Context, orgID uuid.UUID) error
+}
+
 type Service struct {
+	pool          *pgxpool.Pool
 	orgRepo       OrgRepository
 	memberRepo    MembershipRepository
 	inviteRepo    InvitationRepository
 	authz         *OrgAuthzService
 	caseChecker   CaseStatusChecker
+	roleDefSeeder RoleDefSeeder
 	logger        *slog.Logger
 }
 
 func NewService(
+	pool *pgxpool.Pool,
 	orgRepo OrgRepository,
 	memberRepo MembershipRepository,
 	inviteRepo InvitationRepository,
@@ -49,6 +58,7 @@ func NewService(
 	logger *slog.Logger,
 ) *Service {
 	return &Service{
+		pool:       pool,
 		orgRepo:    orgRepo,
 		memberRepo: memberRepo,
 		inviteRepo: inviteRepo,
@@ -65,10 +75,21 @@ func (s *Service) WithCaseStatusChecker(c CaseStatusChecker) *Service {
 	return s
 }
 
+func (s *Service) WithRoleDefSeeder(seeder RoleDefSeeder) *Service {
+	s.roleDefSeeder = seeder
+	return s
+}
+
 // CreateOrg creates a new organization and adds the caller as owner.
 func (s *Service) CreateOrg(ctx context.Context, ac auth.AuthContext, input CreateOrgInput) (Organization, error) {
 	if strings.TrimSpace(input.Name) == "" {
 		return Organization{}, fmt.Errorf("organization name is required")
+	}
+	if len(input.Name) > 255 {
+		return Organization{}, fmt.Errorf("organization name too long (max 255 characters)")
+	}
+	if len(input.Description) > 2000 {
+		return Organization{}, fmt.Errorf("organization description too long (max 2000 characters)")
 	}
 
 	slug := generateSlug(input.Name)
@@ -94,6 +115,13 @@ func (s *Service) CreateOrg(ctx context.Context, ac auth.AuthContext, input Crea
 	})
 	if err != nil {
 		return Organization{}, fmt.Errorf("add creator as owner: %w", err)
+	}
+
+	// Seed default case role definitions for the new org.
+	if s.roleDefSeeder != nil {
+		if seedErr := s.roleDefSeeder.SeedDefaults(ctx, org.ID); seedErr != nil {
+			s.logger.Warn("failed to seed default role definitions", "org_id", org.ID, "error", seedErr)
+		}
 	}
 
 	return org, nil
@@ -222,6 +250,12 @@ func (s *Service) TransferOwnership(ctx context.Context, ac auth.AuthContext, or
 		return err
 	}
 
+	// Prevent self-transfer: demoting yourself to admin with no other owner would
+	// silently break the invariant that an org always has at least one owner.
+	if targetUserID == ac.UserID {
+		return fmt.Errorf("cannot transfer ownership to yourself")
+	}
+
 	// Verify target is an active member.
 	target, err := s.memberRepo.GetMembership(ctx, orgID, targetUserID)
 	if err != nil {
@@ -231,34 +265,42 @@ func (s *Service) TransferOwnership(ctx context.Context, ac auth.AuthContext, or
 		return fmt.Errorf("target user is not an active member")
 	}
 
-	// Promote target to owner.
-	_, err = s.memberRepo.Upsert(ctx, Membership{
-		OrganizationID: orgID,
-		UserID:         targetUserID,
-		Role:           RoleOwner,
-		Status:         StatusActive,
-		JoinedAt:       target.JoinedAt,
-	})
+	// Promote and demote atomically so a partial failure cannot leave the org
+	// with zero owners or two owners when only one was intended.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transfer-ownership transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // intentional rollback on any non-commit path
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO organization_memberships (organization_id, user_id, role, status, joined_at)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (organization_id, user_id) DO UPDATE
+		 SET role = EXCLUDED.role, status = EXCLUDED.status,
+		     joined_at = COALESCE(EXCLUDED.joined_at, organization_memberships.joined_at),
+		     updated_at = now()`,
+		orgID, targetUserID, RoleOwner, StatusActive, target.JoinedAt,
+	)
 	if err != nil {
 		return fmt.Errorf("promote target to owner: %w", err)
 	}
 
-	// Demote caller to admin.
-	callerMembership, err := s.memberRepo.GetMembership(ctx, orgID, ac.UserID)
-	if err != nil {
-		return fmt.Errorf("get caller membership: %w", err)
-	}
-	_, err = s.memberRepo.Upsert(ctx, Membership{
-		OrganizationID: orgID,
-		UserID:         ac.UserID,
-		Role:           RoleAdmin,
-		Status:         StatusActive,
-		JoinedAt:       callerMembership.JoinedAt,
-	})
+	_, err = tx.Exec(ctx,
+		`INSERT INTO organization_memberships (organization_id, user_id, role, status, joined_at)
+		 VALUES ($1, $2, $3, $4, now())
+		 ON CONFLICT (organization_id, user_id) DO UPDATE
+		 SET role = EXCLUDED.role, status = EXCLUDED.status,
+		     updated_at = now()`,
+		orgID, ac.UserID, RoleAdmin, StatusActive,
+	)
 	if err != nil {
 		return fmt.Errorf("demote caller to admin: %w", err)
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transfer-ownership transaction: %w", err)
+	}
 	return nil
 }
 
@@ -313,24 +355,56 @@ func (s *Service) AcceptInvitation(ctx context.Context, ac auth.AuthContext, raw
 		return Organization{}, ErrEmailMismatch
 	}
 
-	// Atomic: create membership + mark accepted.
-	now := time.Now()
-	_, err = s.memberRepo.Upsert(ctx, Membership{
-		OrganizationID: inv.OrganizationID,
-		UserID:         ac.UserID,
-		Role:           inv.Role,
-		Status:         StatusActive,
-		JoinedAt:       &now,
-	})
-	if err != nil {
-		return Organization{}, fmt.Errorf("create membership: %w", err)
-	}
-
-	if err := s.inviteRepo.MarkAccepted(ctx, inv.ID, ac.UserID); err != nil {
-		return Organization{}, fmt.Errorf("mark accepted: %w", err)
+	// Atomically create membership and mark the invitation accepted so the
+	// invite cannot be reused if the second write fails.
+	if err := s.acceptInvitationTx(ctx, inv, ac.UserID); err != nil {
+		return Organization{}, err
 	}
 
 	return s.orgRepo.GetByID(ctx, inv.OrganizationID)
+}
+
+// acceptInvitationTx wraps the membership upsert and the invitation status
+// update in a single database transaction. If either operation fails the
+// transaction is rolled back, preventing a reusable dangling invite.
+func (s *Service) acceptInvitationTx(ctx context.Context, inv Invitation, userID string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin accept-invitation transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on any non-commit path is intentional
+
+	now := time.Now()
+	_, err = tx.Exec(ctx,
+		`INSERT INTO organization_memberships (organization_id, user_id, role, status, joined_at)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (organization_id, user_id) DO UPDATE
+		 SET role = EXCLUDED.role, status = EXCLUDED.status,
+		     joined_at = COALESCE(EXCLUDED.joined_at, organization_memberships.joined_at),
+		     updated_at = now()`,
+		inv.OrganizationID, userID, inv.Role, StatusActive, &now,
+	)
+	if err != nil {
+		return fmt.Errorf("create membership: %w", err)
+	}
+
+	tag, err := tx.Exec(ctx,
+		`UPDATE organization_invitations
+		 SET status = 'accepted', accepted_by = $2, accepted_at = now()
+		 WHERE id = $1 AND status = 'pending'`,
+		inv.ID, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("mark invitation accepted: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrInviteNotPending
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit accept-invitation transaction: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) DeclineInvitation(ctx context.Context, ac auth.AuthContext, rawToken string) error {

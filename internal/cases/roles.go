@@ -20,7 +20,7 @@ import (
 // CaseRoleStore is the interface the RoleHandler depends on. RoleRepository
 // implements it; tests can substitute a lightweight mock.
 type CaseRoleStore interface {
-	Assign(ctx context.Context, caseID uuid.UUID, userID, role, grantedBy string) (CaseRole, error)
+	Assign(ctx context.Context, caseID uuid.UUID, userID, role, grantedBy string, roleDefinitionID *uuid.UUID) (CaseRole, error)
 	Revoke(ctx context.Context, caseID uuid.UUID, userID string) error
 	ListByCaseID(ctx context.Context, caseID uuid.UUID) ([]CaseRole, error)
 }
@@ -39,14 +39,14 @@ func NewRoleRepository(pool *pgxpool.Pool) *RoleRepository {
 	return &RoleRepository{pool: pool}
 }
 
-func (r *RoleRepository) Assign(ctx context.Context, caseID uuid.UUID, userID, role, grantedBy string) (CaseRole, error) {
+func (r *RoleRepository) Assign(ctx context.Context, caseID uuid.UUID, userID, role, grantedBy string, roleDefinitionID *uuid.UUID) (CaseRole, error) {
 	var cr CaseRole
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO case_roles (case_id, user_id, role, granted_by)
-		 VALUES ($1, $2, $3, $4)
-		 RETURNING id, case_id, user_id, role, granted_by, granted_at`,
-		caseID, userID, role, grantedBy,
-	).Scan(&cr.ID, &cr.CaseID, &cr.UserID, &cr.Role, &cr.GrantedBy, &cr.GrantedAt)
+		`INSERT INTO case_roles (case_id, user_id, role, granted_by, role_definition_id)
+		 VALUES ($1, $2, $3, $4, $5)
+		 RETURNING id, case_id, user_id, role, role_definition_id, granted_by, granted_at`,
+		caseID, userID, role, grantedBy, roleDefinitionID,
+	).Scan(&cr.ID, &cr.CaseID, &cr.UserID, &cr.Role, &cr.RoleDefinitionID, &cr.GrantedBy, &cr.GrantedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
 			return CaseRole{}, fmt.Errorf("role already assigned: %w", err)
@@ -72,7 +72,7 @@ func (r *RoleRepository) Revoke(ctx context.Context, caseID uuid.UUID, userID st
 
 func (r *RoleRepository) ListByCaseID(ctx context.Context, caseID uuid.UUID) ([]CaseRole, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, case_id, user_id, role, granted_by, granted_at
+		`SELECT id, case_id, user_id, role, role_definition_id, granted_by, granted_at
 		 FROM case_roles WHERE case_id = $1 ORDER BY granted_at`,
 		caseID,
 	)
@@ -84,7 +84,7 @@ func (r *RoleRepository) ListByCaseID(ctx context.Context, caseID uuid.UUID) ([]
 	var roles []CaseRole
 	for rows.Next() {
 		var cr CaseRole
-		if err := rows.Scan(&cr.ID, &cr.CaseID, &cr.UserID, &cr.Role, &cr.GrantedBy, &cr.GrantedAt); err != nil {
+		if err := rows.Scan(&cr.ID, &cr.CaseID, &cr.UserID, &cr.Role, &cr.RoleDefinitionID, &cr.GrantedBy, &cr.GrantedAt); err != nil {
 			return nil, fmt.Errorf("scan case role: %w", err)
 		}
 		roles = append(roles, cr)
@@ -167,7 +167,7 @@ func (h *RoleHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/api/cases/{id}/roles", func(r chi.Router) {
 		r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Post("/", h.Assign)
 		r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Delete("/{userId}", h.Revoke)
-		r.Get("/", h.List)
+		r.With(auth.RequireSystemRole(auth.RoleCaseAdmin, h.audit)).Get("/", h.List)
 	})
 }
 
@@ -190,6 +190,11 @@ func (h *RoleHandler) Assign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.Role == "" {
+		httputil.RespondError(w, http.StatusBadRequest, "role is required")
+		return
+	}
+
 	if !ValidCaseRoles[input.Role] {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid role")
 		return
@@ -200,14 +205,21 @@ func (h *RoleHandler) Assign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify target user is an active member of the case's organization.
-	// System admins bypass this check — they have cross-org access by design.
+	// Verify both the actor AND target user are active members of the case's
+	// organization. System admins bypass — they have cross-org access by design.
 	if ac.SystemRole < auth.RoleSystemAdmin && h.orgChecker != nil && h.caseLookupOrg != nil {
 		orgID, lookupErr := h.caseLookupOrg(r.Context(), caseID)
 		if lookupErr != nil {
 			httputil.RespondError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
+		// Actor must be in the case's org
+		actorIsMember, actorErr := h.orgChecker.IsActiveMember(r.Context(), orgID, ac.UserID)
+		if actorErr != nil || !actorIsMember {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
+		// Target must be in the case's org
 		isMember, memberErr := h.orgChecker.IsActiveMember(r.Context(), orgID, input.UserID)
 		if memberErr != nil {
 			httputil.RespondError(w, http.StatusInternalServerError, "internal error")
@@ -219,7 +231,18 @@ func (h *RoleHandler) Assign(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cr, err := h.roles.Assign(r.Context(), caseID, input.UserID, input.Role, ac.UserID)
+	// Parse optional role_definition_id.
+	var roleDefID *uuid.UUID
+	if input.RoleDefinitionID != "" {
+		parsed, parseErr := uuid.Parse(input.RoleDefinitionID)
+		if parseErr != nil {
+			httputil.RespondError(w, http.StatusBadRequest, "invalid role_definition_id")
+			return
+		}
+		roleDefID = &parsed
+	}
+
+	cr, err := h.roles.Assign(r.Context(), caseID, input.UserID, input.Role, ac.UserID, roleDefID)
 	if err != nil {
 		if strings.Contains(err.Error(), "role already assigned") {
 			httputil.RespondError(w, http.StatusConflict, "role already assigned")
@@ -274,7 +297,7 @@ func (h *RoleHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.roles.Revoke(r.Context(), caseID, targetUserID); err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			httputil.RespondError(w, http.StatusNotFound, "role assignment not found")
 			return
 		}

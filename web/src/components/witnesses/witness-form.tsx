@@ -22,10 +22,33 @@ export interface WitnessFormData {
   related_evidence: string[];
 }
 
-const PROTECTION_STYLES: Record<string, { color: string; bg: string }> = {
-  standard: { color: 'var(--status-active)', bg: 'var(--status-active-bg)' },
-  protected: { color: 'var(--status-closed)', bg: 'var(--status-closed-bg)' },
-  high_risk: { color: 'var(--status-hold)', bg: 'var(--status-hold-bg)' },
+const PROTECTION_PILL: Record<string, { cls: string }> = {
+  standard: { cls: 'pl sealed' },
+  protected: { cls: 'pl hold' },
+  high_risk: { cls: 'pl broken' },
+};
+
+const labelStyle: React.CSSProperties = {
+  fontFamily: '"JetBrains Mono", monospace',
+  fontSize: '10.5px',
+  letterSpacing: '.08em',
+  textTransform: 'uppercase',
+  color: 'var(--muted)',
+  marginBottom: '6px',
+  display: 'block',
+};
+
+const inputStyle: React.CSSProperties = {
+  padding: '11px 16px',
+  borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--line-2)',
+  background: 'var(--paper)',
+  font: 'inherit',
+  fontSize: '14px',
+  color: 'var(--ink)',
+  outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
 };
 
 export function WitnessForm({
@@ -68,178 +91,175 @@ export function WitnessForm({
     }));
   };
 
-  const protStyle = PROTECTION_STYLES[formData.protection_status] || PROTECTION_STYLES.standard;
+  const protPill = PROTECTION_PILL[formData.protection_status] || PROTECTION_PILL.standard;
 
   return (
     <form onSubmit={handleSubmit}>
-      {error && <div className="banner-error mb-[var(--space-md)]">{error}</div>}
+      {error && <div className="banner-error" style={{ marginBottom: '16px' }}>{error}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-[var(--space-lg)]">
-        {/* ── Left: main form ── */}
-        <div className="space-y-[var(--space-md)]">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 22rem', gap: '22px' }}>
+        {/* Left: main form */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Top row: code + protection */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_12rem] gap-[var(--space-md)]">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 12rem', gap: '16px' }}>
             <div>
-              <label className="field-label" htmlFor="wf-code">Witness code</label>
+              <label htmlFor="wf-code" style={labelStyle}>Witness code</label>
               <input
                 id="wf-code"
                 type="text"
                 value={formData.witness_code}
                 onChange={(e) => setFormData({ ...formData, witness_code: e.target.value })}
                 placeholder="e.g. W-001"
-                className="input-field"
+                style={inputStyle}
                 required
               />
             </div>
             <div>
-              <label className="field-label" htmlFor="wf-protection">Protection</label>
-              <div className="relative">
+              <label htmlFor="wf-protection" style={labelStyle}>Protection</label>
+              <div style={{ position: 'relative' }}>
                 <select
                   id="wf-protection"
                   value={formData.protection_status}
                   onChange={(e) => setFormData({ ...formData, protection_status: e.target.value })}
-                  className="input-field"
-                  style={{ paddingLeft: 'calc(var(--space-sm) + 1rem)' }}
+                  style={{ ...inputStyle, paddingLeft: '28px' }}
                 >
                   <option value="standard">Standard</option>
                   <option value="protected">Protected</option>
                   <option value="high_risk">High Risk</option>
                 </select>
                 <span
-                  className="absolute left-[var(--space-sm)] top-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
-                  style={{ backgroundColor: protStyle.color }}
+                  className={protPill.cls}
+                  style={{
+                    position: 'absolute',
+                    left: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '7px',
+                    height: '7px',
+                    padding: 0,
+                    borderRadius: '50%',
+                    fontSize: 0,
+                    lineHeight: 0,
+                    minWidth: 'unset',
+                  }}
                 />
               </div>
             </div>
           </div>
 
           {/* Identity section */}
-          <div
-            className="card-inset p-[var(--space-md)] space-y-[var(--space-sm)]"
-            style={{ borderLeft: '2px solid var(--amber-accent)' }}
-          >
-            <p
-              className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: 'var(--amber-accent)' }}
-            >
-              Identity
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[var(--space-sm)]">
-              <div>
-                <label className="field-label" htmlFor="wf-name">Full name</label>
-                <input
-                  id="wf-name"
-                  type="text"
-                  value={formData.full_name || ''}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="wf-contact">Contact</label>
-                <input
-                  id="wf-contact"
-                  type="text"
-                  value={formData.contact_info || ''}
-                  onChange={(e) => setFormData({ ...formData, contact_info: e.target.value })}
-                  className="input-field"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="field-label" htmlFor="wf-location">Location</label>
-                <input
-                  id="wf-location"
-                  type="text"
-                  value={formData.location || ''}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="input-field"
-                />
+          <div className="panel" style={{ borderLeft: '2px solid var(--accent)' }}>
+            <div className="panel-h" style={{ padding: '14px 18px' }}>
+              <h3 style={{ fontSize: '14px' }}>Identity</h3>
+            </div>
+            <div className="panel-body" style={{ padding: '18px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label htmlFor="wf-name" style={labelStyle}>Full name</label>
+                  <input
+                    id="wf-name"
+                    type="text"
+                    value={formData.full_name || ''}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="wf-contact" style={labelStyle}>Contact</label>
+                  <input
+                    id="wf-contact"
+                    type="text"
+                    value={formData.contact_info || ''}
+                    onChange={(e) => setFormData({ ...formData, contact_info: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label htmlFor="wf-location" style={labelStyle}>Location</label>
+                  <input
+                    id="wf-location"
+                    type="text"
+                    value={formData.location || ''}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Right: sidebar ── */}
-        <aside className="space-y-[var(--space-md)]">
+        {/* Right: sidebar */}
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Related evidence */}
-          {evidence.length > 0 && (
-            <div className="card-inset p-[var(--space-md)]">
-              <h3 className="field-label" style={{ marginBottom: 'var(--space-sm)' }}>
-                Related evidence
-              </h3>
-              <div className="max-h-64 overflow-y-auto space-y-px">
-                {evidence.map((item) => {
-                  const checked = formData.related_evidence.includes(item.id);
-                  return (
-                    <label
-                      key={item.id}
-                      className="flex items-center gap-[var(--space-sm)] p-[var(--space-xs)] rounded-[var(--radius-sm)] cursor-pointer transition-colors"
-                      style={{
-                        backgroundColor: checked ? 'var(--amber-subtle)' : 'transparent',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleEvidence(item.id)}
-                        className="rounded accent-[var(--amber-accent)]"
-                      />
-                      <span className="truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
-                        <span
-                          className="font-[family-name:var(--font-mono)]"
-                          style={{ color: 'var(--text-tertiary)' }}
-                        >
-                          {item.evidence_number}
-                        </span>
-                        {' '}
-                        {item.original_name}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
+          <div className="panel">
+            <div className="panel-h" style={{ padding: '14px 18px' }}>
+              <h3 style={{ fontSize: '14px' }}>Related evidence</h3>
               {formData.related_evidence.length > 0 && (
-                <p
-                  className="text-xs mt-[var(--space-sm)]"
-                  style={{ color: 'var(--text-tertiary)' }}
-                >
-                  {formData.related_evidence.length} selected
-                </p>
+                <span className="meta">{formData.related_evidence.length} selected</span>
               )}
             </div>
-          )}
-
-          {evidence.length === 0 && (
-            <div className="card-inset p-[var(--space-md)]">
-              <h3 className="field-label" style={{ marginBottom: 'var(--space-xs)' }}>
-                Related evidence
-              </h3>
-              <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                No evidence uploaded to this case yet.
-              </p>
+            <div className="panel-body" style={{ padding: '12px 18px', maxHeight: '256px', overflowY: 'auto' }}>
+              {evidence.length === 0 ? (
+                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                  No evidence uploaded to this case yet.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {evidence.map((item) => {
+                    const checked = formData.related_evidence.includes(item.id);
+                    return (
+                      <label
+                        key={item.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          background: checked ? 'rgba(184,66,28,.06)' : 'transparent',
+                          transition: 'background .12s',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleEvidence(item.id)}
+                          style={{ accentColor: 'var(--accent)' }}
+                        />
+                        <span style={{ fontSize: '12px', color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span className="tag" style={{ marginRight: '6px' }}>{item.evidence_number}</span>
+                          {item.original_name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </aside>
       </div>
 
-      {/* Statement summary — full width below grid */}
-      <div className="mt-[var(--space-md)]">
-        <label className="field-label" htmlFor="wf-statement">Statement summary</label>
+      {/* Statement summary -- full width below grid */}
+      <div style={{ marginTop: '20px' }}>
+        <label htmlFor="wf-statement" style={labelStyle}>Statement summary</label>
         <textarea
           id="wf-statement"
           value={formData.statement_summary}
           onChange={(e) => setFormData({ ...formData, statement_summary: e.target.value })}
           rows={5}
-          className="input-field resize-y"
+          style={{ ...inputStyle, resize: 'vertical' }}
         />
       </div>
 
       {/* Actions */}
-      <div className="flex gap-[var(--space-sm)] justify-end mt-[var(--space-lg)]">
-        <button type="button" onClick={onCancel} className="btn-ghost">
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '24px' }}>
+        <button type="button" onClick={onCancel} className="btn ghost">
           Cancel
         </button>
-        <button type="submit" disabled={saving} className="btn-primary">
+        <button type="submit" disabled={saving} className="btn">
           {saving ? 'Saving\u2026' : witness ? 'Update Witness' : 'Create Witness'}
         </button>
       </div>

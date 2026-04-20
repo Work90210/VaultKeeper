@@ -308,21 +308,25 @@ func extractArchiveToTempDir(base string, archiveBytes []byte) (string, error) {
 		return "", err
 	}
 
-	// os.MkdirTemp with a per-process base + uuid placeholder is the
-	// standard Go pattern for per-request sandbox directories. Failures
-	// only happen on completely unwritable filesystems, which is an
-	// operator-level environment fault rather than a runtime branch we
-	// need a test for.
-	tempDir, _ := os.MkdirTemp(base, "vk-import-*")
-	_ = os.Chmod(tempDir, 0o700)
+	tempDir, err := os.MkdirTemp(base, "vk-import-*")
+	if err != nil {
+		return "", fmt.Errorf("create temp directory: %w", err)
+	}
+	if err := os.Chmod(tempDir, 0o700); err != nil {
+		_ = os.RemoveAll(tempDir)
+		return "", fmt.Errorf("chmod temp directory: %w", err)
+	}
 
-	// Write each extracted file to disk under the temp dir. All source
-	// paths have been validated by ExtractBulkZIP's sanitiser, so the
-	// MkdirAll + WriteFile calls cannot fail on a healthy filesystem.
 	for _, f := range bulk.Files {
 		dst := filepath.Join(tempDir, filepath.FromSlash(f.Name))
-		_ = os.MkdirAll(filepath.Dir(dst), 0o700)
-		_ = os.WriteFile(dst, f.Content, 0o600)
+		if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+			_ = os.RemoveAll(tempDir)
+			return "", fmt.Errorf("create directory for %s: %w", f.Name, err)
+		}
+		if err := os.WriteFile(dst, f.Content, 0o600); err != nil {
+			_ = os.RemoveAll(tempDir)
+			return "", fmt.Errorf("write file %s: %w", f.Name, err)
+		}
 	}
 
 	// If the ZIP had a manifest.csv at the root, ExtractBulkZIP treats

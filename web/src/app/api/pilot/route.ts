@@ -3,12 +3,16 @@ import { pilotRegistrationSchema } from '@/components/marketing/forms/pilot-regi
 
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
 const MAX_REQUESTS = 5;
+// NOTE: In-process rate limiter — works for single-instance deployments only.
+// Replace with Redis-backed limiter (e.g. @upstash/ratelimit) before horizontal scaling.
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 function getClientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
-    return forwarded.split(',')[0].trim();
+    // Use the last IP (set by trusted proxy), not the first (client-spoofable).
+    const ips = forwarded.split(',');
+    return ips[ips.length - 1].trim();
   }
   return 'unknown';
 }
@@ -63,13 +67,9 @@ export async function POST(request: Request) {
   // For now, log the registration. In production, this would persist to DB
   // and send notifications.
   console.info('[Pilot Registration]', {
-    name: data.name,
-    email: data.email,
-    organization: data.organization,
     role: data.role,
     locale: data.locale,
     timestamp: new Date().toISOString(),
-    ip: ip.slice(0, 8) + '***',
   });
 
   return NextResponse.json(

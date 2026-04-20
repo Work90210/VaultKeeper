@@ -24,6 +24,15 @@ type Repository interface {
 	EvidenceBelongsToCase(ctx context.Context, caseID uuid.UUID, evidenceIDs []uuid.UUID) (bool, error)
 }
 
+// scopedDisclosureRepo is an optional extension satisfied by PGRepository.
+// When the underlying repo implements this interface the service uses
+// case-scoped SQL to prevent cross-case IDOR. Test fakes fall back to the
+// unscoped Repository methods.
+type scopedDisclosureRepo interface {
+	FindCaseID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	FindByIDScoped(ctx context.Context, caseID, id uuid.UUID) (Disclosure, error)
+}
+
 type dbPool interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -52,13 +61,17 @@ func (r *PGRepository) Create(ctx context.Context, d Disclosure) (Disclosure, er
 
 	var firstID uuid.UUID
 	disclosedAt := time.Now().UTC()
+	// All rows in this Create call share a single batchID so they can be
+	// retrieved atomically without relying on the fragile (disclosed_by,
+	// disclosed_at) tuple which collides at microsecond resolution.
+	batchID := uuid.New()
 
 	for i, evidenceID := range d.EvidenceIDs {
 		var rowID uuid.UUID
 		err := tx.QueryRow(ctx,
-			`INSERT INTO disclosures (case_id, evidence_id, disclosed_to, disclosed_by, disclosed_at, notes, redacted)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-			d.CaseID, evidenceID, d.DisclosedTo, d.DisclosedBy, disclosedAt, d.Notes, d.Redacted,
+			`INSERT INTO disclosures (case_id, evidence_id, disclosed_to, disclosed_by, disclosed_at, notes, redacted, batch_id)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+			d.CaseID, evidenceID, d.DisclosedTo, d.DisclosedBy, disclosedAt, d.Notes, d.Redacted, batchID,
 		).Scan(&rowID)
 		if err != nil {
 			return Disclosure{}, fmt.Errorf("insert disclosure row %d: %w", i, err)
@@ -74,6 +87,7 @@ func (r *PGRepository) Create(ctx context.Context, d Disclosure) (Disclosure, er
 
 	return Disclosure{
 		ID:          firstID,
+		BatchID:     batchID,
 		CaseID:      d.CaseID,
 		EvidenceIDs: d.EvidenceIDs,
 		DisclosedTo: d.DisclosedTo,
@@ -84,16 +98,68 @@ func (r *PGRepository) Create(ctx context.Context, d Disclosure) (Disclosure, er
 	}, nil
 }
 
-// FindByID returns a disclosure by ID, aggregating all evidence IDs with the same
-// disclosed_at timestamp and case_id from the same disclosure batch.
+// FindCaseID returns the case_id for a disclosure without scope filtering.
+// This is used to bootstrap the caseID before a scoped FindByID call.
+func (r *PGRepository) FindCaseID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	var caseID uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT case_id FROM disclosures WHERE id = $1`, id).Scan(&caseID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrNotFound
+		}
+		return uuid.Nil, fmt.Errorf("find case_id for disclosure %s: %w", id, err)
+	}
+	return caseID, nil
+}
+
+// FindByID returns a disclosure by ID (unscoped). Satisfies the base Repository interface.
 func (r *PGRepository) FindByID(ctx context.Context, id uuid.UUID) (Disclosure, error) {
-	// First get the row to find batch identifiers
 	var d Disclosure
 	var evidenceID uuid.UUID
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, case_id, evidence_id, disclosed_to, disclosed_by, disclosed_at, notes, redacted
+		`SELECT id, case_id, evidence_id, disclosed_to, disclosed_by, disclosed_at, notes, redacted, batch_id
 		 FROM disclosures WHERE id = $1`, id,
-	).Scan(&d.ID, &d.CaseID, &evidenceID, &d.DisclosedTo, &d.DisclosedBy, &d.DisclosedAt, &d.Notes, &d.Redacted)
+	).Scan(&d.ID, &d.CaseID, &evidenceID, &d.DisclosedTo, &d.DisclosedBy, &d.DisclosedAt, &d.Notes, &d.Redacted, &d.BatchID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Disclosure{}, ErrNotFound
+		}
+		return Disclosure{}, fmt.Errorf("find disclosure by id: %w", err)
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT evidence_id FROM disclosures
+		 WHERE batch_id = $1 AND case_id = $2
+		 ORDER BY id ASC`,
+		d.BatchID, d.CaseID,
+	)
+	if err != nil {
+		return Disclosure{}, fmt.Errorf("aggregate disclosure evidence: %w", err)
+	}
+	defer rows.Close()
+	var evidenceIDs []uuid.UUID
+	for rows.Next() {
+		var eid uuid.UUID
+		if err := rows.Scan(&eid); err != nil {
+			return Disclosure{}, fmt.Errorf("scan evidence id: %w", err)
+		}
+		evidenceIDs = append(evidenceIDs, eid)
+	}
+	if err := rows.Err(); err != nil {
+		return Disclosure{}, fmt.Errorf("iterate evidence ids: %w", err)
+	}
+	d.EvidenceIDs = evidenceIDs
+	return d, nil
+}
+
+// FindByIDScoped returns a disclosure by ID scoped to the given case.
+// Satisfies the scopedDisclosureRepo interface for IDOR prevention.
+func (r *PGRepository) FindByIDScoped(ctx context.Context, caseID, id uuid.UUID) (Disclosure, error) {
+	var d Disclosure
+	var evidenceID uuid.UUID
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, case_id, evidence_id, disclosed_to, disclosed_by, disclosed_at, notes, redacted, batch_id
+		 FROM disclosures WHERE id = $1 AND case_id = $2`, id, caseID,
+	).Scan(&d.ID, &d.CaseID, &evidenceID, &d.DisclosedTo, &d.DisclosedBy, &d.DisclosedAt, &d.Notes, &d.Redacted, &d.BatchID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Disclosure{}, ErrNotFound
@@ -101,12 +167,14 @@ func (r *PGRepository) FindByID(ctx context.Context, id uuid.UUID) (Disclosure, 
 		return Disclosure{}, fmt.Errorf("find disclosure by id: %w", err)
 	}
 
-	// Aggregate all evidence IDs from the same batch
+	// Aggregate all evidence IDs from the same batch using batch_id, which is
+	// stable and unique — unlike the old (case_id, disclosed_by, disclosed_at)
+	// tuple that could merge unrelated batches created within the same microsecond.
 	rows, err := r.pool.Query(ctx,
 		`SELECT evidence_id FROM disclosures
-		 WHERE case_id = $1 AND disclosed_by = $2 AND disclosed_at = $3
+		 WHERE batch_id = $1 AND case_id = $2
 		 ORDER BY id ASC`,
-		d.CaseID, d.DisclosedBy, d.DisclosedAt,
+		d.BatchID, caseID,
 	)
 	if err != nil {
 		return Disclosure{}, fmt.Errorf("aggregate disclosure evidence: %w", err)
@@ -140,7 +208,7 @@ func (r *PGRepository) FindByCase(ctx context.Context, caseID uuid.UUID, page Pa
 	// Count distinct batches
 	var total int
 	err := r.pool.QueryRow(ctx,
-		`SELECT COUNT(DISTINCT (disclosed_by, disclosed_at)) FROM disclosures WHERE case_id = $1`,
+		`SELECT COUNT(DISTINCT batch_id) FROM disclosures WHERE case_id = $1`,
 		caseID,
 	).Scan(&total)
 	if err != nil {
@@ -166,10 +234,10 @@ func (r *PGRepository) FindByCase(ctx context.Context, caseID uuid.UUID, page Pa
 	args = append(args, page.Limit)
 
 	rows, err := r.pool.Query(ctx,
-		fmt.Sprintf(`SELECT DISTINCT ON (disclosed_by, disclosed_at)
-			id, case_id, disclosed_to, disclosed_by, disclosed_at, notes, redacted
+		fmt.Sprintf(`SELECT DISTINCT ON (batch_id)
+			id, case_id, disclosed_to, disclosed_by, disclosed_at, notes, redacted, batch_id
 			FROM disclosures %s
-			ORDER BY disclosed_by, disclosed_at DESC, id DESC
+			ORDER BY batch_id, disclosed_at DESC, id DESC
 			LIMIT $%d`, where, argIdx),
 		args...,
 	)
@@ -181,7 +249,7 @@ func (r *PGRepository) FindByCase(ctx context.Context, caseID uuid.UUID, page Pa
 	var disclosures []Disclosure
 	for rows.Next() {
 		var d Disclosure
-		if err := rows.Scan(&d.ID, &d.CaseID, &d.DisclosedTo, &d.DisclosedBy, &d.DisclosedAt, &d.Notes, &d.Redacted); err != nil {
+		if err := rows.Scan(&d.ID, &d.CaseID, &d.DisclosedTo, &d.DisclosedBy, &d.DisclosedAt, &d.Notes, &d.Redacted, &d.BatchID); err != nil {
 			return nil, 0, fmt.Errorf("scan disclosure: %w", err)
 		}
 		d.EvidenceIDs = []uuid.UUID{} // Will be populated if needed
@@ -191,11 +259,11 @@ func (r *PGRepository) FindByCase(ctx context.Context, caseID uuid.UUID, page Pa
 		return nil, 0, fmt.Errorf("iterate disclosures: %w", err)
 	}
 
-	// For each batch, load evidence IDs (no defer in loop; explicit close)
+	// For each batch, load evidence IDs using batch_id (no defer in loop; explicit close)
 	for i, d := range disclosures {
 		eRows, err := r.pool.Query(ctx,
-			`SELECT evidence_id FROM disclosures WHERE case_id = $1 AND disclosed_by = $2 AND disclosed_at = $3`,
-			d.CaseID, d.DisclosedBy, d.DisclosedAt,
+			`SELECT evidence_id FROM disclosures WHERE batch_id = $1 AND case_id = $2 ORDER BY id ASC`,
+			d.BatchID, caseID,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("load disclosure evidence: %w", err)

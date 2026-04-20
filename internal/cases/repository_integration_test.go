@@ -467,7 +467,7 @@ func TestPGRepository_FindAll_UserFilter(t *testing.T) {
 		t.Fatalf("Create c2: %v", err)
 	}
 
-	_, err = roleRepo.Assign(ctx, c1.ID, userID, "investigator", adminID)
+	_, err = roleRepo.Assign(ctx, c1.ID, userID, "investigator", adminID, nil)
 	if err != nil {
 		t.Fatalf("Assign role: %v", err)
 	}

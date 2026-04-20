@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Source code — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .repo-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:48px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  @media (max-width:760px){.repo-meta{grid-template-columns:1fr 1fr}}
+  .repo-meta > div{padding:24px;border-right:1px solid var(--line)}
+  .repo-meta > div:last-child{border-right:none}
+  @media (max-width:760px){.repo-meta > div:nth-child(2n){border-right:none}.repo-meta > div{border-bottom:1px solid var(--line)}}
+  .repo-meta .k{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+  .repo-meta strong{font-family:"Fraunces",serif;font-weight:400;font-size:24px;letter-spacing:-.01em;display:block;line-height:1.1}
+  .repo-meta strong em{color:var(--accent);font-style:italic}
+  .repo-meta small{display:block;font-size:12px;color:var(--muted);margin-top:6px}
+
+  .mod-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:40px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  @media (max-width:760px){.mod-grid{grid-template-columns:1fr}}
+  .mod{padding:28px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .mod:nth-child(2n){border-right:none}
+  .mod:nth-last-child(-n+2){border-bottom:none}
+  @media (max-width:760px){.mod{border-right:none;border-bottom:1px solid var(--line)!important}.mod:last-child{border-bottom:none!important}}
+  .mod .path{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--accent);margin-bottom:10px}
+  .mod h4{font-family:"Fraunces",serif;font-weight:400;font-size:22px;letter-spacing:-.015em;margin-bottom:8px}
+  .mod p{color:var(--muted);font-size:14px;line-height:1.55}
+  .mod .lang{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+  .mod .lang span{font-family:"JetBrains Mono",monospace;font-size:10.5px;padding:3px 9px;border-radius:999px;background:var(--bg-2);color:var(--muted);letter-spacing:.04em}
+
+  .recent{margin-top:48px}
+  .commit{display:grid;grid-template-columns:100px 1fr auto;gap:20px;padding:16px 0;border-bottom:1px solid var(--line);align-items:baseline;font-size:14px}
+  @media (max-width:640px){.commit{grid-template-columns:80px 1fr;gap:10px}.commit .a{grid-column:2;justify-self:start;margin-top:4px}}
+  .commit .h{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--accent)}
+  .commit .m{color:var(--ink)}
+  .commit .a{font-size:12.5px;color:var(--muted);font-family:"Fraunces",serif;font-style:italic}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>Open source · Source code</span>
+    <h1>Fork it. Run it. <em>Verify</em> it. It is yours.</h1>
+    <p class="lead">VaultKeeper's full source tree — including the custody engine, federation daemon, witness-node quorum logic, and the on-prem AI pipeline — is AGPL-3.0. No binary blobs, no "enterprise" fork, no proprietary kernel. If the Dutch coöp ceases to exist tomorrow, your registrar still has the entire system.</p>
+    <div class="repo-meta">
+      <div><div class="k">Licence</div><strong><em>AGPL-3.0</em></strong><small>with commercial exception for signed customers</small></div>
+      <div><div class="k">Repo</div><strong>vaultkeeper/core</strong><small>sr.ht · self-hosted mirror</small></div>
+      <div><div class="k">Languages</div><strong>Rust · TS</strong><small>74% · 18% · F* 6% · others 2%</small></div>
+      <div><div class="k">Contributors</div><strong>94 people</strong><small>across 22 institutions</small></div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Layout<small>The 11 modules</small></div>
+    <div class="sp-body">
+      <h2>Read the pieces you care about <em>first.</em></h2>
+      <p class="sp-lead">The critical parts — the custody engine and the federation daemon — are small enough for one engineer to hold in their head in a week. Start there. Everything else is composition.</p>
+
+      <div class="mod-grid">
+        <div class="mod"><div class="path">vk-custody · Rust · 4,200 LoC</div><h4>Custody engine</h4><p>The append-only ledger. Hash-chaining, witness quorum, Merkle snapshots, F*-verified invariants. Read this first.</p><div class="lang"><span>Rust</span><span>F* proofs</span><span>PostgreSQL RLS</span></div></div>
+        <div class="mod"><div class="path">vk-ingest · Rust · 2,100 LoC</div><h4>Ingest gateway</h4><p>Chunked resumable uploads, RFC 3161 TSA integration, client-side hash reconciliation.</p><div class="lang"><span>Rust</span><span>tus protocol</span></div></div>
+        <div class="mod"><div class="path">vk-witness · Rust · 1,600 LoC</div><h4>Witness node</h4><p>Quorum signer. Ed25519/P-256 HSM integration (PKCS#11). Standalone binary — can run independently from core.</p><div class="lang"><span>Rust</span><span>PKCS#11</span></div></div>
+        <div class="mod"><div class="path">vk-federate · Rust · 3,000 LoC</div><h4>Federation daemon</h4><p>VKE1 protocol implementation. Sub-chain federation, cross-institutional provenance.</p><div class="lang"><span>Rust</span><span>VKE1 spec</span></div></div>
+        <div class="mod"><div class="path">vk-app · TS · 18,400 LoC</div><h4>Web application</h4><p>Investigator workspace. CRDT editing (Yjs), redaction editor, search UI, exhibit pages.</p><div class="lang"><span>TypeScript</span><span>Yjs CRDT</span><span>SvelteKit</span></div></div>
+        <div class="mod"><div class="path">vk-ai · Python · 6,800 LoC</div><h4>On-prem AI pipeline</h4><p>Whisper, docTR, BGE-M3, GLiNER, NLLB. Dockerised. CPU or CUDA. Nothing phones home.</p><div class="lang"><span>Python</span><span>Docker</span></div></div>
+        <div class="mod"><div class="path">vk-clerk · Python · 240 LoC</div><h4>Clerk validator</h4><p>Standalone validator — verifies a sealed export end-to-end, offline. 240 lines, no dependencies except hashlib and cryptography.</p><div class="lang"><span>Python</span><span>zero-dep</span></div></div>
+        <div class="mod"><div class="path">vk-ops · Ansible · 1,400 LoC</div><h4>Deployment</h4><p>Ansible roles for Hetzner, Scaleway, OVH, AWS, on-prem Proxmox. 15-minute single-node; 90-minute multi-site.</p><div class="lang"><span>Ansible</span><span>Terraform</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section" style="background:var(--paper)">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Activity<small>Last 30 days</small></div>
+    <div class="sp-body">
+      <h2>Read the <em>commits.</em> They are small.</h2>
+      <p class="sp-lead">VaultKeeper does not ship commits like <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--bg-2);padding:2px 6px;border-radius:4px">"misc updates"</code>. Every commit is a single change, a single rationale, a single signer. Here is what has landed recently.</p>
+
+      <div class="recent">
+        <div class="commit"><span class="h">a7f4d029</span><span class="m">vk-custody: tighten F* proof for merge associativity under concurrent export</span><span class="a">J. Arvidsson</span></div>
+        <div class="commit"><span class="h">3e110055</span><span class="m">vk-federate: VKE1 v1.2 — scoped sub-chain authority delegation</span><span class="a">I. Velasco</span></div>
+        <div class="commit"><span class="h">91abccf2</span><span class="m">vk-app: survivor-first intake flow — low-bandwidth voice-first mode</span><span class="a">N. Bagrationi + UTI team</span></div>
+        <div class="commit"><span class="h">b80276aa</span><span class="m">vk-ai: swap nllb-200 → nllb-3.3B for uk/ru/en quality on field hardware</span><span class="a">A. Hassan</span></div>
+        <div class="commit"><span class="h">c44d9912</span><span class="m">vk-clerk: add pqc-aware validation (draft — flag-gated)</span><span class="a">J. Arvidsson</span></div>
+        <div class="commit"><span class="h">e1c04812</span><span class="m">vk-witness: PKCS#11 support for SmartCard-HSM 4.0</span><span class="a">community · @tuppi</span></div>
+        <div class="commit"><span class="h">d947b311</span><span class="m">vk-ops: Ansible role for air-gapped delta import via sealed USB</span><span class="a">IRMCT team</span></div>
+        <div class="commit"><span class="h">008fa102</span><span class="m">docs: federation spec §4 — disagreement resolution between peers</span><span class="a">I. Velasco</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section dark">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Clone<small>How to get running</small></div>
+    <div class="sp-body">
+      <h2>One command. <em>Fifteen</em> minutes.</h2>
+      <p class="sp-lead">Installs on Debian/Ubuntu LTS, RHEL 9, and OpenSUSE Leap. Requires 4 vCPU, 16 GB RAM, 200 GB storage as an absolute minimum — though most institutions run far more. Runs offline from commit 1.</p>
+
+      <div class="code-card" style="margin-top:36px">
+        <span class="c"># Clone and run — single-node, self-contained</span><br>
+        <span class="k">$</span> <span class="p">git</span> clone https://git.vaultkeeper.coop/vaultkeeper/core<br>
+        <span class="k">$</span> <span class="p">cd</span> core && ./vk up<br>
+        <br>
+        <span class="c">→ generating witness keypairs (Ed25519)              ✓</span><br>
+        <span class="c">→ bootstrapping custody ledger (PostgreSQL 16)       ✓</span><br>
+        <span class="c">→ provisioning TSA connections (tsa.dfn.de default)  ✓</span><br>
+        <span class="c">→ loading on-prem AI models (~4.2 GB, one-time)      ✓</span><br>
+        <span class="c">→ sealing genesis block                              ✓</span><br>
+        <br>
+        <span class="s">VaultKeeper running at https://localhost:8443</span><br>
+        <span class="s">Admin token written to ./vk-admin.token</span><br>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>Our GPG key, our social media, our <em>office.</em></h2>
+      <p>Prinsengracht 54, 1015 DV Amsterdam. Walk in Tuesdays; we'll make coffee. Or contribute remotely — there is no corporate contributor agreement to sign.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="federation.html">Federation spec</a>
+      <a class="btn" href="docs.html">Self-host guide <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="federation.html"><span class="k">Also open</span><h5>Federation spec (VKE1)</h5><p>The 34-page RFC for cross-institutional evidence exchange.</p></a>
+    <a href="validator.html"><span class="k">Also open</span><h5>Clerk validator</h5><p>240 lines of Python. Downloadable. Verifies any sealed export.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

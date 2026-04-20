@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Chain of custody — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .cu-chain{background:var(--ink);color:var(--bg);border-radius:var(--radius-lg);padding:32px;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.8;overflow-x:auto}
+  .cu-chain .row{display:grid;grid-template-columns:56px 160px 1fr 140px;gap:18px;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.08);align-items:baseline;min-width:820px}
+  .cu-chain .row:last-child{border-bottom:none}
+  .cu-chain .idx{color:var(--accent-soft);font-style:italic;font-family:"Fraunces",serif;font-size:14px}
+  .cu-chain .ts{color:var(--muted-2)}
+  .cu-chain .ev{color:var(--bg)}
+  .cu-chain .ev strong{color:var(--accent-soft);font-weight:400;font-style:italic;font-family:"Fraunces",serif}
+  .cu-chain .hash{color:var(--muted-2);font-size:10.5px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+  .cu-chain .bind{color:#6c6258;font-size:10px;margin-left:74px;padding-left:14px;border-left:1px solid rgba(255,255,255,.12);display:block}
+
+  .lemma{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:32px;border:1px solid var(--line);border-radius:var(--radius)}
+  @media (max-width:760px){.lemma{grid-template-columns:1fr}}
+  .lemma > div{padding:28px}
+  .lemma > div:first-child{border-right:1px solid var(--line)}
+  @media (max-width:760px){.lemma > div:first-child{border-right:none;border-bottom:1px solid var(--line)}}
+  .lemma h5{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  .lemma .claim{font-family:"Fraunces",serif;font-size:22px;font-weight:400;letter-spacing:-.015em;line-height:1.25}
+  .lemma .claim em{color:var(--accent);font-style:italic}
+  .lemma code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:var(--bg-2);padding:2px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>Platform · 02 of 05</span>
+    <h1>A chain defence counsel <em>cannot</em> cut.</h1>
+    <p class="lead">The custody log is not a table with a timestamp column. It is an append-only cryptographic structure, hash-chained and witness-signed, that the database engine itself refuses to modify — even if ordered to by a superuser with a court subpoena.</p>
+    <div class="sp-hero-meta">
+      <div><span class="k">Storage</span><span class="v">PostgreSQL RLS</span></div>
+      <div><span class="k">Chain</span><span class="v">SHA-256 linked</span></div>
+      <div><span class="k">Mutation</span><span class="v"><em>impossible</em></span></div>
+      <div><span class="k">Verification</span><span class="v">offline · open</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">The ledger<small>Hash-chained rows</small></div>
+    <div class="sp-body">
+      <h2>Every action <em>points</em> to the one before it.</h2>
+      <p class="sp-lead">Each row in the custody ledger includes the SHA-256 of the previous row. To forge a single event, an attacker must recompute every subsequent row and re-collect every subsequent witness signature. The ledger becomes more expensive to fake with every passing hour.</p>
+
+      <div class="cu-chain" style="margin-top:40px">
+        <div class="row"><span class="idx">48214</span><span class="ts">19.04 · 14:02:41</span><span class="ev"><strong>seal</strong> · drone_footage_butcha.mp4 · ICC-UKR-2024</span><span class="hash">sha:a7f4…d029</span></div>
+        <span class="bind">↳ binds prev 48213 · sha:e1c0…4812 · witness-01, 03</span>
+        <div class="row"><span class="idx">48215</span><span class="ts">19.04 · 14:08:12</span><span class="ev"><strong>access</strong> · viewed by investigator · W. Nyoka</span><span class="hash">sha:b802…76aa</span></div>
+        <span class="bind">↳ binds prev 48214 · sha:a7f4…d029 · witness-02</span>
+        <div class="row"><span class="idx">48216</span><span class="ts">19.04 · 14:21:05</span><span class="ev"><strong>annotate</strong> · redaction applied · face/faces</span><span class="hash">sha:c44d…9912</span></div>
+        <span class="bind">↳ binds prev 48215 · sha:b802…76aa · witness-01, 02, 03 (quorum)</span>
+        <div class="row"><span class="idx">48217</span><span class="ts">19.04 · 14:44:30</span><span class="ev"><strong>link</strong> · corroborated with witness W-0144 testimony</span><span class="hash">sha:3e11…0055</span></div>
+        <span class="bind">↳ binds prev 48216 · sha:c44d…9912 · witness-02, 03</span>
+        <div class="row"><span class="idx">48218</span><span class="ts">19.04 · 15:02:18</span><span class="ev"><strong>export</strong> · packaged to defence · ICC-UKR-2024-PKG-039</span><span class="hash">sha:91ab…ccf2</span></div>
+        <span class="bind">↳ binds prev 48217 · sha:3e11…0055 · witness-01, 02, 03 (full quorum for export)</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section dark">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">The refusal<small>Why superusers can't help</small></div>
+    <div class="sp-body">
+      <h2>We told PostgreSQL to refuse, and we <em>meant it.</em></h2>
+      <p class="sp-lead">Row-level security policies on <code style="background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px;color:var(--accent-soft)">custody_events</code> deny <strong>UPDATE</strong> and <strong>DELETE</strong> to every role — including <code style="background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px;color:var(--accent-soft)">postgres</code> itself. The only way around it is to drop the table, which breaks the chain — defence counsel will see it, the clerk validator will see it, and the case will collapse at admissibility.</p>
+
+      <div class="sp-cols3">
+        <div class="c"><span class="n">RLS</span><h4>DB-enforced</h4><p>Not app-enforced. The refusal lives below ORM, below the API layer, below any admin panel. Even <code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-soft)">psql</code> cannot edit a sealed row.</p></div>
+        <div class="c"><span class="n">WORM</span><h4>Disk-enforced</h4><p>Optional: back the tablespace with WORM-compliant storage (Cohesity, NetApp SnapLock). Now even a DROP TABLE requires physical intervention.</p></div>
+        <div class="c"><span class="n">PROOF</span><h4>Chain-enforced</h4><p>If someone <em>does</em> drop and reconstruct: the chain's Merkle root diverges from every peer's copy. The defence's clerk validator reports the break in under a second.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Proofs<small>What the validator checks</small></div>
+    <div class="sp-body">
+      <h2>Every exhibit ships with its own <em>proof of life.</em></h2>
+      <p class="sp-lead">When you export a case file, VaultKeeper bundles the evidence, the custody log, a timestamped hash manifest, and a 240-line Python validator. Defence counsel's clerk runs the validator offline. Either the chain holds, or it doesn't — no phone call to our support team required.</p>
+
+      <div class="lemma">
+        <div><h5>The claim</h5><p class="claim">Row 48,217 <em>cannot</em> have been forged after 19 April 2026, 14:44:30 UTC.</p></div>
+        <div><h5>The proof</h5><p style="font-size:14.5px;color:var(--muted);line-height:1.6">The row's hash is bound to row 48,216, which was RFC-3161 timestamped by <code>tsa.dfn.de</code>. A forgery would require breaking SHA-256, the TSA's RSA key, <em>and</em> collecting post-hoc signatures from witnesses 02 and 03.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-quote">
+  <div class="wrap">
+    <blockquote>"The custody log used to be a <em>theatre</em>. Now it is an artefact. The cross-examination on chain-of-custody at last month's sentencing hearing lasted eight minutes."</blockquote>
+    <p class="who"><strong>Juge Hélène Morel</strong> — Presiding judge, Tribunal Judiciaire de Paris · cybercrime chamber</p>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>Run the validator on a <em>real</em> case file.</h2>
+      <p>Download a sample sealed export. Run the clerk validator. See the chain verify on your own machine in under 90 seconds.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="validator.html">Clerk validator</a>
+      <a class="btn" href="contact.html">Book a demo <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="evidence.html"><span class="k">Prev · 01/05</span><h5>Evidence management</h5><p>The ingest checkpoint — where bytes become exhibits.</p></a>
+    <a href="witness.html"><span class="k">Next · 03/05</span><h5>Witness protection</h5><p>Pseudonymisation, voice masking, and real-name break-the-glass.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

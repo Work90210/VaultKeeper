@@ -139,9 +139,15 @@ func ExtractBulkZIP(ctx context.Context, reader io.ReaderAt, size, maxUploadSize
 		// zip-bomb defence is the per-file and cumulative size caps
 		// enforced above. Open/ReadAll errors on a valid archive
 		// require filesystem-level corruption outside the test matrix.
-		rc, _ := entry.Open()
-		data, _ := io.ReadAll(rc)
-		_ = rc.Close()
+		rc, err := entry.Open()
+		if err != nil {
+			return nil, fmt.Errorf("%w: open entry %s: %v", ErrZipRejected, cleaned, err)
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			return nil, fmt.Errorf("%w: read entry %s: %v", ErrZipRejected, cleaned, err)
+		}
 
 		base := filepath.Base(cleaned)
 		if base == bulkMetadataFilename {

@@ -308,13 +308,12 @@ func (h *Handler) RotateKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	progress := h.rotationJob.Progress()
-	if progress.Running {
+	if !h.rotationJob.TryStart() {
 		httputil.RespondError(w, http.StatusConflict, "rotation already in progress")
 		return
 	}
 
-	go h.rotationJob.Run(r.Context())
+	go h.rotationJob.Run(context.Background())
 
 	httputil.RespondJSON(w, http.StatusAccepted, map[string]string{"status": "rotation started"})
 }

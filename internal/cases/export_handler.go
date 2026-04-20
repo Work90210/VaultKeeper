@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -41,7 +42,7 @@ func (h *ExportHandler) SetOrgMembershipChecker(checker OrgMembershipChecker, ca
 // ensureOrgMembership verifies that the caller belongs to the case's org.
 func (h *ExportHandler) ensureOrgMembership(ctx context.Context, caseID uuid.UUID) bool {
 	if h.orgChecker == nil || h.caseLookupOrg == nil {
-		return true
+		return false // not wired — deny access (fail closed)
 	}
 	ac, ok := auth.GetAuthContext(ctx)
 	if !ok {
@@ -95,7 +96,7 @@ func (h *ExportHandler) ExportCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filename := fmt.Sprintf("%s-export.zip", refCode)
+	filename := fmt.Sprintf("%s-export.zip", sanitizeFilename(refCode))
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 
@@ -105,4 +106,9 @@ func (h *ExportHandler) ExportCase(w http.ResponseWriter, r *http.Request) {
 		// The incomplete ZIP will signal the error to the client.
 		return
 	}
+}
+
+func sanitizeFilename(s string) string {
+	r := strings.NewReplacer(`"`, "", `\`, "", "\r", "", "\n", "", ";", "", "=", "", "/", "-")
+	return r.Replace(s)
 }

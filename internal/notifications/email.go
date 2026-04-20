@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -149,9 +150,84 @@ func (s *EmailSender) deliver(msg emailMessage) {
 		auth = smtp.PlainAuth("", s.username, s.password, s.host)
 	}
 
-	if err := smtp.SendMail(addr, auth, s.from, []string{msg.To}, []byte(body.String())); err != nil {
+	if err := s.sendWithTLS(addr, auth, []byte(body.String()), to); err != nil {
 		s.logger.Error("failed to send email", "to", msg.To, "subject", msg.Subject, "error", err)
 	} else {
 		s.logger.Debug("email sent", "to", msg.To, "subject", msg.Subject)
 	}
+}
+
+// sendWithTLS attempts delivery over implicit TLS (port 465). If the initial
+// TLS dial fails it falls back to enforced STARTTLS (port 587), ensuring
+// credentials and message content are never transmitted in plaintext.
+func (s *EmailSender) sendWithTLS(addr string, auth smtp.Auth, msg []byte, to string) error {
+	host := s.host
+	tlsConfig := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
+
+	conn, err := tls.Dial("tcp", addr, tlsConfig)
+	if err != nil {
+		// Fall back to enforced STARTTLS (e.g. port 587).
+		return s.sendWithSTARTTLS(addr, auth, msg, to, tlsConfig)
+	}
+	defer conn.Close()
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("smtp client: %w", err)
+	}
+	defer client.Close()
+
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("smtp auth: %w", err)
+		}
+	}
+	if err := client.Mail(s.from); err != nil {
+		return fmt.Errorf("smtp mail: %w", err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("smtp rcpt: %w", err)
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp data: %w", err)
+	}
+	if _, err := w.Write(msg); err != nil {
+		return fmt.Errorf("smtp write: %w", err)
+	}
+	return w.Close()
+}
+
+// sendWithSTARTTLS dials the SMTP server in plaintext and immediately upgrades
+// to TLS via STARTTLS. The upgrade is required — if the server does not
+// support it the connection is refused rather than proceeding in plaintext.
+func (s *EmailSender) sendWithSTARTTLS(addr string, auth smtp.Auth, msg []byte, to string, tlsConfig *tls.Config) error {
+	client, err := smtp.Dial(addr)
+	if err != nil {
+		return fmt.Errorf("smtp dial: %w", err)
+	}
+	defer client.Close()
+
+	if err := client.StartTLS(tlsConfig); err != nil {
+		return fmt.Errorf("smtp starttls required but failed: %w", err)
+	}
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("smtp auth: %w", err)
+		}
+	}
+	if err := client.Mail(s.from); err != nil {
+		return fmt.Errorf("smtp mail: %w", err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("smtp rcpt: %w", err)
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp data: %w", err)
+	}
+	if _, err := w.Write(msg); err != nil {
+		return fmt.Errorf("smtp write: %w", err)
+	}
+	return w.Close()
 }

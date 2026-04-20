@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Profile — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+.prof-form{display:flex;flex-direction:column;gap:20px;max-width:520px}
+.prof-field{display:flex;flex-direction:column;gap:6px}
+.prof-field label{font-size:13px;font-weight:500;color:var(--ink-2);letter-spacing:.01em}
+.prof-field input,.prof-field select{padding:11px 16px;border-radius:var(--radius-sm);border:1px solid var(--line-2);background:var(--paper);font:inherit;font-size:14px;color:var(--ink);outline:none;transition:border-color .2s}
+.prof-field input:focus,.prof-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,66,28,.08)}
+.prof-field input:disabled{background:var(--bg-2);color:var(--muted);cursor:not-allowed}
+.prof-field .hint{font-size:11.5px;color:var(--muted);margin-top:2px}
+.prof-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.prof-avatar-section{display:flex;align-items:center;gap:20px;padding:20px 0}
+.prof-avatar{width:72px;height:72px;border-radius:50%;background:#c87e5e;color:#fff;display:grid;place-items:center;font-family:"Fraunces",serif;font-style:italic;font-size:30px;flex-shrink:0}
+.prof-section{padding:24px 0;border-bottom:1px solid var(--line)}
+.prof-section:last-child{border-bottom:none}
+.prof-section h3{font-size:18px;margin-bottom:4px}
+.prof-section .desc{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5}
+.key-card{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 18px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.key-card .key-icon{width:36px;height:36px;border-radius:8px;background:var(--bg-2);display:grid;place-items:center;color:var(--muted)}
+.key-card .key-info{font-size:13px}
+.key-card .key-info strong{display:block;font-size:14px;color:var(--ink);font-weight:500}
+.key-card .key-info small{color:var(--muted);font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.02em}
+</style>
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('', '<a href="dash.html">Workspace</a><span class="sep">/</span><span class="here">Profile</span>');
+
+document.getElementById('d-content').innerHTML = '\
+<section class="d-pagehead"><div>\
+  <span class="eyebrow-m">Account</span>\
+  <h1>Your <em>profile</em></h1>\
+  <p class="sub">Manage your personal information, signing keys, and security preferences. Changes are sealed audit events.</p>\
+</div><div class="actions">\
+  <button class="btn" onclick="alert(\'Changes saved (demo)\')">Save changes</button>\
+</div></section>\
+\
+<div style="max-width:600px">\
+  <div class="prof-section">\
+    <div class="prof-avatar-section">\
+      <span class="prof-avatar">H</span>\
+      <div>\
+        <div style="font-weight:500;font-size:16px">H\u00e9l\u00e8ne Morel</div>\
+        <div style="font-size:13px;color:var(--muted);margin-top:2px">Senior analyst \xb7 Admin</div>\
+        <button class="btn ghost sm" style="margin-top:10px">Change avatar</button>\
+      </div>\
+    </div>\
+  </div>\
+\
+  <div class="prof-section">\
+    <h3>Personal information</h3>\
+    <p class="desc">Your name and contact details. These appear in audit logs and on signed events.</p>\
+    <div class="prof-form">\
+      <div class="prof-row">\
+        <div class="prof-field"><label>First name</label><input type="text" value="H\u00e9l\u00e8ne" /></div>\
+        <div class="prof-field"><label>Last name</label><input type="text" value="Morel" /></div>\
+      </div>\
+      <div class="prof-field"><label>Display name</label><input type="text" value="H. Morel" /><span class="hint">How your name appears in the workspace</span></div>\
+      <div class="prof-field"><label>Email address</label><input type="email" value="h.morel@eurojust.example" /><span class="hint">Managed by your organisation\u2019s SSO. Contact admin to change.</span></div>\
+      <div class="prof-field"><label>Phone</label><input type="tel" value="+31 6 1234 5678" /></div>\
+      <div class="prof-field"><label>Role</label><input type="text" value="Senior analyst" disabled /><span class="hint">Set by organisation admin</span></div>\
+      <div class="prof-field"><label>Time zone</label>\
+        <select><option selected>Europe/Amsterdam (UTC+1)</option><option>Europe/London (UTC+0)</option><option>America/New_York (UTC-5)</option><option>Asia/Tokyo (UTC+9)</option></select>\
+      </div>\
+      <div class="prof-field"><label>Language</label>\
+        <select><option selected>English</option><option>Nederlands</option><option>Deutsch</option><option>Fran\u00e7ais</option></select>\
+      </div>\
+    </div>\
+  </div>\
+\
+  <div class="prof-section">\
+    <h3>Signing key</h3>\
+    <p class="desc">Your Ed25519 key pair used to sign and countersign chain events. Bound to your hardware token.</p>\
+    <div class="key-card">\
+      <span class="key-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10 2l4 4-7 7H3v-4z"/><path d="M8.5 3.5l4 4"/></svg></span>\
+      <div class="key-info">\
+        <strong>Key A \xb7 YubiHSM2</strong>\
+        <small>pub: vke1-ed25519-a4f8\u2026 \xb7 last signed 2 min ago</small>\
+      </div>\
+      <a class="linkarrow" href="dash-ceremonies.html" style="font-size:12px">Manage \u2192</a>\
+    </div>\
+  </div>\
+\
+  <div class="prof-section">\
+    <h3>Security</h3>\
+    <p class="desc">Authentication and session preferences.</p>\
+    <div class="prof-form">\
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)">\
+        <div><div style="font-size:14px;font-weight:500">Two-factor authentication</div><div style="font-size:12px;color:var(--muted);margin-top:2px">YubiKey \xb7 configured 14 Mar 2026</div></div>\
+        <span style="padding:4px 10px;border-radius:999px;background:rgba(74,107,58,.1);color:var(--ok);font-size:11.5px;font-weight:500">Enabled</span>\
+      </div>\
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)">\
+        <div><div style="font-size:14px;font-weight:500">Session timeout</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Auto-lock after 8 hours idle</div></div>\
+        <a class="linkarrow" style="font-size:12px;cursor:pointer">Change \u2192</a>\
+      </div>\
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)">\
+        <div><div style="font-size:14px;font-weight:500">Active sessions</div><div style="font-size:12px;color:var(--muted);margin-top:2px">1 active \xb7 Hague office, Chrome 124</div></div>\
+        <a class="linkarrow" style="font-size:12px;cursor:pointer">View all \u2192</a>\
+      </div>\
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0">\
+        <div><div style="font-size:14px;font-weight:500">Password</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Last changed 42 days ago</div></div>\
+        <button class="btn ghost sm">Change password</button>\
+      </div>\
+    </div>\
+  </div>\
+\
+  <div class="prof-section">\
+    <h3 style="color:#b35c5c">Danger</h3>\
+    <p class="desc">Irreversible actions affecting your account.</p>\
+    <div style="display:flex;gap:12px">\
+      <button class="btn ghost sm" style="color:#b35c5c;border-color:rgba(179,92,92,.3)" onclick="location=\'sign-in.html\'">Sign out of all sessions</button>\
+      <button class="btn ghost sm" style="color:#b35c5c;border-color:rgba(179,92,92,.3)">Deactivate account</button>\
+    </div>\
+  </div>\
+</div>';
+</script>
+</body></html>

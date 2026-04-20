@@ -59,8 +59,14 @@ export function PilotRegistrationForm({ locale }: { locale: string }) {
       });
 
       if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body.error || 'Submission failed');
+        await response.json().catch(() => ({}));
+        const safeMessages: Record<number, string> = {
+          429: 'Too many requests. Please try again later.',
+          400: 'Please check your input and try again.',
+        };
+        throw new Error(
+          safeMessages[response.status] || 'Submission failed. Please try again.',
+        );
       }
 
       setSubmitted(true);

@@ -323,7 +323,12 @@
     "evidenceNumber": "№",
     "type": "Type",
     "uploaded": "Versé",
-    "untitled": "Sans titre"
+    "untitled": "Sans titre",
+    "filterAll": "Tous",
+    "filterEvidence": "Preuves",
+    "filterWitnesses": "Temoins",
+    "filterNotes": "Notes",
+    "filterInquiry": "Enquete"
   },
   "notifications": {
     "title": "Notifications",

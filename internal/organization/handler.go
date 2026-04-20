@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"html"
 	"io"
 	"net/http"
 
@@ -25,11 +26,18 @@ type OrgCaseAssignmentLister interface {
 	ListOrgCaseAssignments(ctx context.Context, orgID uuid.UUID) (any, error)
 }
 
+// InviteEmailer sends invitation emails. Injected to avoid circular dep with notifications.
+type InviteEmailer interface {
+	Send(ctx context.Context, to, subject, htmlBody, textBody string) error
+}
+
 type Handler struct {
 	service              *Service
 	audit                auth.AuditLogger
 	caseLister           OrgCaseLister
 	caseAssignmentLister OrgCaseAssignmentLister
+	emailer              InviteEmailer
+	appURL               string
 }
 
 func NewHandler(service *Service, audit auth.AuditLogger) *Handler {
@@ -39,6 +47,11 @@ func NewHandler(service *Service, audit auth.AuditLogger) *Handler {
 func (h *Handler) SetCaseLister(l OrgCaseLister) { h.caseLister = l }
 
 func (h *Handler) SetCaseAssignmentLister(l OrgCaseAssignmentLister) { h.caseAssignmentLister = l }
+
+func (h *Handler) SetInviteEmailer(e InviteEmailer, appURL string) {
+	h.emailer = e
+	h.appURL = appURL
+}
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Route("/api/organizations", func(r chi.Router) {
@@ -298,9 +311,35 @@ func (h *Handler) InviteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Send invitation email (fire-and-forget, don't block the response).
+	if h.emailer != nil && h.appURL != "" {
+		org, _ := h.service.orgRepo.GetByID(r.Context(), orgID)
+		orgName := org.Name
+		if orgName == "" {
+			orgName = "your organization"
+		}
+		inviteURL := h.appURL + "/en/invite?token=" + rawToken
+		safeInviteURL := html.EscapeString(inviteURL)
+
+		safeOrgName := html.EscapeString(orgName)
+		safeRole := html.EscapeString(string(inv.Role))
+		subject := "You've been invited to " + orgName + " on VaultKeeper"
+		textBody := "You've been invited to join " + orgName + " on VaultKeeper as " + string(inv.Role) + ".\n\n" +
+			"Accept the invitation: " + inviteURL + "\n\n" +
+			"This invitation expires in 7 days."
+		htmlBody := `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:32px 0">` +
+			`<h2 style="color:#1a1a1a;font-size:20px;margin:0 0 16px">You've been invited to ` + safeOrgName + `</h2>` +
+			`<p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 24px">` +
+			`You've been invited to join <strong>` + safeOrgName + `</strong> on VaultKeeper as <strong>` + safeRole + `</strong>.</p>` +
+			`<a href="` + safeInviteURL + `" style="display:inline-block;padding:12px 24px;background:#b38a4e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px">Accept Invitation</a>` +
+			`<p style="color:#999;font-size:13px;margin:24px 0 0">This invitation expires in 7 days. If you didn't expect this, you can ignore it.</p>` +
+			`</div>`
+
+		_ = h.emailer.Send(r.Context(), inv.Email, subject, htmlBody, textBody)
+	}
+
 	httputil.RespondJSON(w, http.StatusCreated, map[string]any{
 		"invitation": inv,
-		"token":      rawToken,
 	})
 }
 

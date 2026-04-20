@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -30,11 +31,13 @@ import (
 	"github.com/vaultkeeper/vaultkeeper/internal/evidence"
 	"github.com/vaultkeeper/vaultkeeper/internal/investigation"
 	"github.com/vaultkeeper/vaultkeeper/internal/evidence/cleanup"
+	"github.com/vaultkeeper/vaultkeeper/internal/federation"
 	"github.com/vaultkeeper/vaultkeeper/internal/integrity"
 	"github.com/vaultkeeper/vaultkeeper/internal/logging"
 	"github.com/vaultkeeper/vaultkeeper/internal/migration"
 	"github.com/vaultkeeper/vaultkeeper/internal/notifications"
 	"github.com/vaultkeeper/vaultkeeper/internal/reports"
+	"github.com/vaultkeeper/vaultkeeper/internal/roledefs"
 	"github.com/vaultkeeper/vaultkeeper/internal/search"
 	"github.com/vaultkeeper/vaultkeeper/internal/server"
 	"github.com/vaultkeeper/vaultkeeper/internal/witnesses"
@@ -145,8 +148,11 @@ func run() error {
 	caseHandler := cases.NewHandler(caseSvc, auditLogger, orgMemberAdapter, roleRepo)
 	inviteRepo := organization.NewInvitationRepository(pool)
 	orgAuthz := organization.NewOrgAuthzService(memberRepo)
-	orgSvc := organization.NewService(orgRepo, memberRepo, inviteRepo, orgAuthz, logger).
-		WithCaseStatusChecker(caseRepo)
+	roleDefRepo := roledefs.NewPgRepository(pool)
+	roleDefHandler := roledefs.NewHandler(roleDefRepo)
+	orgSvc := organization.NewService(pool, orgRepo, memberRepo, inviteRepo, orgAuthz, logger).
+		WithCaseStatusChecker(caseRepo).
+		WithRoleDefSeeder(roleDefRepo)
 	orgHandler := organization.NewHandler(orgSvc, auditLogger)
 
 	// Profile subsystem
@@ -165,7 +171,11 @@ func run() error {
 
 	var tsaClient integrity.TimestampAuthority
 	if cfg.TSAEnabled {
-		tsaClient = integrity.NewRFC3161Client(cfg.TSAURL)
+		systemRoots, err := x509.SystemCertPool()
+		if err != nil {
+			logger.Warn("could not load system cert pool for TSA verification", "error", err)
+		}
+		tsaClient = integrity.NewRFC3161Client(cfg.TSAURL).WithTrustedRoots(systemRoots)
 	} else {
 		tsaClient = &integrity.NoopTimestampAuthority{}
 	}
@@ -295,7 +305,7 @@ func run() error {
 	evidenceHandler.SetRedactionService(redactionSvc)
 
 	// Witness subsystem
-	witnessEncKey := []byte(cfg.WitnessEncryptionKey)
+	witnessEncKey := cfg.WitnessEncryptionKeyBytes
 	if len(witnessEncKey) == 0 {
 		return fmt.Errorf("WITNESS_ENCRYPTION_KEY is required")
 	}
@@ -337,6 +347,9 @@ func run() error {
 	notifHandler := notifications.NewHandler(notifService)
 	notifPrefsRepo := notifications.NewPGPreferencesRepository(pool)
 	notifHandler.SetPreferencesRepo(notifPrefsRepo)
+
+	// Wire email sender to org invitation handler.
+	orgHandler.SetInviteEmailer(emailSender, cfg.AppURL)
 
 	// Disclosure subsystem (depends on notification service)
 	disclosureRepo := disclosures.NewRepository(pool)
@@ -416,7 +429,7 @@ func run() error {
 			})
 		},
 	}
-	backupRunner := backup.NewBackupRunner(pool, cfg.BackupEncKey, cfg.BackupDestination, logger, backupNotifier, minioStorage)
+	backupRunner := backup.NewBackupRunner(pool, cfg.BackupEncKeyBytes, cfg.BackupDestination, logger, backupNotifier, minioStorage)
 	backupHandler := backup.NewHandler(backupRunner, logger, auditLogger)
 
 	// Start backup scheduler (daily at 03:00 UTC)
@@ -499,11 +512,29 @@ func run() error {
 		},
 	)
 
+	// Federation subsystem
+	federationPeerStore := federation.NewPeerStore(pool)
+	federationExchangeRepo := federation.NewExchangeRepository(pool)
+	federationSvc := federation.NewService(
+		cfg.InstanceID,
+		migrationSigner,
+		federationPeerStore,
+		federationExchangeRepo,
+		evidenceRepo,
+		minioStorage,
+		custodyLogger,
+		tsaClient,
+		logger,
+	)
+	federationHandler := federation.NewHandler(federationSvc, federationPeerStore, federationExchangeRepo, logger)
+	identityHandler := federation.NewIdentityHandler(cfg.InstanceID, cfg.InstanceDisplayName, migrationSigner)
+
 	httpServer := server.NewHTTPServer(cfg, logger, version, jwks, auditLogger, healthHandler,
 		caseHandler, roleHandler, evidenceHandler, gdprRegistrar, notifHandler, searchHandler, integrityHandler,
 		backupHandler, exportHandler, reportHandler, witnessHandler, disclosureHandler,
 		pagesHandler, draftHandler, collabHandler, migrationHandler, bulkHandler, importHandler,
-		investigationHandler, orgHandler, profileHandler, apiKeysHandler,
+		investigationHandler, orgHandler, profileHandler, apiKeysHandler, roleDefHandler,
+		federationHandler, identityHandler,
 	)
 
 	serverErr := make(chan error, 1)

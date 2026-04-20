@@ -108,8 +108,18 @@ func (s *Service) Create(ctx context.Context, input CreateDisclosureInput, actor
 	return created, nil
 }
 
-// Get retrieves a disclosure by ID.
+// Get retrieves a disclosure by ID. When the repository supports scoped
+// queries (production PGRepository), it resolves the case_id first then
+// fetches with case scoping to prevent cross-case IDOR. Test fakes fall
+// back to the unscoped FindByID.
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Disclosure, error) {
+	if scoped, ok := s.repo.(scopedDisclosureRepo); ok {
+		caseID, err := scoped.FindCaseID(ctx, id)
+		if err != nil {
+			return Disclosure{}, fmt.Errorf("resolve case for disclosure: %w", err)
+		}
+		return scoped.FindByIDScoped(ctx, caseID, id)
+	}
 	return s.repo.FindByID(ctx, id)
 }
 
@@ -127,6 +137,9 @@ func (s *Service) validateCreateInput(input CreateDisclosureInput) error {
 	}
 	if input.DisclosedTo == "" {
 		return &ValidationError{Field: "disclosed_to", Message: "recipient is required"}
+	}
+	if len(input.DisclosedTo) > 320 {
+		return &ValidationError{Field: "disclosed_to", Message: "recipient identifier too long (max 320 characters)"}
 	}
 	return nil
 }

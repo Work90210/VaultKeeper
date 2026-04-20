@@ -10,10 +10,25 @@ const config: Config = {
     extend: {
       colors: {
         bg: {
+          DEFAULT: "var(--bg)",
           primary: "var(--bg-primary)",
           secondary: "var(--bg-secondary)",
           elevated: "var(--bg-elevated)",
           inset: "var(--bg-inset)",
+          2: "var(--bg-2)",
+        },
+        paper: "var(--paper)",
+        ink: {
+          DEFAULT: "var(--ink)",
+          2: "var(--ink-2)",
+        },
+        muted: {
+          DEFAULT: "var(--muted)",
+          2: "var(--muted-2)",
+        },
+        line: {
+          DEFAULT: "var(--line)",
+          2: "var(--line-2)",
         },
         text: {
           primary: "var(--text-primary)",
@@ -27,11 +42,14 @@ const config: Config = {
           strong: "var(--border-strong)",
         },
         accent: {
-          DEFAULT: "var(--amber-accent)",
+          DEFAULT: "var(--accent)",
           hover: "var(--amber-hover)",
           muted: "var(--amber-muted)",
           subtle: "var(--amber-subtle)",
+          soft: "var(--accent-soft)",
         },
+        ok: "var(--ok)",
+        danger: "var(--danger)",
         status: {
           active: "var(--status-active)",
           "active-bg": "var(--status-active-bg)",
@@ -41,6 +59,17 @@ const config: Config = {
           "archived-bg": "var(--status-archived-bg)",
           hold: "var(--status-hold)",
           "hold-bg": "var(--status-hold-bg)",
+          live: "var(--status-live)",
+          disc: "var(--status-disc)",
+          broken: "var(--status-broken)",
+          pseud: "var(--status-pseud)",
+        },
+        av: {
+          a: "var(--av-a)",
+          b: "var(--av-b)",
+          c: "var(--av-c)",
+          d: "var(--av-d)",
+          e: "var(--av-e)",
         },
       },
       fontSize: {
@@ -60,6 +89,19 @@ const config: Config = {
         xl: "var(--space-xl)",
         "2xl": "var(--space-2xl)",
       },
+      borderRadius: {
+        sm: "var(--radius-sm)",
+        DEFAULT: "var(--radius)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        full: "var(--radius-full)",
+      },
+      fontFamily: {
+        heading: ['var(--font-heading)', 'Fraunces', 'serif'],
+        body: ['var(--font-body)', 'Inter', 'sans-serif'],
+        mono: ['var(--font-mono)', 'JetBrains Mono', 'monospace'],
+      },
       transitionTimingFunction: {
         "out-expo": "var(--ease-out-expo)",
       },
@@ -67,6 +109,17 @@ const config: Config = {
         fast: "var(--duration-fast)",
         normal: "var(--duration-normal)",
         slow: "var(--duration-slow)",
+      },
+      maxWidth: {
+        content: "var(--maxw)",
+        dashboard: "1400px",
+      },
+      boxShadow: {
+        xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        xl: "var(--shadow-xl)",
       },
     },
   },

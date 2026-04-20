@@ -34,3 +34,10 @@ func (a *OrgMemberAdapter) GetRole(ctx context.Context, orgID uuid.UUID, userID 
 	}
 	return string(m.Role), nil
 }
+
+// GetOrgRole satisfies the roledefs.OrgMembershipChecker interface. It returns
+// the caller's org role (e.g. "owner", "admin", "member") or an error when the
+// user is not an active member.
+func (a *OrgMemberAdapter) GetOrgRole(ctx context.Context, orgID uuid.UUID, userID string) (string, error) {
+	return a.GetRole(ctx, orgID, userID)
+}

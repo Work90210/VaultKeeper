@@ -2,9 +2,11 @@ package collaboration
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -52,6 +54,7 @@ type Handler struct {
 	allowedOrigins []string
 	orgChecker     OrgMembershipChecker
 	caseLookupOrg  func(ctx context.Context, caseID uuid.UUID) (uuid.UUID, error)
+	ticketStore    *TicketStore
 }
 
 // NewHandler creates a new collaboration WebSocket handler.
@@ -64,6 +67,7 @@ func NewHandler(hub *Hub, db *pgxpool.Pool, validator TokenValidator, roleLoader
 		audit:          audit,
 		logger:         logger,
 		allowedOrigins: allowedOrigins,
+		ticketStore:    NewTicketStore(),
 	}
 }
 
@@ -74,9 +78,42 @@ func (h *Handler) SetOrgMembershipChecker(checker OrgMembershipChecker, caseLook
 	h.caseLookupOrg = caseLookup
 }
 
-// RegisterRoutes mounts the collaboration WebSocket endpoint.
+// RegisterRoutes mounts the collaboration WebSocket endpoint and ticket REST endpoint.
 func (h *Handler) RegisterRoutes(r chi.Router) {
+	r.Post("/api/evidence/{id}/redact/collaborate/ticket", h.IssueTicket)
 	r.Get("/api/evidence/{id}/redact/collaborate", h.Collaborate)
+}
+
+// IssueTicket validates a Bearer JWT from the Authorization header and returns
+// a short-lived, single-use ticket. The client must exchange this ticket for a
+// WebSocket connection within 60 seconds using the ?ticket= query parameter.
+// This avoids transmitting JWTs as URL query parameters, which would be
+// captured in access logs.
+func (h *Handler) IssueTicket(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		httputil.RespondError(w, http.StatusUnauthorized, "missing or malformed Authorization header")
+		return
+	}
+	rawToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	if _, err := h.validator.ValidateToken(ctx, rawToken); err != nil {
+		httputil.RespondError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	ticket, err := h.ticketStore.Issue(rawToken)
+	if err != nil {
+		h.logger.Error("failed to issue WebSocket ticket", "error", err)
+		httputil.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"ticket": ticket})
 }
 
 // Collaborate upgrades an HTTP connection to WebSocket and joins the
@@ -90,14 +127,21 @@ func (h *Handler) Collaborate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Authenticate via query param (browsers can't set WS headers)
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		httputil.RespondError(w, http.StatusUnauthorized, "missing token")
+	// Authenticate via short-lived ticket (avoids JWT in URL / access logs).
+	// Clients must first call POST .../ticket with their Bearer token.
+	ticket := r.URL.Query().Get("ticket")
+	if ticket == "" {
+		httputil.RespondError(w, http.StatusUnauthorized, "missing ticket")
 		return
 	}
 
-	ac, err := h.validator.ValidateToken(ctx, token)
+	rawToken, ok := h.ticketStore.Redeem(ticket)
+	if !ok {
+		httputil.RespondError(w, http.StatusUnauthorized, "invalid or expired ticket")
+		return
+	}
+
+	ac, err := h.validator.ValidateToken(ctx, rawToken)
 	if err != nil {
 		httputil.RespondError(w, http.StatusUnauthorized, "invalid or expired token")
 		return

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Reports — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('reports', `<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><span class="here">Reports</span>`);
+
+const tmpl=[
+  {n:"Custody summary",d:"PDF/A with full hash chain, signature ledger, and RFC 3161 timestamps per exhibit — paginated for filing.",ic:"¶",used:"194 generated",t:"standard"},
+  {n:"Disclosure dossier",d:"Bundled ZIP for defence/prosecution: exhibits, redaction maps, custody summary, and offline validator.",ic:"◩",used:"42 generated",t:"standard"},
+  {n:"Ceremony minutes",d:"Break-the-glass and quorum events with timestamps, quorum members, and biometric attestations.",ic:"◆",used:"11 generated",t:"governance"},
+  {n:"Quarterly retention report",d:"What's sealed, what's held, what's due for review. Filed automatically with supervisory board.",ic:"▤",used:"24 generated",t:"governance"},
+  {n:"Counter-evidence preserved",d:"Rule 77 disclosure: all preserved exculpatory material, per-case, with reasoning notes.",ic:"⇅",used:"8 generated",t:"legal"},
+  {n:"Federation diff",d:"Cross-chain reconciliation between peer instances — CIJA, KSC, Bellingcat — with divergence log.",ic:"⧖",used:"3 generated",t:"platform"}
+];
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Case · ICC-UKR-2024 · Berkeley Protocol Reporting</span>
+      <h1>Signed <em>reports</em></h1>
+      <p class="sub">Reports are sealed snapshots, not live documents. Once generated they are written to the chain, cryptographically frozen, and recipients can verify them offline with the open validator — even if VaultKeeper disappears tomorrow.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="#">Report history</a>
+      <a class="btn" href="#">New report <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="panel" style="margin-bottom:22px">
+    <div class="panel-h"><h3>Report templates</h3><span class="meta">6 standard · 3 custom</span></div>
+    <div class="panel-body" style="padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:0">
+      ${tmpl.map((t,i)=>`
+        <div style="padding:28px;border-right:${(i+1)%3?'1px solid var(--line)':'none'};border-bottom:${i<3?'1px solid var(--line)':'none'};transition:background .2s;cursor:pointer" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <span style="width:40px;height:40px;border-radius:10px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:'Fraunces',serif;font-size:20px;color:var(--accent)">${t.ic}</span>
+            <span class="tag">${t.t}</span>
+          </div>
+          <div style="font-family:'Fraunces',serif;font-size:22px;letter-spacing:-.015em;line-height:1.2;margin-bottom:8px">${t.n}</div>
+          <p style="color:var(--muted);font-size:13.5px;line-height:1.55;margin-bottom:14px">${t.d}</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:14px;border-top:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)"><span>${t.used}</span><a class="linkarrow" href="#" style="font-size:12px">Generate →</a></div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Recently generated</h3><span class="meta">last 5 · sealed</span></div>
+    <table class="tbl">
+      <thead><tr><th>Report</th><th>Case</th><th>By</th><th>Template</th><th>Hash</th><th>Generated</th><th></th></tr></thead>
+      <tbody>
+        ${[
+          ["RPT-2026-0418","ICC-UKR-2024","H. Morel","a","Custody summary","f208…bc91","2 h ago"],
+          ["RPT-2026-0417","ICC-UKR-2024","W. Nyoka","e","Counter-evidence preserved","7f22…9e14","1 d ago"],
+          ["RPT-2026-0416","ICC-UKR-2024","Martyna K.","b","Disclosure dossier (DISC-018)","c44d…47e2","3 d ago"],
+          ["RPT-2026-0415","Platform","system","e","Federation diff","91ab…8204","5 d ago"],
+          ["RPT-2026-0414","Eurojust","H. Morel","a","Quarterly retention","3e11…9a32","9 d ago"]
+        ].map(r=>`
+          <tr>
+            <td class="ref"><strong>${r[0]}</strong></td>
+            <td style="font-size:13.5px">${r[1]}</td>
+            <td><span class="avs"><span class="av ${r[3]}">${r[2][0]}</span></span> <span style="font-size:13.5px">${r[2]}</span></td>
+            <td style="font-size:13.5px;color:var(--muted)">${r[4]}</td>
+            <td class="mono" style="color:var(--accent)">${r[5]}</td>
+            <td class="mono">${r[6]}</td>
+            <td class="actions"><a class="linkarrow" href="#">Verify →</a></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+`;
+</script></body></html>

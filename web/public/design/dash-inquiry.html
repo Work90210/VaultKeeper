@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Inquiry log — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('inquiry', `<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><span class="here">Inquiry log</span>`);
+
+const lines = [
+  {d:"19 Apr 2026",t:"14:22",who:"H. Morel",c:"a",k:"decision",txt:"Recommend inclusion of E-0918 in DISC-2026-019 bundle. Countersign required from W. Nyoka before seal.",linked:"E-0918 · DISC-2026-019"},
+  {d:"19 Apr 2026",t:"11:06",who:"Amir H.",c:"c",k:"question",txt:"Do we have independent confirmation of the 17:52 timing beyond W-0144 and drone E-0918? Requesting a second satellite pass review.",linked:"C-0412"},
+  {d:"19 Apr 2026",t:"09:32",who:"Martyna K.",c:"b",k:"action",txt:"Applied geo-fuzz (50 km) to all mentions of Andriivka in E-0912 redaction draft v4. Awaiting peer-review.",linked:"E-0912 · NOTE-182"},
+  {d:"18 Apr 2026",t:"16:41",who:"W. Nyoka",c:"e",k:"request",txt:"Formal request to OLAF for cross-reference on Raiffeisen ledger entries; routing via liaison officer Brussels.",linked:"E-0914"},
+  {d:"18 Apr 2026",t:"10:15",who:"H. Morel",c:"a",k:"decision",txt:"Accept counter-evidence preservation per Rule 77 for defence exculpatory motion. NOTE-180 signed, disclosable.",linked:"NOTE-180"},
+  {d:"17 Apr 2026",t:"13:28",who:"Juliane",c:"d",k:"action",txt:"Re-pseudonymised W-0139 → new intermediary token on legal officer request. Mapping re-sealed.",linked:"W-0139"},
+  {d:"17 Apr 2026",t:"09:04",who:"CIJA Berlin",c:"e",k:"federation",txt:"Federated case mirrored 612 exhibits into sub-chain /CIJA. Parallel investigation opened under German code.",linked:"sub-chain /CIJA"},
+  {d:"16 Apr 2026",t:"15:12",who:"Amir H.",c:"c",k:"question",txt:"W-0139 is currently single-source for second-convoy claim (C-0411). Is a secondary witness intake realistic before the Fri 25 deadline?",linked:"C-0411 · W-0139"},
+  {d:"16 Apr 2026",t:"08:55",who:"H. Morel",c:"a",k:"decision",txt:"De-prioritise C-0411 for DISC-2026-019 bundle. Single-source; will be disclosed as uncorroborated in separate note.",linked:"C-0411"}
+];
+const km={decision:{l:'Decision',c:'sealed'},question:{l:'Open question',c:'disc'},action:{l:'Action',c:'hold'},request:{l:'External request',c:'draft'},federation:{l:'Federation',c:'live'}};
+
+const byDay = lines.reduce((m,l)=>{(m[l.d]=m[l.d]||[]).push(l);return m;},{});
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Case · ICC-UKR-2024 · Berkeley Protocol Phase 1</span>
+      <h1>Inquiry <em>log</em></h1>
+      <p class="sub">Phase 1 of the Berkeley Protocol requires documenting all search strategies, tools, and discovery timelines. Each entry is a signed record on the same chain as evidence — this is how we show <em>how</em> the case was built, not just <em>what</em> it found.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="#">Export to PDF</a>
+      <a class="btn" href="#">New entry <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="panel" style="margin-bottom:22px">
+    <div class="fbar">
+      <div class="fsearch"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--muted)"><circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/></svg><input placeholder="decision, linked exhibit, keyword…"/></div>
+      <span class="chip active">All 184</span>
+      <span class="chip">Decisions 42</span>
+      <span class="chip">Open questions 9</span>
+      <span class="chip">Actions 78</span>
+      <span class="chip">External requests 24</span>
+      <span class="chip">Federation 31</span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      ${Object.entries(byDay).map(([day,items])=>`
+        <div style="padding:14px 28px;background:var(--bg-2);border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">${day}</div>
+        ${items.map(l=>`
+          <div style="padding:22px 28px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:72px 40px 1fr 220px;gap:20px;align-items:start">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted)">${l.t}</div>
+            <span class="avs"><span class="av ${l.c}">${l.who[0]}</span></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><span style="font-family:'Fraunces',serif;font-size:15px;letter-spacing:-.005em;color:var(--ink)">${l.who}</span><span class="pl ${km[l.k].c}">${km[l.k].l}</span></div>
+              <div style="font-size:14.5px;line-height:1.55;color:var(--ink-2);max-width:62ch">${l.txt}</div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--accent);text-align:right;letter-spacing:.02em">${l.linked}</div>
+          </div>
+        `).join('')}
+      `).join('')}
+    </div>
+  </div>
+`;
+</script></body></html>

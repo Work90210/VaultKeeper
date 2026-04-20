@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { formatFileSize } from '@/lib/evidence-utils';
 import { hashFileStreaming } from '@/lib/upload-hasher';
+import type { CaptureMetadataInput } from '@/lib/evidence-api';
 
 type UploadStatus =
   | 'hashing'
@@ -23,6 +24,8 @@ interface UploadFile {
   readonly hashProgress: number;
 }
 
+type EvidenceType = 'file_upload' | 'online_capture';
+
 interface MetadataForm {
   readonly title: string;
   readonly classification: string;
@@ -30,6 +33,22 @@ interface MetadataForm {
   readonly tags: string;
   readonly source: string;
   readonly sourceDate: string;
+  readonly evidenceType: EvidenceType;
+  // Berkeley Protocol capture fields (only used when evidenceType === 'online_capture')
+  readonly sourceUrl: string;
+  readonly platform: string;
+  readonly captureMethod: string;
+  readonly captureTimestamp: string;
+  readonly publicationTimestamp: string;
+  readonly creatorHandle: string;
+  readonly creatorDisplayName: string;
+  readonly creatorProfileUrl: string;
+  readonly contentLanguage: string;
+  readonly availabilityStatus: string;
+  readonly captureTool: string;
+  readonly networkType: string;
+  readonly verificationStatus: string;
+  readonly verificationNotes: string;
 }
 
 interface MismatchDiagnostic {
@@ -53,6 +72,21 @@ function defaultMetadata(filename: string): MetadataForm {
     tags: '',
     source: '',
     sourceDate: '',
+    evidenceType: 'file_upload',
+    sourceUrl: '',
+    platform: '',
+    captureMethod: '',
+    captureTimestamp: '',
+    publicationTimestamp: '',
+    creatorHandle: '',
+    creatorDisplayName: '',
+    creatorProfileUrl: '',
+    contentLanguage: '',
+    availabilityStatus: '',
+    captureTool: '',
+    networkType: '',
+    verificationStatus: 'unverified',
+    verificationNotes: '',
   };
 }
 
@@ -358,8 +392,8 @@ export function EvidenceUploader({
       classification: form.classification,
       description: form.description,
       tags,
-      source: form.source,
-      source_date: form.sourceDate || null,
+      source: form.evidenceType === 'file_upload' ? form.source : '',
+      source_date: form.evidenceType === 'file_upload' ? (form.sourceDate || null) : null,
     };
 
     try {
@@ -378,10 +412,61 @@ export function EvidenceUploader({
           ...prev,
           [uploadId]: data?.error || `Save failed (${res.status})`,
         }));
-      } else {
-        setMetadataSaved((prev) => ({ ...prev, [uploadId]: true }));
-        onUploadComplete();
+        setSavingMetadata((prev) => ({ ...prev, [uploadId]: false }));
+        return;
       }
+
+      // If online capture, save capture metadata via separate endpoint
+      if (form.evidenceType === 'online_capture' && form.captureMethod) {
+        const captureBody: CaptureMetadataInput = {
+          capture_method: form.captureMethod as CaptureMetadataInput['capture_method'],
+          capture_timestamp: form.captureTimestamp
+            ? new Date(form.captureTimestamp).toISOString()
+            : new Date().toISOString(),
+          ...(form.sourceUrl ? { source_url: form.sourceUrl } : {}),
+          ...(form.platform ? { platform: form.platform as CaptureMetadataInput['platform'] } : {}),
+          ...(form.publicationTimestamp ? { publication_timestamp: new Date(form.publicationTimestamp).toISOString() } : {}),
+          ...(form.creatorHandle ? { creator_account_handle: form.creatorHandle } : {}),
+          ...(form.creatorDisplayName ? { creator_account_display_name: form.creatorDisplayName } : {}),
+          ...(form.creatorProfileUrl ? { creator_account_url: form.creatorProfileUrl } : {}),
+          ...(form.contentLanguage ? { content_language: form.contentLanguage } : {}),
+          ...(form.availabilityStatus ? { availability_status: form.availabilityStatus as CaptureMetadataInput['availability_status'] } : {}),
+          ...(form.captureTool ? { capture_tool_name: form.captureTool } : {}),
+          ...(form.networkType && form.networkType !== 'direct' ? {
+            network_context: {
+              vpn_used: form.networkType === 'vpn',
+              tor_used: form.networkType === 'tor',
+            },
+          } : {}),
+          ...(form.verificationStatus ? { verification_status: form.verificationStatus as CaptureMetadataInput['verification_status'] } : {}),
+          ...(form.verificationNotes ? { verification_notes: form.verificationNotes } : {}),
+        };
+
+        const captureRes = await fetch(
+          `${API_BASE}/api/evidence/${evidenceId}/capture-metadata`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(captureBody),
+          }
+        );
+
+        if (!captureRes.ok) {
+          const data = await captureRes.json().catch(() => null);
+          setMetadataErrors((prev) => ({
+            ...prev,
+            [uploadId]: data?.error || `Capture metadata save failed (${captureRes.status})`,
+          }));
+          setSavingMetadata((prev) => ({ ...prev, [uploadId]: false }));
+          return;
+        }
+      }
+
+      setMetadataSaved((prev) => ({ ...prev, [uploadId]: true }));
+      onUploadComplete();
     } catch {
       setMetadataErrors((prev) => ({
         ...prev,
@@ -700,6 +785,11 @@ function MetadataFormCard({
   onSave: () => void;
   onDismiss: () => void;
 }) {
+  const [captureExpanded, setCaptureExpanded] = useState(true);
+  const [creatorExpanded, setCreatorExpanded] = useState(false);
+  const [envExpanded, setEnvExpanded] = useState(false);
+  const isOnline = form.evidenceType === 'online_capture';
+
   return (
     <div className="card p-[var(--space-md)] space-y-[var(--space-sm)]">
       <p
@@ -714,6 +804,39 @@ function MetadataFormCard({
           {error}
         </p>
       )}
+
+      {/* Evidence type toggle */}
+      <div>
+        <label className="field-label">Evidence type</label>
+        <div className="flex gap-[var(--space-xs)]">
+          <button
+            type="button"
+            onClick={() => onFieldChange('evidenceType', 'file_upload')}
+            className="text-xs px-[var(--space-sm)] py-[var(--space-xs)] rounded-[var(--radius-sm)]"
+            style={{
+              backgroundColor: !isOnline ? 'var(--navy-anchor)' : 'var(--bg-inset)',
+              color: !isOnline ? 'white' : 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)',
+              transition: 'all var(--duration-fast) ease',
+            }}
+          >
+            File Upload
+          </button>
+          <button
+            type="button"
+            onClick={() => onFieldChange('evidenceType', 'online_capture')}
+            className="text-xs px-[var(--space-sm)] py-[var(--space-xs)] rounded-[var(--radius-sm)]"
+            style={{
+              backgroundColor: isOnline ? 'var(--navy-anchor)' : 'var(--bg-inset)',
+              color: isOnline ? 'white' : 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)',
+              transition: 'all var(--duration-fast) ease',
+            }}
+          >
+            Online Capture
+          </button>
+        </div>
+      </div>
 
       <div>
         <label className="field-label">Title</label>
@@ -760,31 +883,256 @@ function MetadataFormCard({
         />
       </div>
 
-      <div>
-        <label className="field-label">Source</label>
-        <input
-          type="text"
-          value={form.source}
-          onChange={(e) => onFieldChange('source', e.target.value)}
-          className="input-field"
-        />
-      </div>
+      {/* File Upload: show simple source fields */}
+      {!isOnline && (
+        <>
+          <div>
+            <label className="field-label">Source</label>
+            <input
+              type="text"
+              value={form.source}
+              onChange={(e) => onFieldChange('source', e.target.value)}
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="field-label">Source date</label>
+            <input
+              type="date"
+              value={form.sourceDate}
+              onChange={(e) => onFieldChange('sourceDate', e.target.value)}
+              className="input-field"
+            />
+          </div>
+        </>
+      )}
 
-      <div>
-        <label className="field-label">Source date</label>
-        <input
-          type="date"
-          value={form.sourceDate}
-          onChange={(e) => onFieldChange('sourceDate', e.target.value)}
-          className="input-field"
-        />
-      </div>
+      {/* Online Capture: show Berkeley Protocol fields */}
+      {isOnline && (
+        <div className="space-y-[var(--space-sm)]" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-sm)' }}>
+          {/* Capture Details section */}
+          <button
+            type="button"
+            onClick={() => setCaptureExpanded((v) => !v)}
+            className="w-full flex items-center justify-between text-xs font-medium"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            <span>Capture Details</span>
+            <span>{captureExpanded ? '▴' : '▾'}</span>
+          </button>
+
+          {captureExpanded && (
+            <div className="space-y-[var(--space-xs)]">
+              <div>
+                <label className="field-label">Source URL *</label>
+                <input
+                  type="url"
+                  value={form.sourceUrl}
+                  onChange={(e) => onFieldChange('sourceUrl', e.target.value)}
+                  className="input-field"
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label className="field-label">Platform *</label>
+                <select
+                  value={form.platform}
+                  onChange={(e) => onFieldChange('platform', e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">Select platform</option>
+                  <option value="x">X (Twitter)</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="telegram">Telegram</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="signal">Signal</option>
+                  <option value="reddit">Reddit</option>
+                  <option value="web">Web</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Capture Method *</label>
+                <select
+                  value={form.captureMethod}
+                  onChange={(e) => onFieldChange('captureMethod', e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">Select method</option>
+                  <option value="screenshot">Screenshot</option>
+                  <option value="screen_recording">Screen Recording</option>
+                  <option value="web_archive">Web Archive</option>
+                  <option value="api_export">API Export</option>
+                  <option value="manual_download">Manual Download</option>
+                  <option value="browser_save">Browser Save</option>
+                  <option value="forensic_tool">Forensic Tool</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Capture Date *</label>
+                <input
+                  type="datetime-local"
+                  value={form.captureTimestamp}
+                  onChange={(e) => onFieldChange('captureTimestamp', e.target.value)}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="field-label">Publication Date</label>
+                <input
+                  type="datetime-local"
+                  value={form.publicationTimestamp}
+                  onChange={(e) => onFieldChange('publicationTimestamp', e.target.value)}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="field-label">Language</label>
+                <input
+                  type="text"
+                  value={form.contentLanguage}
+                  onChange={(e) => onFieldChange('contentLanguage', e.target.value)}
+                  className="input-field"
+                  placeholder="e.g. en, fr, ar"
+                />
+              </div>
+              <div>
+                <label className="field-label">Status at Capture</label>
+                <select
+                  value={form.availabilityStatus}
+                  onChange={(e) => onFieldChange('availabilityStatus', e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">Select status</option>
+                  <option value="accessible">Accessible</option>
+                  <option value="deleted">Deleted</option>
+                  <option value="geo_blocked">Geo-Blocked</option>
+                  <option value="login_required">Login Required</option>
+                  <option value="account_suspended">Account Suspended</option>
+                  <option value="removed">Removed</option>
+                  <option value="unavailable">Unavailable</option>
+                  <option value="unknown">Unknown</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Content Creator section */}
+          <button
+            type="button"
+            onClick={() => setCreatorExpanded((v) => !v)}
+            className="w-full flex items-center justify-between text-xs font-medium"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            <span>Content Creator</span>
+            <span>{creatorExpanded ? '▴' : '▾'}</span>
+          </button>
+
+          {creatorExpanded && (
+            <div className="space-y-[var(--space-xs)]">
+              <div>
+                <label className="field-label">Account Handle</label>
+                <input
+                  type="text"
+                  value={form.creatorHandle}
+                  onChange={(e) => onFieldChange('creatorHandle', e.target.value)}
+                  className="input-field"
+                  placeholder="@username"
+                />
+              </div>
+              <div>
+                <label className="field-label">Display Name</label>
+                <input
+                  type="text"
+                  value={form.creatorDisplayName}
+                  onChange={(e) => onFieldChange('creatorDisplayName', e.target.value)}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="field-label">Profile URL</label>
+                <input
+                  type="url"
+                  value={form.creatorProfileUrl}
+                  onChange={(e) => onFieldChange('creatorProfileUrl', e.target.value)}
+                  className="input-field"
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Capture Environment section */}
+          <button
+            type="button"
+            onClick={() => setEnvExpanded((v) => !v)}
+            className="w-full flex items-center justify-between text-xs font-medium"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            <span>Capture Environment</span>
+            <span>{envExpanded ? '▴' : '▾'}</span>
+          </button>
+
+          {envExpanded && (
+            <div className="space-y-[var(--space-xs)]">
+              <div>
+                <label className="field-label">Tool / Browser</label>
+                <input
+                  type="text"
+                  value={form.captureTool}
+                  onChange={(e) => onFieldChange('captureTool', e.target.value)}
+                  className="input-field"
+                  placeholder="e.g. Firefox 137"
+                />
+              </div>
+              <div>
+                <label className="field-label">Network</label>
+                <select
+                  value={form.networkType}
+                  onChange={(e) => onFieldChange('networkType', e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">Direct</option>
+                  <option value="vpn">VPN</option>
+                  <option value="tor">Tor</option>
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Verification Status</label>
+                <select
+                  value={form.verificationStatus}
+                  onChange={(e) => onFieldChange('verificationStatus', e.target.value)}
+                  className="input-field"
+                >
+                  <option value="unverified">Unverified</option>
+                  <option value="partially_verified">Partially Verified</option>
+                  <option value="verified">Verified</option>
+                  <option value="disputed">Disputed</option>
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Verification Notes</label>
+                <textarea
+                  value={form.verificationNotes}
+                  onChange={(e) => onFieldChange('verificationNotes', e.target.value)}
+                  className="input-field"
+                  rows={2}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-[var(--space-sm)]">
         <button
           type="button"
           onClick={onSave}
-          disabled={saving}
+          disabled={saving || (isOnline && !form.captureMethod)}
           className="btn-primary"
         >
           {saving ? 'Saving...' : 'Save metadata'}

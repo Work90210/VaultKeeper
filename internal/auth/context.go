@@ -95,21 +95,59 @@ func GetCaseRole(ctx context.Context) (CaseRole, bool) {
 }
 
 func GetClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP in the chain and trim whitespace
-		ip := xff
-		if idx := strings.IndexByte(xff, ','); idx != -1 {
-			ip = xff[:idx]
-		}
-		return strings.TrimSpace(ip)
-	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-	// Use net.SplitHostPort which handles IPv6 correctly (e.g., [::1]:1234)
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
 	}
+
+	// Only trust proxy headers when the direct connection originates from a
+	// loopback or private network address (i.e. a trusted reverse proxy).
+	if isPrivateIP(host) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// Take the last (rightmost) IP — the one appended by the trusted proxy.
+			ip := xff
+			if idx := strings.LastIndexByte(xff, ','); idx != -1 {
+				ip = xff[idx+1:]
+			}
+			return strings.TrimSpace(ip)
+		}
+		if xri := r.Header.Get("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
+		}
+	}
+
 	return host
+}
+
+// privateNetworks is parsed once at init to avoid re-parsing on every request.
+var privateNetworks []*net.IPNet
+
+func init() {
+	for _, cidr := range []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"::1/128",
+		"fc00::/7",
+	} {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic("invalid private CIDR: " + cidr)
+		}
+		privateNetworks = append(privateNetworks, network)
+	}
+}
+
+func isPrivateIP(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, network := range privateNetworks {
+		if network.Contains(parsed) {
+			return true
+		}
+	}
+	return false
 }

@@ -50,7 +50,27 @@ func generateKey() (raw string, hash string, err error) {
 }
 
 // Create generates a new API key, stores its hash, and returns the raw key once.
+// A user may hold at most 20 active (non-revoked) keys at a time.
+// The count check and insert are performed inside a single transaction to prevent
+// a TOCTOU race that would allow more than 20 keys to be created concurrently.
 func (r *PGRepository) Create(ctx context.Context, userID string, input CreateKeyInput) (CreateKeyResult, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return CreateKeyResult{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var count int
+	if err := tx.QueryRow(ctx,
+		`SELECT COUNT(*) FROM api_keys WHERE user_id = $1 AND revoked_at IS NULL`,
+		userID,
+	).Scan(&count); err != nil {
+		return CreateKeyResult{}, fmt.Errorf("count api keys: %w", err)
+	}
+	if count >= 20 {
+		return CreateKeyResult{}, fmt.Errorf("maximum number of API keys reached (20)")
+	}
+
 	rawKey, keyHash, err := generateKey()
 	if err != nil {
 		return CreateKeyResult{}, fmt.Errorf("create api key: %w", err)
@@ -62,7 +82,7 @@ func (r *PGRepository) Create(ctx context.Context, userID string, input CreateKe
 	}
 
 	var key APIKey
-	err = r.pool.QueryRow(ctx,
+	err = tx.QueryRow(ctx,
 		`INSERT INTO api_keys (user_id, name, key_hash, permissions)
 		 VALUES ($1, $2, $3, $4)
 		 RETURNING id, user_id, name, permissions, last_used_at, revoked_at, created_at`,
@@ -71,6 +91,10 @@ func (r *PGRepository) Create(ctx context.Context, userID string, input CreateKe
 		&key.LastUsedAt, &key.RevokedAt, &key.CreatedAt)
 	if err != nil {
 		return CreateKeyResult{}, fmt.Errorf("insert api key: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return CreateKeyResult{}, fmt.Errorf("commit api key creation: %w", err)
 	}
 
 	return CreateKeyResult{Key: key, RawKey: rawKey}, nil

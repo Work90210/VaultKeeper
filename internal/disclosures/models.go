@@ -9,6 +9,7 @@ import (
 // Disclosure represents an evidence disclosure record.
 type Disclosure struct {
 	ID          uuid.UUID   `json:"id"`
+	BatchID     uuid.UUID   `json:"batch_id"`
 	CaseID      uuid.UUID   `json:"case_id"`
 	EvidenceIDs []uuid.UUID `json:"evidence_ids"`
 	DisclosedTo string      `json:"disclosed_to"`

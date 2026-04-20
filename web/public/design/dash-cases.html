@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cases — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('cases', `<a href="dash.html">Workspace</a><span class="sep">/</span><span class="here">Cases</span>`);
+
+const rows = [
+  {ref:"ICC-UKR-2024", sub:"Crimes against humanity — Butcha", cls:"Criminal", role:"Lead", ex:"12,417", wit:"218", st:"active", chain:"ok", when:"2m ago", team:["a","b","c","d"]},
+  {ref:"KSC-23-042", sub:"Witness intimidation — Pristina", cls:"Criminal", role:"Analyst", ex:"1,204", wit:"42", st:"active", chain:"ok", when:"18m", team:["b","c"]},
+  {ref:"RSCSL-Res-12", sub:"Sierra Leone residual — appeal hearing", cls:"Criminal", role:"Observer", ex:"842", wit:"12", st:"active", chain:"ok", when:"yesterday", team:["a","d"]},
+  {ref:"IRMCT-99-17", sub:"Archival re-verification — Rwanda tapes", cls:"Archival", role:"Clerk", ex:"28,918", wit:"0", st:"hold", chain:"hold", when:"3 d", team:["e","c","b","a"]},
+  {ref:"OPCW-SY-217", sub:"Chemical weapons use — Ghouta", cls:"Investigation", role:"Analyst", ex:"4,102", wit:"31", st:"active", chain:"ok", when:"40m", team:["a","b"]},
+  {ref:"CIVIC-MM-88", sub:"Civilian harm — Myanmar", cls:"Monitoring", role:"Lead", ex:"3,211", wit:"57", st:"active", chain:"ok", when:"1h", team:["d","e"]},
+  {ref:"ECCC-Res-03", sub:"Extraordinary Chambers · Cambodia", cls:"Archival", role:"Clerk", ex:"18,400", wit:"0", st:"sealed", chain:"ok", when:"8 d", team:["c"]},
+  {ref:"ICC-LIBYA-22", sub:"Detention allegations — Tripoli", cls:"Criminal", role:"Analyst", ex:"612", wit:"9", st:"draft", chain:"draft", when:"12 d", team:["b"]}
+];
+
+const stPill = {active:'pl live', hold:'pl hold', sealed:'pl sealed', draft:'pl draft'};
+const stLabel = {active:'active', hold:'legal hold', sealed:'sealed', draft:'draft'};
+const chainSvg = {
+  ok:`<div class="chain"><span class="node on"></span><span class="seg"></span><span class="node on"></span><span class="seg"></span><span class="node on"></span><span class="seg"></span><span class="node on"></span><span class="seg"></span><span class="node on"></span></div>`,
+  hold:`<span class="pl hold">held</span>`,
+  draft:`<span class="pl draft">—</span>`
+};
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Workspace · Eurojust Hague</span>
+      <h1>All <em>cases</em></h1>
+      <p class="sub">Each case is an independent append-only chain. Roles and evidence isolation are enforced at the DB row level. Archived cases keep verifying.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="#">Import archive</a>
+      <a class="btn" href="#">New case <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="d-kpis" style="margin-bottom:22px">
+    <div class="d-kpi"><div class="k">Total cases</div><div class="v">38</div><div class="sub">28 active · 6 hold · 4 sealed</div></div>
+    <div class="d-kpi"><div class="k">You are lead on</div><div class="v">2</div><div class="sub">13,259 combined exhibits</div></div>
+    <div class="d-kpi"><div class="k">New this month</div><div class="v">+3</div><div class="delta">▲ OPCW-SY-217 added 9 d ago</div></div>
+    <div class="d-kpi"><div class="k">Disk · all cases</div><div class="v">4.2<em>TB</em></div><div class="sub">of 8 TB · MinIO eu-west-2</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="fbar">
+      <div class="fsearch">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--muted)"><circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/></svg>
+        <input placeholder="Filter by ref, subject, jurisdiction…"/>
+      </div>
+      <span class="chip active">All <span class="x">·8</span></span>
+      <span class="chip">Active <span class="chev">5</span></span>
+      <span class="chip">Legal hold <span class="chev">1</span></span>
+      <span class="chip">Archived <span class="chev">1</span></span>
+      <span class="chip">Draft <span class="chev">1</span></span>
+      <span class="chip">Role · any <span class="chev">▾</span></span>
+      <span class="chip">Jurisdiction · any <span class="chev">▾</span></span>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>Case</th><th>Class.</th><th>Your role</th><th>Exhibits</th><th>Witnesses</th><th>Chain</th><th>Team</th><th>Status</th><th>Last</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map(r=>`
+          <tr>
+            <td><div class="ref">${r.ref}<small>${r.sub}</small></div></td>
+            <td><span class="tag">${r.cls}</span></td>
+            <td><span class="tag ${r.role==='Lead'?'a':''}">${r.role}</span></td>
+            <td class="num">${r.ex}</td>
+            <td class="num">${r.wit}</td>
+            <td>${chainSvg[r.chain]}</td>
+            <td><span class="avs">${r.team.slice(0,3).map(c=>`<span class="av ${c}">${c.toUpperCase()}</span>`).join('')}${r.team.length>3?`<span class="more">+${r.team.length-3}</span>`:''}</span></td>
+            <td><span class="${stPill[r.st]}">${stLabel[r.st]}</span></td>
+            <td class="mono">${r.when}</td>
+            <td class="actions"><a class="linkarrow" href="dash-case.html">Open →</a></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+`;
+</script></body></html>

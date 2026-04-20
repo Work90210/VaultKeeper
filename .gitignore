@@ -72,6 +72,14 @@ infrastructure/ansible/vault_password
 *.pem
 *.key
 credentials.json
+# keycloak/realm-export.json is intentionally tracked with placeholder secrets only.
+# Do NOT commit a real realm export (with actual secrets) — use environment-specific overrides.
+keycloak/realm-export.override.json
+
+# Deploy-generated secrets — never commit
+deploy/server-bootstrap/.env.generated*
+deploy/server-bootstrap/.env.*
+*.gitignored
 vectors.db
 vectors.db-shm
 vectors.db-wal

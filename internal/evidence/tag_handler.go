@@ -72,6 +72,9 @@ func (h *Handler) TagAutocomplete(w http.ResponseWriter, r *http.Request) {
 			limit = parsed
 		}
 	}
+	if limit > MaxTagAutocompleteLimit {
+		limit = MaxTagAutocompleteLimit
+	}
 
 	tags, err := h.service.AutocompleteTags(r.Context(), caseID, q, limit)
 	if err != nil {

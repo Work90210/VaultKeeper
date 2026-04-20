@@ -17,16 +17,14 @@ export const metadata: Metadata = {
 
 export default function MarketingLayout({
   children,
-  params,
 }: {
   children: React.ReactNode;
-  params: { locale: string };
 }) {
   return (
     <>
       <MarketingHeader />
       <main>{children}</main>
-      <MarketingFooter locale={params.locale} />
+      <MarketingFooter />
     </>
   );
 }

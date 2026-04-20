@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -321,7 +322,7 @@ func (s *ExportService) writeEvidenceFiles(ctx context.Context, zw zipCreator, p
 			evidenceNum = *item.EvidenceNumber
 		}
 
-		filename := evidenceNum + "_" + item.Filename
+		filename := evidenceNum + "_" + filepath.Base(item.Filename)
 		fw, err := zw.Create(prefix + "evidence/" + filename)
 		if err != nil {
 			return fmt.Errorf("create evidence zip entry %s: %w", filename, err)
@@ -698,7 +699,7 @@ func (s *ExportService) writeReportsJSON(ctx context.Context, zw zipCreator, pre
 		return fmt.Errorf("export reports: %w", err)
 	}
 	for _, r := range reports {
-		fw, err := zw.Create(prefix + "investigation/reports/" + r.ID + ".json")
+		fw, err := zw.Create(prefix + "investigation/reports/" + filepath.Base(r.ID) + ".json")
 		if err != nil {
 			return fmt.Errorf("create report json: %w", err)
 		}

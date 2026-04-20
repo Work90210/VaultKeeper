@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sign In — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+/* ---- auth layout ---- */
+.auth-shell{min-height:100vh;display:grid;grid-template-columns:1fr 1fr}
+@media(max-width:900px){.auth-shell{grid-template-columns:1fr}.auth-side{display:none}}
+
+.auth-side{
+  background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:space-between;
+  padding:48px;position:relative;overflow:hidden;
+}
+.auth-side::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(600px 400px at 30% 80%,rgba(184,66,28,.2),transparent 60%),
+             radial-gradient(500px 500px at 80% 10%,rgba(184,66,28,.12),transparent 60%)}
+.auth-side .side-brand{font-family:"Fraunces",serif;font-size:24px;letter-spacing:-.02em;position:relative;z-index:1}
+.auth-side .side-brand em{color:var(--accent-soft);font-style:italic}
+.side-quote{position:relative;z-index:1;max-width:400px}
+.side-quote blockquote{font-family:"Fraunces",serif;font-size:28px;line-height:1.25;letter-spacing:-.02em;font-weight:300;font-style:italic;margin:0;color:rgba(245,241,232,.85)}
+.side-quote cite{display:block;margin-top:20px;font-family:"Inter",sans-serif;font-size:13px;font-style:normal;color:rgba(245,241,232,.45);letter-spacing:.02em}
+.side-stats{display:flex;gap:40px;position:relative;z-index:1}
+.side-stat{display:flex;flex-direction:column;gap:2px}
+.side-stat .val{font-family:"Fraunces",serif;font-size:32px;letter-spacing:-.02em;color:var(--accent-soft)}
+.side-stat .lbl{font-family:"JetBrains Mono",monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:rgba(245,241,232,.35)}
+
+/* ---- form side ---- */
+.auth-main{display:flex;align-items:center;justify-content:center;padding:48px 32px;position:relative}
+.auth-form-wrap{width:100%;max-width:400px}
+.auth-form-wrap .brand-sm{display:none;font-family:"Fraunces",serif;font-size:22px;letter-spacing:-.02em;margin-bottom:40px}
+.auth-form-wrap .brand-sm em{color:var(--accent);font-style:italic}
+@media(max-width:900px){.auth-form-wrap .brand-sm{display:block}}
+
+.auth-form-wrap h2{font-size:32px;letter-spacing:-.03em;margin-bottom:6px}
+.auth-form-wrap .sub{color:var(--muted);font-size:15px;margin-bottom:36px;line-height:1.5}
+
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:20px}
+.field label{font-size:13px;font-weight:500;color:var(--ink-2);letter-spacing:.01em}
+.field input{
+  padding:12px 16px;border-radius:var(--radius-sm);border:1px solid var(--line-2);
+  background:var(--paper);font:inherit;font-size:15px;color:var(--ink);
+  transition:border-color .2s,box-shadow .2s;outline:none;
+}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,66,28,.1)}
+.field input::placeholder{color:var(--muted-2)}
+.field .hint{font-size:12px;color:var(--muted);margin-top:2px}
+
+.field-row{display:flex;justify-content:space-between;align-items:center}
+.field-row label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);cursor:pointer}
+.field-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.forgot-link{font-size:13px;color:var(--accent);font-weight:500;transition:opacity .2s}
+.forgot-link:hover{opacity:.7}
+
+.auth-btn{
+  width:100%;padding:14px 20px;border-radius:999px;border:none;cursor:pointer;
+  background:var(--ink);color:var(--bg);font:inherit;font-size:15px;font-weight:500;
+  transition:background .2s,transform .15s,box-shadow .2s;margin-top:28px;
+}
+.auth-btn:hover{background:var(--accent);transform:translateY(-1px);box-shadow:0 10px 24px rgba(184,66,28,.3)}
+.auth-btn:active{transform:translateY(0)}
+
+.auth-divider{display:flex;align-items:center;gap:16px;margin:28px 0;color:var(--muted-2);font-size:13px}
+.auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:var(--line-2)}
+
+.sso-btn{
+  width:100%;padding:12px 20px;border-radius:999px;border:1px solid var(--line-2);cursor:pointer;
+  background:var(--paper);color:var(--ink);font:inherit;font-size:14px;font-weight:500;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  transition:border-color .2s,background .2s;margin-bottom:10px;
+}
+.sso-btn:hover{border-color:var(--ink);background:var(--bg-2)}
+.sso-btn svg{flex-shrink:0}
+
+.auth-footer{margin-top:32px;text-align:center;font-size:14px;color:var(--muted)}
+.auth-footer a{color:var(--accent);font-weight:500}
+.auth-footer a:hover{text-decoration:underline}
+
+.back-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin-bottom:28px;transition:color .2s;cursor:pointer}
+.back-link:hover{color:var(--accent)}
+
+/* success state */
+.success-icon{width:56px;height:56px;border-radius:50%;background:rgba(74,107,58,.1);display:grid;place-items:center;margin-bottom:20px}
+.success-icon svg{color:var(--ok)}
+
+/* views */
+.auth-view{display:none}.auth-view.active{display:block}
+
+/* subtle grid pattern on side */
+.side-grid{position:absolute;inset:0;opacity:.06;
+  background-image:linear-gradient(rgba(245,241,232,.3) 1px,transparent 1px),linear-gradient(90deg,rgba(245,241,232,.3) 1px,transparent 1px);
+  background-size:48px 48px;pointer-events:none}
+
+/* loading state */
+.auth-btn.loading{pointer-events:none;opacity:.7}
+.auth-btn.loading::after{content:"";display:inline-block;width:16px;height:16px;border:2px solid transparent;border-top-color:var(--bg);border-radius:50%;animation:spin .6s linear infinite;margin-left:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.legal-line{position:absolute;bottom:28px;left:32px;right:32px;text-align:center;font-size:12px;color:var(--muted-2)}
+.legal-line a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+</style>
+</head><body>
+<div class="auth-shell">
+
+  <!-- Left decorative panel -->
+  <div class="auth-side">
+    <div class="side-grid"></div>
+    <div class="side-brand"><span class="brand-mark" style="display:inline-block;vertical-align:middle;margin-right:10px"></span>Vault<em>Keeper</em></div>
+    <div class="side-quote">
+      <blockquote>"Every exhibit, every testimony, sealed on an append-only chain — because truth shouldn't depend on trust."</blockquote>
+      <cite>— VaultKeeper design principles</cite>
+    </div>
+    <div class="side-stats">
+      <div class="side-stat"><span class="val">256-bit</span><span class="lbl">SHA chain</span></div>
+      <div class="side-stat"><span class="val">Ed25519</span><span class="lbl">Signatures</span></div>
+      <div class="side-stat"><span class="val">RFC 3161</span><span class="lbl">Timestamps</span></div>
+    </div>
+  </div>
+
+  <!-- Right form panel -->
+  <div class="auth-main">
+    <div class="auth-form-wrap">
+      <div class="brand-sm"><span class="brand-mark" style="display:inline-block;vertical-align:middle;margin-right:8px"></span>Vault<em>Keeper</em></div>
+
+      <!-- VIEW: Sign In -->
+      <div class="auth-view active" id="v-signin">
+        <h2>Welcome back</h2>
+        <p class="sub">Sign in to your workspace to continue.</p>
+
+        <button class="sso-btn" onclick="doSignIn()">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="7" height="7" rx="1" fill="#b8421c"/><rect x="10" y="1" width="7" height="7" rx="1" fill="#b8421c" opacity=".6"/><rect x="1" y="10" width="7" height="7" rx="1" fill="#b8421c" opacity=".6"/><rect x="10" y="10" width="7" height="7" rx="1" fill="#b8421c" opacity=".3"/></svg>
+          Continue with SSO
+        </button>
+
+        <div class="auth-divider">or sign in with email</div>
+
+        <form onsubmit="event.preventDefault();doSignIn()">
+          <div class="field">
+            <label for="email">Email address</label>
+            <input type="email" id="email" placeholder="name@organisation.org" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password" required>
+          </div>
+          <div class="field-row" style="margin-top:-4px">
+            <label><input type="checkbox" checked> Remember me</label>
+            <a class="forgot-link" href="#" onclick="event.preventDefault();showView('v-forgot')">Forgot password?</a>
+          </div>
+          <button type="submit" class="auth-btn" id="signin-btn">Sign in</button>
+        </form>
+
+        <p class="auth-footer">Don't have an account? <a href="#" onclick="event.preventDefault();showView('v-signup')">Request access</a></p>
+      </div>
+
+      <!-- VIEW: Forgot Password -->
+      <div class="auth-view" id="v-forgot">
+        <a class="back-link" onclick="showView('v-signin')">← Back to sign in</a>
+        <h2>Reset password</h2>
+        <p class="sub">Enter the email associated with your account and we'll send a reset link.</p>
+
+        <form onsubmit="event.preventDefault();doForgot()">
+          <div class="field">
+            <label for="reset-email">Email address</label>
+            <input type="email" id="reset-email" placeholder="name@organisation.org" autocomplete="email" required>
+          </div>
+          <button type="submit" class="auth-btn" id="forgot-btn">Send reset link</button>
+        </form>
+
+        <p class="auth-footer">Remember your password? <a href="#" onclick="event.preventDefault();showView('v-signin')">Sign in</a></p>
+      </div>
+
+      <!-- VIEW: Check Email (after forgot) -->
+      <div class="auth-view" id="v-check-email">
+        <a class="back-link" onclick="showView('v-signin')">← Back to sign in</a>
+        <div class="success-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 6L9.5 18 3 12"/></svg></div>
+        <h2>Check your email</h2>
+        <p class="sub">We've sent a password reset link to <strong id="sent-email"></strong>. It expires in 30 minutes.</p>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-top:8px">Didn't receive it? Check your spam folder or <a href="#" style="color:var(--accent)" onclick="event.preventDefault();showView('v-forgot')">try again</a>.</p>
+      </div>
+
+      <!-- VIEW: New Password (from reset link) -->
+      <div class="auth-view" id="v-new-pass">
+        <a class="back-link" onclick="showView('v-signin')">← Back to sign in</a>
+        <h2>Set new password</h2>
+        <p class="sub">Choose a strong password for your account.</p>
+
+        <form onsubmit="event.preventDefault();doNewPass()">
+          <div class="field">
+            <label for="new-pass">New password</label>
+            <input type="password" id="new-pass" placeholder="Minimum 12 characters" required minlength="12">
+            <span class="hint">Must be at least 12 characters with mixed case and a number.</span>
+          </div>
+          <div class="field">
+            <label for="confirm-pass">Confirm password</label>
+            <input type="password" id="confirm-pass" placeholder="Re-enter your password" required>
+          </div>
+          <button type="submit" class="auth-btn" id="newpass-btn">Update password</button>
+        </form>
+      </div>
+
+      <!-- VIEW: Password Updated -->
+      <div class="auth-view" id="v-pass-done">
+        <div class="success-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 6L9.5 18 3 12"/></svg></div>
+        <h2>Password updated</h2>
+        <p class="sub">Your password has been changed successfully. You can now sign in with your new credentials.</p>
+        <button class="auth-btn" onclick="showView('v-signin')">Back to sign in</button>
+      </div>
+
+      <!-- VIEW: Request Access -->
+      <div class="auth-view" id="v-signup">
+        <a class="back-link" onclick="showView('v-signin')">← Back to sign in</a>
+        <h2>Request access</h2>
+        <p class="sub">VaultKeeper is available to verified legal institutions. Submit your details and we'll be in touch.</p>
+
+        <form onsubmit="event.preventDefault();doSignup()">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="field"><label for="first">First name</label><input type="text" id="first" placeholder="Jane" required></div>
+            <div class="field"><label for="last">Last name</label><input type="text" id="last" placeholder="Doe" required></div>
+          </div>
+          <div class="field"><label for="signup-email">Work email</label><input type="email" id="signup-email" placeholder="name@organisation.org" required></div>
+          <div class="field"><label for="org">Organisation</label><input type="text" id="org" placeholder="e.g. ICC, UNHCR, ICRC" required></div>
+          <div class="field"><label for="role">Role</label><input type="text" id="role" placeholder="e.g. Lead Investigator"></div>
+          <button type="submit" class="auth-btn" id="signup-btn">Submit request</button>
+        </form>
+
+        <p class="auth-footer">Already have access? <a href="#" onclick="event.preventDefault();showView('v-signin')">Sign in</a></p>
+      </div>
+
+      <!-- VIEW: Request Sent -->
+      <div class="auth-view" id="v-signup-done">
+        <div class="success-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 6L9.5 18 3 12"/></svg></div>
+        <h2>Request submitted</h2>
+        <p class="sub">Thank you. Our team will review your request and reach out within 2 business days.</p>
+        <button class="auth-btn" onclick="showView('v-signin')">Back to sign in</button>
+      </div>
+
+    </div>
+    <div class="legal-line"><a href="privacy.html">Privacy</a> · <a href="legal.html">Terms</a> · <a href="security.html">Security</a></div>
+  </div>
+</div>
+
+<script>
+function showView(id){
+  document.querySelectorAll('.auth-view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function simulateLoad(btnId,cb){
+  const btn=document.getElementById(btnId);
+  const orig=btn.textContent;
+  btn.classList.add('loading');
+  btn.textContent='Please wait…';
+  setTimeout(()=>{btn.classList.remove('loading');btn.textContent=orig;cb()},1200);
+}
+
+function doSignIn(){
+  simulateLoad('signin-btn',()=>{ window.location.href='dash.html'; });
+}
+
+function doForgot(){
+  const email=document.getElementById('reset-email').value;
+  simulateLoad('forgot-btn',()=>{
+    document.getElementById('sent-email').textContent=email;
+    showView('v-check-email');
+  });
+}
+
+function doNewPass(){
+  simulateLoad('newpass-btn',()=>{ showView('v-pass-done'); });
+}
+
+function doSignup(){
+  simulateLoad('signup-btn',()=>{ showView('v-signup-done'); });
+}
+
+// Allow testing the "new password" view via ?reset=1
+if(new URLSearchParams(location.search).has('reset')) showView('v-new-pass');
+</script>
+</body></html>

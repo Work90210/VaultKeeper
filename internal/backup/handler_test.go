@@ -348,7 +348,7 @@ func dummyPoolForHandler(t *testing.T) *pgxpool.Pool {
 
 func TestHandlerRunBackup_NoAuthContext(t *testing.T) {
 	pool := dummyPoolForHandler(t)
-	runner := NewBackupRunner(pool, "key", t.TempDir(), slog.Default(), nil, nil)
+	runner := NewBackupRunner(pool, []byte("key"), t.TempDir(), slog.Default(), nil, nil)
 	h := NewHandler(runner, slog.Default(), &stubAuditLogger{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/admin/backups/run", nil)
@@ -364,7 +364,7 @@ func TestHandlerRunBackup_NoAuthContext(t *testing.T) {
 
 func TestHandlerRunBackup_WithAuthContext_FailsOnDB(t *testing.T) {
 	pool := dummyPoolForHandler(t)
-	runner := NewBackupRunner(pool, "key", t.TempDir(), slog.Default(), nil, nil)
+	runner := NewBackupRunner(pool, []byte("key"), t.TempDir(), slog.Default(), nil, nil)
 	h := NewHandler(runner, slog.Default(), &stubAuditLogger{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/admin/backups/run", nil)
@@ -381,7 +381,7 @@ func TestHandlerRunBackup_WithAuthContext_FailsOnDB(t *testing.T) {
 
 func TestHandlerListBackups_FailsOnDB(t *testing.T) {
 	pool := dummyPoolForHandler(t)
-	runner := NewBackupRunner(pool, "key", t.TempDir(), slog.Default(), nil, nil)
+	runner := NewBackupRunner(pool, []byte("key"), t.TempDir(), slog.Default(), nil, nil)
 	h := NewHandler(runner, slog.Default(), &stubAuditLogger{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/backups", nil)
@@ -396,7 +396,7 @@ func TestHandlerListBackups_FailsOnDB(t *testing.T) {
 
 func TestHandlerVerifyBackup_InvalidID(t *testing.T) {
 	pool := dummyPoolForHandler(t)
-	runner := NewBackupRunner(pool, "key", t.TempDir(), slog.Default(), nil, nil)
+	runner := NewBackupRunner(pool, []byte("key"), t.TempDir(), slog.Default(), nil, nil)
 	h := NewHandler(runner, slog.Default(), &stubAuditLogger{})
 
 	// Use chi context to inject URL param.
@@ -415,7 +415,7 @@ func TestHandlerVerifyBackup_InvalidID(t *testing.T) {
 
 func TestHandlerVerifyBackup_DBFails(t *testing.T) {
 	pool := dummyPoolForHandler(t)
-	runner := NewBackupRunner(pool, "key", t.TempDir(), slog.Default(), nil, nil)
+	runner := NewBackupRunner(pool, []byte("key"), t.TempDir(), slog.Default(), nil, nil)
 	h := NewHandler(runner, slog.Default(), &stubAuditLogger{})
 
 	r := chi.NewRouter()
@@ -446,7 +446,7 @@ func newMockedRunner(t *testing.T) *BackupRunner {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "handler-test-key",
+		encKey:      []byte("handler-test-key"),
 		destination: dir,
 		logger:      slog.Default(),
 	}

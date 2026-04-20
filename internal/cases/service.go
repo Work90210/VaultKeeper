@@ -3,7 +3,6 @@ package cases
 import (
 	"context"
 	"fmt"
-	"html"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -76,9 +75,9 @@ func (s *Service) CreateCase(ctx context.Context, input CreateCaseInput, created
 	c := Case{
 		OrganizationID: orgID,
 		ReferenceCode:  strings.TrimSpace(input.ReferenceCode),
-		Title:          html.EscapeString(strings.TrimSpace(input.Title)),
-		Description:    html.EscapeString(strings.TrimSpace(input.Description)),
-		Jurisdiction:   html.EscapeString(strings.TrimSpace(input.Jurisdiction)),
+		Title:          strings.TrimSpace(input.Title),
+		Description:    strings.TrimSpace(input.Description),
+		Jurisdiction:   strings.TrimSpace(input.Jurisdiction),
 		Status:         StatusActive,
 		CreatedBy:      createdBy,
 		CreatedByName:  createdByName,
@@ -104,12 +103,11 @@ func (s *Service) GetCase(ctx context.Context, id uuid.UUID) (Case, error) {
 }
 
 func (s *Service) ListCases(ctx context.Context, filter CaseFilter, page Pagination) (PaginatedResult[Case], error) {
+	page = ClampPagination(page)
 	items, total, err := s.repo.FindAll(ctx, filter, page)
 	if err != nil {
 		return PaginatedResult[Case]{}, err
 	}
-
-	page = ClampPagination(page)
 	hasMore := len(items) == page.Limit && total > page.Limit
 
 	var nextCursor string
@@ -135,22 +133,22 @@ func (s *Service) UpdateCase(ctx context.Context, id uuid.UUID, input UpdateCase
 		return Case{}, &ValidationError{Field: "status", Message: "cannot update an archived case"}
 	}
 
-	if err := s.validateUpdateInput(ctx, id, input); err != nil {
+	if err := s.validateUpdateInput(current, input); err != nil {
 		return Case{}, err
 	}
 
-	// Sanitize
+	// Trim whitespace
 	if input.Title != nil {
-		sanitized := html.EscapeString(strings.TrimSpace(*input.Title))
-		input.Title = &sanitized
+		trimmed := strings.TrimSpace(*input.Title)
+		input.Title = &trimmed
 	}
 	if input.Description != nil {
-		sanitized := html.EscapeString(strings.TrimSpace(*input.Description))
-		input.Description = &sanitized
+		trimmed := strings.TrimSpace(*input.Description)
+		input.Description = &trimmed
 	}
 	if input.Jurisdiction != nil {
-		sanitized := html.EscapeString(strings.TrimSpace(*input.Jurisdiction))
-		input.Jurisdiction = &sanitized
+		trimmed := strings.TrimSpace(*input.Jurisdiction)
+		input.Jurisdiction = &trimmed
 	}
 
 	result, err := s.repo.Update(ctx, id, input)
@@ -265,6 +263,9 @@ func (s *Service) Handover(ctx context.Context, caseID uuid.UUID, input Handover
 		return &ValidationError{Field: "new_roles", Message: "at least one role is required"}
 	}
 	for _, role := range input.NewRoles {
+		if strings.TrimSpace(role) == "" {
+			return &ValidationError{Field: "new_roles", Message: "role cannot be empty"}
+		}
 		if !ValidCaseRoles[role] {
 			return &ValidationError{Field: "new_roles", Message: fmt.Sprintf("invalid role: %s", role)}
 		}
@@ -311,7 +312,7 @@ func (s *Service) Handover(ctx context.Context, caseID uuid.UUID, input Handover
 
 	// Assign new roles to to_user.
 	for _, role := range input.NewRoles {
-		if _, err := roleStore.Assign(ctx, caseID, input.ToUserID, role, actorUserID); err != nil {
+		if _, err := roleStore.Assign(ctx, caseID, input.ToUserID, role, actorUserID, nil); err != nil {
 			if strings.Contains(err.Error(), "role already assigned") {
 				continue // idempotent
 			}
@@ -361,7 +362,7 @@ func (s *Service) validateCreateInput(input CreateCaseInput) error {
 	return nil
 }
 
-func (s *Service) validateUpdateInput(ctx context.Context, id uuid.UUID, input UpdateCaseInput) error {
+func (s *Service) validateUpdateInput(current Case, input UpdateCaseInput) error {
 	if input.Title != nil {
 		title := strings.TrimSpace(*input.Title)
 		if title == "" {
@@ -381,10 +382,6 @@ func (s *Service) validateUpdateInput(ctx context.Context, id uuid.UUID, input U
 	}
 
 	if input.Status != nil {
-		current, err := s.repo.FindByID(ctx, id)
-		if err != nil {
-			return err
-		}
 		if !IsValidStatusTransition(current.Status, *input.Status) {
 			return &ValidationError{
 				Field:   "status",

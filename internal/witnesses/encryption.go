@@ -68,8 +68,8 @@ func NewEncryptor(keys ...EncryptionKey) (*Encryptor, error) {
 	keyMap := make(map[byte]EncryptionKey, len(keys))
 	var currentVersion byte
 	for _, k := range keys {
-		if len(k.Key) < 16 {
-			return nil, fmt.Errorf("encryption key version %d too short (min 16 bytes)", k.Version)
+		if len(k.Key) < 32 {
+			return nil, fmt.Errorf("encryption key version %d too short: need 32 bytes for AES-256, got %d", k.Version, len(k.Key))
 		}
 		keyMap[k.Version] = k
 		currentVersion = k.Version
@@ -133,8 +133,12 @@ func (e *Encryptor) Encrypt(plaintext []byte, witnessID, fieldName string) ([]by
 		return nil, fmt.Errorf("generate nonce: %w", err)
 	}
 
-	// Encrypt: nonce is prepended to ciphertext by GCM Seal
-	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+	// Encrypt: bind the ciphertext to its witness+field context via AAD to prevent
+	// cross-field ciphertext swaps at the DB layer.
+	// NOTE: This is a breaking change for existing ciphertexts. A key rotation is
+	// required after this change to re-encrypt all existing data with AAD.
+	aad := []byte(witnessID + ":" + fieldName)
+	ciphertext := gcm.Seal(nil, nonce, plaintext, aad)
 
 	// Final format: [version][nonce][ciphertext+tag]
 	result := make([]byte, 0, keyVersionSize+nonceSize+len(ciphertext))
@@ -181,7 +185,8 @@ func (e *Encryptor) Decrypt(ciphertext []byte, witnessID, fieldName string) ([]b
 		return nil, fmt.Errorf("create GCM: %w", err)
 	}
 
-	plaintext, err := gcm.Open(nil, nonce, encrypted, nil)
+	aad := []byte(witnessID + ":" + fieldName)
+	plaintext, err := gcm.Open(nil, nonce, encrypted, aad)
 	if err != nil {
 		return nil, ErrDecryptionFailed
 	}

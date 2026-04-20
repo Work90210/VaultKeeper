@@ -26,7 +26,8 @@ vaultkeeper.eu {
 		X-Frame-Options "DENY"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' wss:; frame-src 'none'"
+		# Content-Security-Policy is set per-request by Next.js middleware with a nonce.
+		# Caddy must not set it here or it would overwrite the nonce-bearing header.
 		-Server
 	}
 

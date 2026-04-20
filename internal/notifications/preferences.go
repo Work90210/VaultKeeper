@@ -3,9 +3,11 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -66,7 +68,7 @@ func (r *PGPreferencesRepository) Get(ctx context.Context, userID string) (Notif
 	).Scan(&raw)
 	if err != nil {
 		// No row — return defaults.
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return DefaultPreferences(), nil
 		}
 		return NotificationPreferences{}, fmt.Errorf("get notification preferences: %w", err)

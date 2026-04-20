@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 )
@@ -35,6 +36,7 @@ func LoadOrGenerate() (*Signer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("generate ephemeral signing key: %w", err)
 		}
+		slog.Warn("LoadOrGenerate: INSTANCE_ED25519_KEY is not set; using ephemeral signing key — attestation signatures will NOT be verifiable after restart")
 		return &Signer{priv: priv, pub: pub}, nil
 	}
 	decoded, err := base64.StdEncoding.DecodeString(raw)

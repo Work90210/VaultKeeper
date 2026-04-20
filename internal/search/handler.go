@@ -81,6 +81,23 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 		query.UserCaseIDs = caseIDs
 
+		// Validate that a caller-supplied case_id is in the authorized list.
+		// Without this check a user could enumerate evidence from any case by
+		// providing a known case UUID — the MeiliSearch filter would accept it.
+		if query.CaseID != nil && len(query.UserCaseIDs) > 0 {
+			allowed := false
+			for _, id := range query.UserCaseIDs {
+				if id == *query.CaseID {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				httputil.RespondJSON(w, http.StatusOK, EvidenceSearchResult{})
+				return
+			}
+		}
+
 		// Defence users may only see disclosed evidence.
 		caseRoles, err := h.caseRolesLoader.GetUserCaseRoles(r.Context(), ac.UserID)
 		if err != nil {
@@ -108,9 +125,11 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	// this filter for cross-case support workflows.
 	if ac.SystemRole < auth.RoleSystemAdmin && h.caseRolesLoader != nil {
 		caseRoles, rerr := h.caseRolesLoader.GetUserCaseRoles(r.Context(), ac.UserID)
-		if rerr == nil {
-			result = filterHitsByAccess(result, caseRoles)
+		if rerr != nil {
+			httputil.RespondError(w, http.StatusInternalServerError, "failed to load permissions")
+			return
 		}
+		result = filterHitsByAccess(result, caseRoles)
 	}
 
 	httputil.RespondJSON(w, http.StatusOK, result)
@@ -205,11 +224,15 @@ func parseSearchParams(r *http.Request) SearchQuery {
 		limit = 200
 	}
 
+	const maxOffset = 10000
 	offset := 0
 	if v := q.Get("offset"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
 			offset = parsed
 		}
+	}
+	if offset > maxOffset {
+		offset = maxOffset
 	}
 
 	query := SearchQuery{

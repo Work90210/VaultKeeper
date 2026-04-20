@@ -323,7 +323,12 @@
     "evidenceNumber": "№",
     "type": "Type",
     "uploaded": "Uploaded",
-    "untitled": "Untitled evidence"
+    "untitled": "Untitled evidence",
+    "filterAll": "All",
+    "filterEvidence": "Evidence",
+    "filterWitnesses": "Witnesses",
+    "filterNotes": "Notes",
+    "filterInquiry": "Inquiry"
   },
   "notifications": {
     "title": "Notifications",

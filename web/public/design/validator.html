@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Clerk validator — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .dl{margin-top:44px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  @media (max-width:720px){.dl{grid-template-columns:1fr}}
+  .dl > a{padding:28px;border-right:1px solid var(--line);text-decoration:none;color:inherit;display:block;transition:background .2s}
+  .dl > a:last-child{border-right:none}
+  @media (max-width:720px){.dl > a{border-right:none;border-bottom:1px solid var(--line)}.dl > a:last-child{border-bottom:none}}
+  .dl > a:hover{background:var(--paper)}
+  .dl .k{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:12px}
+  .dl h4{font-family:"Fraunces",serif;font-weight:400;font-size:22px;letter-spacing:-.015em;margin-bottom:8px}
+  .dl h4 em{color:var(--accent);font-style:italic}
+  .dl p{color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:16px}
+  .dl .hash{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);word-break:break-all;padding-top:14px;border-top:1px solid var(--line)}
+
+  .run{margin-top:40px;background:#121010;color:#e6e0d4;font-family:"JetBrains Mono",monospace;font-size:13px;line-height:1.85;padding:28px 32px;border-radius:var(--radius-lg);overflow-x:auto}
+  .run .ok{color:#9bd69b}
+  .run .warn{color:#d6b26e}
+  .run .k{color:#c87e5e}
+  .run .c{color:#8a8278}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>Open source · Validator</span>
+    <h1>240 lines. <em>Defence counsel runs it on a laptop.</em></h1>
+    <p class="lead">The clerk validator is a single Python file that verifies any sealed VaultKeeper export — end to end, offline, with no dependency on VaultKeeper, the internet, or our organisation. Defence lawyers, opposing registrars, appeals clerks, and investigative journalists can all check a sealed bundle themselves. We publish it because our customers need to be able to hand over proof <em>without</em> handing over trust in us.</p>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Download<small>Three ways</small></div>
+    <div class="sp-body">
+      <h2>Pick the one <em>your</em> clerk will trust.</h2>
+      <p class="sp-lead">The validator ships in three equivalent forms, each signed with the same release key. A clerk who cares about source transparency reads the script; a registrar who cares about provenance audits the signed tarball; a journalist who just needs to check one exhibit runs the binary.</p>
+
+      <div class="dl">
+        <a href="#"><div class="k">Source · Python</div><h4>vk-clerk<em>.py</em></h4><p>The 240-line script itself. Zero dependencies outside <code style="font-family:'JetBrains Mono',monospace;font-size:12px">hashlib</code>, <code style="font-family:'JetBrains Mono',monospace;font-size:12px">cryptography</code>, and <code style="font-family:'JetBrains Mono',monospace;font-size:12px">json</code>.</p><div class="hash">sha256 &nbsp;7f2a…9b31</div></a>
+        <a href="#"><div class="k">Tarball · signed</div><h4>vk-clerk<em>-1.4.tar.gz</em></h4><p>Source, tests, the conformance corpus, and signed SBOM. Verify with the release PGP key.</p><div class="hash">sha256 &nbsp;e104…41ad</div></a>
+        <a href="#"><div class="k">Static binary</div><h4>vk-clerk<em> (linux/mac/win)</em></h4><p>Single static binary, 6.2 MB. No Python required on the clerk's machine. Reproducible build.</p><div class="hash">sha256 &nbsp;a9cc…72e0</div></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section dark">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">What it does<small>Running against a real bundle</small></div>
+    <div class="sp-body">
+      <h2>What it looks like <em>when it works.</em></h2>
+      <p class="sp-lead">A sealed bundle from the Kosovo Specialist Chambers, exported in 2024 for defence counsel. Defence counsel runs the validator in their chambers. Seventy-two milliseconds later, they know whether to argue the merits of the evidence — or its provenance.</p>
+
+      <div class="run">
+<span class="c"># verify a sealed bundle</span><br>
+<span class="k">$</span> vk-clerk verify ./KSC-CASE-0418-exhibits.vke<br>
+<br>
+<span class="c">→</span> reading bundle manifest &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 47 exhibits<br>
+<span class="c">→</span> verifying exhibit hashes (SHA-256)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="ok">47 / 47 ✓</span><br>
+<span class="c">→</span> verifying custody-chain linkage (BLAKE3)&nbsp;&nbsp; <span class="ok">  284 rows ✓</span><br>
+<span class="c">→</span> verifying witness quorum signatures&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="ok">5-of-7 on all rows ✓</span><br>
+<span class="c">→</span> verifying RFC 3161 timestamp tokens&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="ok">all within allowed skew ✓</span><br>
+<span class="c">→</span> verifying VKE1 handoff receipts&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="ok">3 handoffs ✓</span><br>
+<span class="c">→</span> checking against revoked-key list&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="ok">no revoked keys present ✓</span><br>
+<br>
+<span class="ok">── BUNDLE HOLDS ────────────────────────────────────────</span><br>
+&nbsp;&nbsp;genesis &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; KSC-01 (2024-03-11 09:41:02 UTC)<br>
+&nbsp;&nbsp;last seal&nbsp;&nbsp;&nbsp;&nbsp; KSC-01 (2025-08-22 16:12:44 UTC)<br>
+&nbsp;&nbsp;producer&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Kosovo Specialist Chambers · instance KSC-P1<br>
+&nbsp;&nbsp;key fp &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 9F:3A:C8:2E:41:9B:77:DE &nbsp;(in KSC root)<br>
+&nbsp;&nbsp;total time &nbsp;&nbsp;&nbsp; 72 ms &nbsp;·&nbsp; offline &nbsp;·&nbsp; no network activity<br>
+<br>
+<span class="k">$</span> <span class="c"># you can now argue the merits — the provenance is sound.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">What it <em>doesn't</em> do<small>Non-goals are deliberate</small></div>
+    <div class="sp-body">
+      <h2>Small on purpose. <em>Trusted</em> on purpose.</h2>
+      <p class="sp-lead">A validator that does too much is a validator nobody reads. We made the explicit choice that every version of vk-clerk must fit on one screen of a reasonably-sized terminal. An institutional security reviewer can read the whole thing in fifteen minutes and have an opinion. That is the point.</p>
+
+      <div class="sp-cols3">
+        <div class="c"><span class="n">No</span><h4>No network</h4><p>The validator never opens a socket. Not to check revocation, not to fetch CRLs, not to phone home. Everything it needs is in the bundle.</p></div>
+        <div class="c"><span class="n">No</span><h4>No decryption</h4><p>It verifies hash integrity and signatures. It does <em>not</em> decrypt witness-protected payloads. The validator cannot see what the bundle hides; only whether the seal holds.</p></div>
+        <div class="c"><span class="n">No</span><h4>No plugins</h4><p>There is no plugin architecture, no optional modules, no configuration file. The validator does exactly one thing. Adding a feature requires a PR and a version bump.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-quote">
+  <div class="wrap">
+    <blockquote>"In the first evidentiary challenge we ran in 2025, defence counsel <em>read the validator</em>, objected to nothing in it, and agreed to treat its output as dispositive. That has made every hearing since that one shorter."</blockquote>
+    <p class="who"><strong>Bureau of the Registrar</strong> — Kosovo Specialist Chambers, public remarks · 2025</p>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>Bring it to your <em>clerk's office.</em></h2>
+      <p>If you're a tribunal registrar preparing for an appeals cycle, we'll help your clerks' office integrate the validator into their intake flow. No fee, no contract.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="federation.html">Federation spec</a>
+      <a class="btn" href="contact.html">Talk to us <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="source.html"><span class="k">Also open</span><h5>Source code</h5><p>The full tree. AGPL-3.0. 94 contributors.</p></a>
+    <a href="federation.html"><span class="k">Also open</span><h5>Federation spec (VKE1)</h5><p>The RFC. Five independent implementations.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

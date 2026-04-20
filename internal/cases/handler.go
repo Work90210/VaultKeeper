@@ -96,6 +96,12 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	ac, ok := auth.GetAuthContext(r.Context())
+	if !ok {
+		httputil.RespondError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	id, err := parseUUID(r, "id")
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
@@ -106,6 +112,19 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondServiceError(w, err)
 		return
+	}
+
+	// System admins bypass; others must be an active org member.
+	if ac.SystemRole < auth.RoleSystemAdmin {
+		if h.orgChecker == nil {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
+		isMember, memberErr := h.orgChecker.IsActiveMember(r.Context(), c.OrganizationID, ac.UserID)
+		if memberErr != nil || !isMember {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
 	}
 
 	httputil.RespondJSON(w, http.StatusOK, c)
@@ -122,6 +141,24 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
 		return
+	}
+
+	c, err := h.service.GetCase(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+
+	if ac.SystemRole < auth.RoleSystemAdmin {
+		if h.orgChecker == nil {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
+		isMember, memberErr := h.orgChecker.IsActiveMember(r.Context(), c.OrganizationID, ac.UserID)
+		if memberErr != nil || !isMember {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
 	}
 
 	var input UpdateCaseInput
@@ -152,6 +189,24 @@ func (h *Handler) Archive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c, err := h.service.GetCase(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+
+	if ac.SystemRole < auth.RoleSystemAdmin {
+		if h.orgChecker == nil {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
+		isMember, memberErr := h.orgChecker.IsActiveMember(r.Context(), c.OrganizationID, ac.UserID)
+		if memberErr != nil || !isMember {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
+	}
+
 	if err := h.service.ArchiveCase(r.Context(), id, ac.UserID); err != nil {
 		respondServiceError(w, err)
 		return
@@ -171,6 +226,24 @@ func (h *Handler) SetLegalHold(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
 		return
+	}
+
+	c, err := h.service.GetCase(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+
+	if ac.SystemRole < auth.RoleSystemAdmin {
+		if h.orgChecker == nil {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
+		isMember, memberErr := h.orgChecker.IsActiveMember(r.Context(), c.OrganizationID, ac.UserID)
+		if memberErr != nil || !isMember {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
 	}
 
 	var body struct {
@@ -200,6 +273,24 @@ func (h *Handler) Handover(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid case ID")
 		return
+	}
+
+	c, err := h.service.GetCase(r.Context(), id)
+	if err != nil {
+		respondServiceError(w, err)
+		return
+	}
+
+	if ac.SystemRole < auth.RoleSystemAdmin {
+		if h.orgChecker == nil {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
+		isMember, memberErr := h.orgChecker.IsActiveMember(r.Context(), c.OrganizationID, ac.UserID)
+		if memberErr != nil || !isMember {
+			httputil.RespondError(w, http.StatusNotFound, "not found")
+			return
+		}
 	}
 
 	var input HandoverInput

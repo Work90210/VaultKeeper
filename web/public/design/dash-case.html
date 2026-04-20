@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ICC-UKR-2024 — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('cases', `<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-cases.html">Cases</a><span class="sep">/</span><span class="here">ICC-UKR-2024</span>`);
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Case · Criminal · since 14 Feb 2024</span>
+      <h1>ICC-UKR-2024 · <em>Butcha</em> file</h1>
+      <p class="sub">Crimes against humanity — regional command structure. Federated with CIJA Berlin (sub-chain <code>/CIJA</code>) and KSC Pristina (full peer). Active since 2024 · primary custodian Eurojust.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="dash-disclosures.html">Create disclosure</a>
+      <a class="btn" href="dash-evidence.html">Upload evidence <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="panel" style="margin-bottom:22px">
+    <div class="tabs">
+      <a href="#" class="active">Overview<span class="ct">·</span></a>
+      <a href="dash-evidence.html">Evidence<span class="ct">12417</span></a>
+      <a href="dash-witnesses.html">Witnesses<span class="ct">218</span></a>
+      <a href="dash-analysis.html">Notes<span class="ct">184</span></a>
+      <a href="dash-corroborations.html">Corroborations<span class="ct">62</span></a>
+      <a href="dash-disclosures.html">Disclosures<span class="ct">9</span></a>
+      <a href="dash-audit.html">Chain<span class="ct">48k</span></a>
+      <a href="#">Settings</a>
+    </div>
+    <div class="panel-body">
+      <div class="g2-wide" style="gap:32px;align-items:start">
+        <dl class="kvs">
+          <dt>Reference</dt><dd><strong>ICC-UKR-2024</strong> · <code>case_f08d…91ab</code></dd>
+          <dt>Jurisdiction</dt><dd>International Criminal Court · Situation in Ukraine</dd>
+          <dt>Classification</dt><dd>Confidential — Level 3 · witness-sensitive</dd>
+          <dt>Custodian</dt><dd>Eurojust · Hague (primary, signing authority)</dd>
+          <dt>Federated with</dt><dd>CIJA Berlin (sub-chain), KSC Pristina (full peer), Bellingcat (read-only)</dd>
+          <dt>Retention</dt><dd>50 y from sealing · automatic review cadence</dd>
+          <dt>Storage</dt><dd>1.8 TB · MinIO <code>vk-icc-ukr-2024</code> · SHA-256 + BLAKE3</dd>
+          <dt>Chain head</dt><dd><code>f208…bc91</code> · RFC 3161 stamped 14:22:04</dd>
+        </dl>
+        <div style="background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:18px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:12px">Chain of custody · last 5 blocks</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px">
+            <div style="display:flex;gap:10px;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:6px"><span style="color:var(--accent)">f208…bc91</span><span style="color:var(--muted);margin-left:auto">● head · 3 ops</span></div>
+            <div style="display:flex;gap:10px;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:6px"><span style="color:var(--accent)">c44d…47e2</span><span style="color:var(--muted);margin-left:auto">snapshot</span></div>
+            <div style="display:flex;gap:10px;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:6px"><span style="color:var(--accent)">91ab…8204</span><span style="color:#3a6b5e;margin-left:auto">⇅ merge · CIJA</span></div>
+            <div style="display:flex;gap:10px;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:6px"><span style="color:var(--accent)">3e11…9a32</span><span style="color:var(--muted);margin-left:auto">2 ops · B</span></div>
+            <div style="display:flex;gap:10px;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:6px"><span style="color:var(--accent)">a7f4…b618</span><span style="color:var(--muted);margin-left:auto">3 ops · A</span></div>
+          </div>
+          <div style="margin-top:14px;display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);font-family:'JetBrains Mono',monospace"><span>48,217 events · unbroken</span><a class="linkarrow" href="dash-audit.html" style="font-size:12px">Audit log →</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g3" style="margin-bottom:22px">
+    <div class="panel"><div class="panel-h"><h3>Team</h3><span class="meta">12 members</span></div><div class="panel-body">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center"><span class="avs"><span class="av a">H</span></span><div><strong style="font-family:'Fraunces',serif;font-size:14.5px">H. Morel</strong><div style="font-size:11.5px;color:var(--muted)">Lead · full access</div></div><span class="pl live">online</span></div>
+        <div style="display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center"><span class="avs"><span class="av b">M</span></span><div><strong style="font-family:'Fraunces',serif;font-size:14.5px">Martyna K.</strong><div style="font-size:11.5px;color:var(--muted)">Redaction lead</div></div><span class="pl live">online</span></div>
+        <div style="display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center"><span class="avs"><span class="av c">A</span></span><div><strong style="font-family:'Fraunces',serif;font-size:14.5px">Amir H.</strong><div style="font-size:11.5px;color:var(--muted)">Corroboration</div></div><span class="pl live">online</span></div>
+        <div style="display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center"><span class="avs"><span class="av d">J</span></span><div><strong style="font-family:'Fraunces',serif;font-size:14.5px">Juliane S.</strong><div style="font-size:11.5px;color:var(--muted)">Pseudonymisation</div></div><span class="pl draft">idle</span></div>
+        <div style="display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center"><span class="avs"><span class="av e">W</span></span><div><strong style="font-family:'Fraunces',serif;font-size:14.5px">W. Nyoka</strong><div style="font-size:11.5px;color:var(--muted)">Legal officer</div></div><span class="pl draft">idle</span></div>
+        <div style="font-size:12.5px;color:var(--muted);padding-top:4px;border-top:1px solid var(--line);margin-top:4px">+ 7 others (CIJA, KSC federated)</div>
+      </div>
+    </div></div>
+
+    <div class="panel"><div class="panel-h"><h3>Evidence profile</h3><span class="meta">12,417 exhibits</span></div><div class="panel-body">
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px"><span>Documents</span><span class="num">4,218</span></div>
+        <div style="background:var(--bg-2);height:6px;border-radius:3px;overflow:hidden"><div style="height:100%;width:34%;background:var(--accent)"></div></div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px"><span>Imagery / video</span><span class="num">3,901</span></div>
+        <div style="background:var(--bg-2);height:6px;border-radius:3px;overflow:hidden"><div style="height:100%;width:31%;background:var(--ok)"></div></div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px"><span>Audio / intercept</span><span class="num">2,104</span></div>
+        <div style="background:var(--bg-2);height:6px;border-radius:3px;overflow:hidden"><div style="height:100%;width:17%;background:#3a6b5e"></div></div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px"><span>Witness statements</span><span class="num">1,812</span></div>
+        <div style="background:var(--bg-2);height:6px;border-radius:3px;overflow:hidden"><div style="height:100%;width:15%;background:#6b4a3a"></div></div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px"><span>Forensic images</span><span class="num">382</span></div>
+        <div style="background:var(--bg-2);height:6px;border-radius:3px;overflow:hidden"><div style="height:100%;width:3%;background:#5b4a6b"></div></div>
+      </div>
+    </div></div>
+
+    <div class="panel"><div class="panel-h"><h3>Upcoming</h3><span class="meta">week of 19 April</span></div><div class="panel-body">
+      <div class="tl-list">
+        <div class="tl-item accent"><div><div class="what"><strong>Fri 25</strong> · Disclosure <em>DISC-2026-019</em> due to defence</div><div class="who-line">48 exhibits · bundle queued</div></div><div class="sig">6 d</div></div>
+        <div class="tl-item"><div><div class="what"><strong>Wed 23</strong> · Review hearing — remote, 10:00</div><div class="who-line">H. Morel + Amir H.</div></div><div class="sig">4 d</div></div>
+        <div class="tl-item"><div><div class="what"><strong>Mon 28</strong> · Corroboration audit ceremony</div><div class="who-line">internal · Martyna leads</div></div><div class="sig">9 d</div></div>
+      </div>
+    </div></div>
+  </div>
+`;
+</script></body></html>

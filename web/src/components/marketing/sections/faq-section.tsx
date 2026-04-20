@@ -17,16 +17,20 @@ const FAQ_KEYS = [
 ] as const;
 
 function FaqItem({
+  id,
   question,
   answer,
   isOpen,
   onToggle,
 }: {
+  id: string;
   question: string;
   answer: string;
   isOpen: boolean;
   onToggle: () => void;
 }) {
+  const triggerId = `faq-trigger-${id}`;
+  const panelId = `faq-panel-${id}`;
   return (
     <div
       className="rounded-xl overflow-hidden transition-colors"
@@ -37,9 +41,11 @@ function FaqItem({
     >
       <button
         type="button"
+        id={triggerId}
         className="w-full flex items-center justify-between p-6 text-left"
         onClick={onToggle}
         aria-expanded={isOpen}
+        aria-controls={panelId}
       >
         <span
           className="font-medium pr-4"
@@ -72,6 +78,9 @@ function FaqItem({
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
           >
             <div
+              id={panelId}
+              role="region"
+              aria-labelledby={triggerId}
               className="px-6 pb-6 text-sm leading-relaxed"
               style={{ color: 'var(--text-secondary)' }}
             >
@@ -86,37 +95,22 @@ function FaqItem({
 
 export function FaqSection() {
   const t = useTranslations('marketing.faq');
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const [openKeys, setOpenKeys] = useState<Set<string>>(
+    () => new Set(['sovereignty', 'security', 'pilot']),
+  );
 
   return (
-    <section
-      className="py-20 md:py-28"
-      style={{ backgroundColor: 'var(--bg-secondary)' }}
-    >
-      <div className="marketing-section max-w-3xl">
+    <section className="section">
+      <div className="wrap" style={{ maxWidth: '780px' }}>
         <motion.div
-          className="text-center mb-14"
+          style={{ marginBottom: '48px' }}
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <span
-            className="text-xs font-semibold uppercase tracking-[0.15em]"
-            style={{ color: 'var(--amber-accent)' }}
-          >
-            {t('eyebrow')}
-          </span>
-          <h2
-            className="font-[family-name:var(--font-heading)] mt-4 text-balance"
-            style={{
-              color: 'var(--text-primary)',
-              fontSize: 'clamp(1.75rem, 1.2rem + 2vw, 3rem)',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {t('title')}
-          </h2>
+          <span className="eyebrow">{t('eyebrow')}</span>
+          <h2 style={{ marginTop: '20px' }}>{t('title')}</h2>
         </motion.div>
 
         <div className="space-y-3">
@@ -133,12 +127,19 @@ export function FaqSection() {
               }}
             >
               <FaqItem
+                id={key}
                 question={t(`${key}.question`)}
                 answer={t(`${key}.answer`)}
-                isOpen={openIndex === i}
-                onToggle={() =>
-                  setOpenIndex(openIndex === i ? null : i)
-                }
+                isOpen={openKeys.has(key)}
+                onToggle={() => {
+                  const next = new Set(openKeys);
+                  if (next.has(key)) {
+                    next.delete(key);
+                  } else {
+                    next.add(key);
+                  }
+                  setOpenKeys(next);
+                }}
               />
             </motion.div>
           ))}

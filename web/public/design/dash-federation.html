@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Federation — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('federation', `<a href="dash.html">Workspace</a><span class="sep">/</span><span class="here">Federation</span>`);
+
+const peers=[
+  {n:"CIJA Berlin",r:"sub-chain ·/CIJA",cases:4,last:"2 min",st:"healthy",lag:"0.4 s",keys:"Ed25519 · rotated 14 d ago",ops:"12,418 ops · 94 MB",note:"Parallel investigation mirror"},
+  {n:"KSC Pristina",r:"full peer",cases:2,last:"8 min",st:"healthy",lag:"1.1 s",keys:"Ed25519 · rotated 22 d ago",ops:"48,217 ops · 612 MB",note:"Full bidirectional mirror · Kosovo Specialist Chambers"},
+  {n:"Bellingcat",r:"read-only peer",cases:1,last:"11 min",st:"healthy",lag:"2.3 s",keys:"Ed25519 · rotated 9 d ago",ops:"2,104 ops · 48 MB",note:"OSINT corroboration · reads only"},
+  {n:"OTP Hague archive",r:"cold mirror",cases:38,last:"1 h",st:"lag",lag:"52 min",keys:"Ed25519 · rotated 31 d ago",ops:"nightly snapshot only",note:"Read-only cold mirror for ICC OTP"},
+  {n:"vke-dev.eurojust",r:"staging",cases:0,last:"—",st:"paused",lag:"—",keys:"—",ops:"—",note:"Dev instance · federation paused"}
+];
+const sp={healthy:'sealed',lag:'hold',paused:'draft'};
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Platform · VKE1 federation protocol</span>
+      <h1>Federated <em>chain of custody</em></h1>
+      <p class="sub">Peer instances exchange sealed, signed operations over the VKE1 protocol — no shared database, no central ledger, no single trust anchor. Each party keeps their own chain; cross-chain merges are themselves sealed events on both sides.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="#">Protocol spec</a>
+      <a class="btn" href="#">Invite peer <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="d-kpis" style="margin-bottom:22px">
+    <div class="d-kpi"><div class="k">Active peers</div><div class="v">5</div><div class="sub">3 healthy · 1 lagging · 1 paused</div></div>
+    <div class="d-kpi"><div class="k">Federated cases</div><div class="v">6</div><div class="sub">of 38 total</div></div>
+    <div class="d-kpi"><div class="k">Merge p95 · 24h</div><div class="v">1.4<em>s</em></div><div class="sub">roundtrip seal</div></div>
+    <div class="d-kpi"><div class="k">Divergences · ever</div><div class="v">0</div><div class="sub">no reconciliation needed</div></div>
+  </div>
+
+  <div class="g2-wide" style="margin-bottom:22px">
+    <div class="panel"><div class="panel-h"><h3>Peer instances</h3><span class="meta">5 registered</span></div><div class="panel-body" style="padding:0">
+      ${peers.map(p=>`
+        <div style="padding:22px 26px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:18px;align-items:start">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><span style="font-family:'Fraunces',serif;font-size:20px;letter-spacing:-.01em">${p.n}</span><span class="tag">${p.r}</span><span class="pl ${sp[p.st]}">${p.st}</span></div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:10px">${p.note}</div>
+            <div style="display:flex;gap:18px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.02em"><span>${p.cases} cases</span><span>${p.ops}</span><span>${p.keys}</span></div>
+          </div>
+          <div style="text-align:right"><div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase">last exchange</div><div style="font-family:'Fraunces',serif;font-size:18px;letter-spacing:-.005em">${p.last}</div><div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);margin-top:2px">lag ${p.lag}</div></div>
+        </div>
+      `).join('')}
+    </div></div>
+
+    <div class="panel"><div class="panel-h"><h3>Protocol</h3><span class="meta">VKE1 · open spec</span></div><div class="panel-body">
+      <dl class="kvs">
+        <dt>Transport</dt><dd>HTTPS/2 + mTLS · self-signed root per peer</dd>
+        <dt>Identity</dt><dd>Ed25519 per instance · rotated ≤ 90 d</dd>
+        <dt>Op format</dt><dd>CRDT-flavoured, canonical CBOR</dd>
+        <dt>Seal</dt><dd>SHA-256 hash chain + RFC 3161 countersign</dd>
+        <dt>Conflict</dt><dd>Last-writer-wins on body · first-seal-wins on metadata</dd>
+        <dt>Revocation</dt><dd>Broadcast to all peers within 30 s</dd>
+        <dt>Governance</dt><dd>Spec maintained in public · <a class="linkarrow" href="#">RFC VKE1 →</a></dd>
+      </dl>
+    </div></div>
+  </div>
+
+  <div class="panel"><div class="panel-h"><h3>Recent exchanges</h3><span class="meta">last 8</span></div><div class="panel-body" style="padding:0">
+    ${[
+      ["14:20:58","CIJA Berlin","in","12 ops · sub-chain /CIJA","91ab…8204","a"],
+      ["14:14:11","KSC Pristina","out","4 ops · ICC-KOS-2024","c44d…47e2","b"],
+      ["13:58:02","Bellingcat","in","1 op · OSINT corroboration","7f22…9e14","c"],
+      ["13:44:19","KSC Pristina","in","9 ops","3e11…9a32","b"],
+      ["13:22:08","OTP Hague archive","out","nightly snapshot (delayed)","a7f4…b618","d"],
+      ["13:04:44","CIJA Berlin","in","3 ops","d9a7…2e18","a"],
+      ["12:48:31","CIJA Berlin","out","countersign block","f208…bc91","a"],
+      ["12:30:02","KSC Pristina","in","2 ops","e3f0…a1be","b"]
+    ].map(e=>`
+      <div style="padding:14px 26px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:90px 40px 1fr auto auto;gap:18px;align-items:center;font-size:13px">
+        <span class="mono" style="font-family:'JetBrains Mono',monospace;color:var(--muted)">${e[0]}</span>
+        <span class="avs"><span class="av ${e[5]}">${e[1][0]}</span></span>
+        <span style="font-family:'Fraunces',serif;font-size:14.5px;letter-spacing:-.005em">${e[1]} <span style="color:var(--muted);font-size:12px">· ${e[3]}</span></span>
+        <span class="pl ${e[2]==='in'?'sealed':'disc'}" style="text-transform:uppercase">${e[2]==='in'?'← in':'out →'}</span>
+        <span class="mono" style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-size:11.5px">${e[4]}</span>
+      </div>
+    `).join('')}
+  </div></div>
+`;
+</script></body></html>

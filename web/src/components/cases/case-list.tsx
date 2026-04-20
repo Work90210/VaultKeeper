@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface CaseItem {
   id: string;
@@ -13,11 +13,28 @@ interface CaseItem {
   created_at: string;
 }
 
-const STATUS_STYLES: Record<string, { color: string; bg: string }> = {
-  active: { color: 'var(--status-active)', bg: 'var(--status-active-bg)' },
-  closed: { color: 'var(--status-closed)', bg: 'var(--status-closed-bg)' },
-  archived: { color: 'var(--status-archived)', bg: 'var(--status-archived-bg)' },
+const STATUS_PILL: Record<string, string> = {
+  active: 'pl live',
+  closed: 'pl sealed',
+  archived: 'pl draft',
 };
+
+const STATUS_LABEL: Record<string, string> = {
+  active: 'active',
+  closed: 'sealed',
+  archived: 'draft',
+};
+
+function timeSince(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 export function CaseList({
   cases,
@@ -36,6 +53,18 @@ export function CaseList({
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(currentQuery);
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { active: 0, closed: 0, archived: 0 };
+    for (const c of cases) {
+      if (c.legal_hold) {
+        counts.hold = (counts.hold ?? 0) + 1;
+      } else if (counts[c.status] !== undefined) {
+        counts[c.status] += 1;
+      }
+    }
+    return counts;
+  }, [cases]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const params = new URLSearchParams(searchParams.toString());
@@ -53,176 +82,158 @@ export function CaseList({
     router.push(`/en/cases?${params.toString()}`);
   };
 
+  const filters: { key: string; label: string; count?: number }[] = [
+    { key: '', label: 'All', count: cases.length },
+    { key: 'active', label: 'Active', count: statusCounts.active },
+    { key: 'hold', label: 'Legal hold', count: statusCounts.hold ?? 0 },
+    { key: 'closed', label: 'Archived', count: statusCounts.closed },
+    { key: 'archived', label: 'Draft', count: statusCounts.archived },
+  ];
+
   return (
-    <div className="space-y-[var(--space-md)]">
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-[var(--space-sm)]">
-        <form onSubmit={handleSearch} className="flex flex-1 gap-[var(--space-xs)]">
-          <div className="relative flex-1">
-            {/* Search icon */}
-            <svg
-              className="absolute left-[var(--space-sm)] top-1/2 -translate-y-1/2 pointer-events-none"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--text-tertiary)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by reference, title, or description..."
-              className="input-field pl-[var(--space-xl)] !py-[var(--space-xs)]"
-            />
-          </div>
-          <button type="submit" className="btn-secondary">
-            Search
-          </button>
+    <div className="panel">
+      {/* Filter bar */}
+      <div className="fbar">
+        <form onSubmit={handleSearch} className="fsearch">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            style={{ color: 'var(--muted)' }}
+          >
+            <circle cx="7" cy="7" r="4" />
+            <path d="M10 10l3 3" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter by ref, subject, jurisdiction&#8230;"
+          />
         </form>
-        <select
-          value={currentStatus}
-          onChange={(e) => handleStatusFilter(e.target.value)}
-          className="input-field !w-auto"
-          style={{ minWidth: '140px', padding: 'var(--space-xs) var(--space-sm)' }}
-        >
-          <option value="">All statuses</option>
-          <option value="active">Active</option>
-          <option value="closed">Closed</option>
-          <option value="archived">Archived</option>
-        </select>
+        {filters.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            className={`chip${currentStatus === f.key ? ' active' : ''}`}
+            onClick={() => handleStatusFilter(f.key)}
+          >
+            {f.label}{' '}
+            <span className={currentStatus === f.key ? 'x' : 'chev'}>
+              {currentStatus === f.key ? `\u00b7${f.count}` : f.count}
+            </span>
+          </button>
+        ))}
+        <span className="chip">Role &middot; any <span className="chev">&#9662;</span></span>
+        <span className="chip">Jurisdiction &middot; any <span className="chev">&#9662;</span></span>
       </div>
 
       {/* Table */}
       {cases.length === 0 ? (
-        <div
-          className="card py-[var(--space-2xl)] text-center"
-        >
+        <div style={{ padding: '64px', textAlign: 'center' }}>
           <p
-            className="font-[family-name:var(--font-heading)] text-xl"
-            style={{ color: 'var(--text-tertiary)' }}
+            style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: '22px',
+              color: 'var(--muted)',
+            }}
           >
             No cases found
           </p>
-          <p
-            className="mt-[var(--space-xs)] text-sm"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
+          <p style={{ fontSize: '14px', color: 'var(--muted)', marginTop: '8px' }}>
             {currentQuery
               ? 'Try adjusting your search terms.'
               : 'Create a case to get started.'}
           </p>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          {/* Column headers */}
-          <div
-            className="grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-xs uppercase tracking-wider font-semibold"
-            style={{
-              color: 'var(--text-tertiary)',
-              borderBottom: '1px solid var(--border-default)',
-              backgroundColor: 'var(--bg-inset)',
-            }}
-          >
-            <span>Reference</span>
-            <span>Title</span>
-            <span>Status</span>
-            <span>Jurisdiction</span>
-            <span className="text-right">Date</span>
-          </div>
-
-          {/* Rows */}
-          <div className="stagger-in">
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Case</th>
+              <th>Class.</th>
+              <th>Your role</th>
+              <th>Exhibits</th>
+              <th>Witnesses</th>
+              <th>Chain</th>
+              <th>Team</th>
+              <th>Status</th>
+              <th>Last</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
             {cases.map((c) => {
-              const style = STATUS_STYLES[c.status] || STATUS_STYLES.archived;
-              return (
-                <div
-                  key={c.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Open case ${c.reference_code}: ${c.title}`}
-                  onClick={() => router.push(`/en/cases/${c.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      router.push(`/en/cases/${c.id}`);
-                    }
-                  }}
-                  className="table-row grid grid-cols-[140px_1fr_90px_1fr_100px] gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] items-center"
-                  style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                >
-                  <span
-                    className="font-[family-name:var(--font-mono)] text-xs font-medium"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {c.reference_code}
-                  </span>
+              const pillClass = c.legal_hold
+                ? 'pl hold'
+                : STATUS_PILL[c.status] || 'pl draft';
+              const statusLabel = c.legal_hold
+                ? 'legal hold'
+                : STATUS_LABEL[c.status] || c.status;
 
-                  <span
-                    className="text-sm font-medium truncate flex items-center gap-[var(--space-sm)]"
-                    style={{ color: 'var(--text-primary)' }}
-                  >
-                    {c.title}
-                    {c.legal_hold && (
-                      <span
-                        className="badge shrink-0"
-                        style={{
-                          backgroundColor: 'var(--status-hold-bg)',
-                          color: 'var(--status-hold)',
-                        }}
-                      >
-                        HOLD
-                      </span>
-                    )}
-                  </span>
-
-                  <span
-                    className="badge w-fit"
-                    style={{ backgroundColor: style.bg, color: style.color }}
-                  >
-                    {c.status}
-                  </span>
-
-                  <span
-                    className="text-sm truncate"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {c.jurisdiction || '\u2014'}
-                  </span>
-
-                  <span
-                    className="text-xs text-right tabular-nums"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    {new Date(c.created_at).toLocaleDateString('en-GB', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
+              const chainCell = c.legal_hold ? (
+                <span className="pl hold">held</span>
+              ) : c.status === 'archived' ? (
+                <span className="pl draft">&mdash;</span>
+              ) : (
+                <div className="chain">
+                  <span className="node on" />
+                  <span className="seg" />
+                  <span className="node on" />
+                  <span className="seg" />
+                  <span className="node on" />
+                  <span className="seg" />
+                  <span className="node on" />
+                  <span className="seg" />
+                  <span className="node on" />
                 </div>
               );
+
+              return (
+                <tr
+                  key={c.id}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => router.push(`/en/cases/${c.id}`)}
+                >
+                  <td>
+                    <div className="ref">
+                      {c.reference_code}
+                      <small>{c.title}</small>
+                    </div>
+                  </td>
+                  <td><span className="tag">{c.jurisdiction || '\u2014'}</span></td>
+                  <td><span className="tag">&mdash;</span></td>
+                  <td className="num">&mdash;</td>
+                  <td className="num">&mdash;</td>
+                  <td>{chainCell}</td>
+                  <td>&mdash;</td>
+                  <td>
+                    <span className={pillClass}>{statusLabel}</span>
+                  </td>
+                  <td className="mono">{timeSince(c.created_at)}</td>
+                  <td className="actions">
+                    <a className="linkarrow">Open &rarr;</a>
+                  </td>
+                </tr>
+              );
             })}
-          </div>
-        </div>
+          </tbody>
+        </table>
       )}
 
       {/* Pagination */}
       {hasMore && (
-        <div className="pt-[var(--space-sm)]">
+        <div style={{ padding: '14px 22px', borderTop: '1px solid var(--line)' }}>
           <a
             href={`/en/cases?${new URLSearchParams({
               ...(currentQuery ? { q: currentQuery } : {}),
               ...(currentStatus ? { status: currentStatus } : {}),
               cursor: nextCursor,
             }).toString()}`}
-            className="link-accent text-sm"
+            className="linkarrow"
           >
             Load more results &rarr;
           </a>

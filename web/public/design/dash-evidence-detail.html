@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>E-0918 — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+/* Berkeley Protocol phase tracker */
+.bp-tracker{display:grid;grid-template-columns:repeat(6,1fr);gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--paper);overflow:hidden;margin-bottom:28px}
+.bp-phase{padding:18px 16px;border-right:1px solid var(--line);position:relative;transition:background .15s;cursor:default}
+.bp-phase:last-child{border-right:none}
+.bp-phase:hover{background:var(--bg-2)}
+.bp-phase .bp-num{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-2);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.bp-phase .bp-name{font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.01em;color:var(--ink);margin-bottom:8px;line-height:1.2}
+.bp-phase .bp-status{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;margin-bottom:8px}
+.bp-phase .bp-status .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.bp-phase .bp-status.complete .dot{background:var(--ok)}
+.bp-phase .bp-status.complete{color:var(--ok)}
+.bp-phase .bp-status.partial .dot{background:var(--accent)}
+.bp-phase .bp-status.partial{color:var(--accent)}
+.bp-phase .bp-status.missing .dot{background:var(--muted-2);opacity:.5}
+.bp-phase .bp-status.missing{color:var(--muted)}
+.bp-phase .bp-detail{font-size:11px;color:var(--muted);line-height:1.5}
+.bp-phase .bp-bar{position:absolute;bottom:0;left:0;right:0;height:3px}
+.bp-phase .bp-bar .bp-fill{height:100%;transition:width .3s}
+.bp-phase.done .bp-bar .bp-fill{width:100%;background:var(--ok)}
+.bp-phase.part .bp-bar .bp-fill{width:60%;background:var(--accent)}
+.bp-phase.none .bp-bar .bp-fill{width:0}
+
+/* Evidence detail page */
+.ev-layout{display:grid;grid-template-columns:1fr 320px;gap:0;min-height:0}
+@media(max-width:1000px){.ev-layout{grid-template-columns:1fr}}
+.ev-main{padding-right:32px;border-right:1px solid var(--line)}
+@media(max-width:1000px){.ev-main{padding-right:0;border-right:none}}
+.ev-sidebar{padding-left:32px}
+@media(max-width:1000px){.ev-sidebar{padding-left:0;margin-top:28px}}
+
+/* Header */
+.ev-header{margin-bottom:28px}
+.ev-header .ev-badges{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ev-header .ev-num{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--muted);letter-spacing:.04em}
+.ev-header h1{font-size:clamp(28px,3vw,42px);letter-spacing:-.025em;line-height:1.05;margin-bottom:14px}
+.ev-header .ev-desc{font-size:15px;color:var(--muted);line-height:1.65;max-width:65ch}
+.ev-header .ev-actions{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+
+/* Preview box */
+.ev-preview{background:var(--ink);border-radius:var(--radius-lg);overflow:hidden;display:grid;place-items:center;min-height:320px;position:relative;margin-bottom:24px;
+  background-image:radial-gradient(ellipse 60% 50% at 50% 40%,rgba(184,66,28,.08),transparent),
+    linear-gradient(180deg,rgba(20,17,12,.85) 0%,rgba(20,17,12,.95) 100%);
+}
+.ev-preview .play-btn{width:72px;height:72px;border-radius:50%;background:rgba(245,241,232,.1);backdrop-filter:blur(12px);display:grid;place-items:center;cursor:pointer;transition:all .25s;border:1px solid rgba(245,241,232,.12)}
+.ev-preview .play-btn:hover{background:rgba(245,241,232,.18);transform:scale(1.08);border-color:rgba(245,241,232,.2)}
+.ev-preview .file-badge{position:absolute;top:16px;left:16px;padding:5px 12px;border-radius:8px;background:rgba(245,241,232,.08);color:rgba(245,241,232,.55);font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;backdrop-filter:blur(12px);border:1px solid rgba(245,241,232,.06)}
+.ev-preview .dur-badge{position:absolute;bottom:16px;right:16px;padding:5px 12px;border-radius:8px;background:rgba(20,17,12,.6);color:rgba(245,241,232,.75);font-family:"JetBrains Mono",monospace;font-size:12px;backdrop-filter:blur(12px);border:1px solid rgba(245,241,232,.06)}
+.ev-preview .waveform{position:absolute;bottom:0;left:0;right:0;height:48px;display:flex;align-items:flex-end;gap:2px;padding:0 16px;opacity:.2}
+.ev-preview .waveform span{flex:1;background:rgba(245,241,232,.5);border-radius:1px 1px 0 0;min-width:2px}
+
+/* Tags */
+.ev-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:26px}
+.ev-tags .tag{padding:4px 11px;font-size:11.5px;background:var(--paper);border:1px solid var(--line);transition:border-color .15s}
+.ev-tags .tag:hover{border-color:var(--accent-soft)}
+
+/* Sidebar blocks */
+.sb{margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--line)}
+.sb:last-child{border-bottom:none;padding-bottom:0}
+.sb-label{font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sb-label .bp-tag{font-size:8px;padding:2px 6px;border-radius:4px;background:rgba(184,66,28,.06);border:1px solid rgba(184,66,28,.12);letter-spacing:.05em;color:var(--accent)}
+.sb-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px}
+.sb-row .k{color:var(--muted);flex-shrink:0;font-size:12.5px}
+.sb-row .v{color:var(--ink-2);text-align:right;word-break:break-all;font-size:13px}
+.sb-row .v.mono{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink)}
+
+/* Tabs */
+.ev-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:0}
+.ev-tabs a{padding:14px 20px;font-size:13.5px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;transition:color .15s;display:flex;align-items:center;gap:7px}
+.ev-tabs a:hover{color:var(--ink)}
+.ev-tabs a.active{color:var(--ink);border-bottom-color:var(--accent);font-weight:500}
+.ev-tabs a .ct{font-family:"JetBrains Mono",monospace;font-size:9.5px;color:var(--muted-2);background:var(--bg-2);padding:2px 6px;border-radius:4px}
+.ev-tabs a.active .ct{color:var(--accent);background:rgba(184,66,28,.08)}
+
+/* Custody timeline */
+.cust-list{position:relative;padding-left:24px}
+.cust-list::before{content:"";position:absolute;left:4px;top:12px;bottom:12px;width:1.5px;background:var(--line)}
+.cust-item{display:grid;grid-template-columns:1fr auto;gap:14px;padding:16px 0;position:relative}
+.cust-item+.cust-item{border-top:none}
+.cust-item::before{content:"";position:absolute;left:-24px;top:20px;width:10px;height:10px;border-radius:50%;border:2px solid var(--line-2);background:var(--paper);z-index:1}
+.cust-item.upload::before{background:var(--ok);border-color:var(--ok)}
+.cust-item.download::before{background:var(--accent);border-color:var(--accent)}
+.cust-item.view::before{border-color:var(--muted-2)}
+.cust-item.redact::before{background:#5b4a6b;border-color:#5b4a6b}
+.cust-item.seal::before{background:var(--ink);border-color:var(--ink)}
+.cust-item .act{font-size:14px;color:var(--ink-2);line-height:1.5}
+.cust-item .act strong{color:var(--ink);font-weight:500}
+.cust-item .act em{color:var(--accent);font-family:"Fraunces",serif;font-style:italic}
+.cust-item .detail{font-size:11.5px;color:var(--muted);margin-top:4px;font-family:"JetBrains Mono",monospace;letter-spacing:.02em;line-height:1.5}
+.cust-item .ts{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted-2);white-space:nowrap;padding-top:3px}
+
+/* Version row */
+.ver-row{display:grid;grid-template-columns:48px 1fr auto;gap:16px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s}
+.ver-row:hover{background:var(--bg-2);margin:0 -16px;padding:16px;border-radius:10px}
+.ver-row:last-child{border-bottom:none}
+.ver-row .vn-wrap{width:48px;height:48px;border-radius:12px;background:var(--bg-2);display:grid;place-items:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:600;color:var(--ink);border:1px solid var(--line)}
+.ver-row.current .vn-wrap{background:rgba(74,107,58,.08);border-color:rgba(74,107,58,.2);color:var(--ok)}
+
+/* Redaction cards */
+.red-card{padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper);margin-bottom:12px;transition:all .2s}
+.red-card:hover{border-color:var(--accent-soft);box-shadow:var(--shadow-sm)}
+.red-card .red-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.red-card .red-name{font-weight:500;font-size:14px}
+.red-card .red-meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+
+/* Assessment / verification cards */
+.inv-card{padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--paper);margin-bottom:12px;transition:all .2s}
+.inv-card:hover{box-shadow:var(--shadow-sm)}
+.inv-card .inv-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+
+/* Sidebar action buttons */
+.sb-actions{display:flex;flex-direction:column;gap:6px}
+.sb-actions .btn{justify-content:center;width:100%;font-size:13px}
+
+/* Hash display */
+.hash-display{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--ink);word-break:break-all;line-height:1.6;padding:10px 12px;background:var(--bg-2);border-radius:8px;border:1px solid var(--line);letter-spacing:.02em}
+</style>
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('evidence', '<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><a href="dash-evidence.html">Evidence</a><span class="sep">/</span><span class="here">E-0918</span>');
+
+var activeTab = 'custody';
+
+// Mock data based on real types
+var EVIDENCE = {
+  id:'e-0918',evidence_number:'E-0918',version:3,title:'Butcha_drone_04.mp4',
+  description:'Aerial drone footage captured over Butcha residential district showing damage to civilian infrastructure. 4K resolution, stabilised. Covers approximately 2.1 km\u00b2 of the northeastern perimeter including the checkpoint on Vokzalna Street.',
+  filename:'Butcha_drone_04_v3.mp4',original_name:'DJI_0487.MP4',
+  size_bytes:228589568,mime_type:'video/mp4',
+  sha256_hash:'a7f2e4c91b3d8f056e2a1c4b7d9e3f8a2c5b6d1e4f7a8b3c9d0e2f5a1b4c7d8e',
+  classification:'restricted',
+  tags:['geo','metadata','drone','4k','butcha','osint','stabilised'],
+  source:'Ukrainian National Police — Butcha unit',
+  source_date:'2024-03-18T09:12:00Z',
+  created_at:'2026-04-18T11:42:00Z',
+  uploaded_by:'h-morel',uploaded_by_name:'H\u00e9l\u00e8ne Morel',
+  is_current:true,destroyed_at:null,
+  tsa_timestamp:'2026-04-18T11:42:04Z',tsa_name:'ts-eu-west',
+  metadata:{duration:'04:12',resolution:'3840\u00d72160',codec:'H.265/HEVC',fps:'29.97',
+    exif:{gps_latitude:50.5472,gps_longitude:30.2222,capture_date:'2024-03-18 09:12:33',camera_make:'DJI',camera_model:'Mavic 3 Pro',focal_length:'24mm equiv'}},
+  capture_metadata:{
+    platform:'other',capture_method:'manual_download',
+    capture_timestamp:'2026-04-18T10:30:00Z',
+    publication_timestamp:'2024-03-18T09:12:00Z',
+    collector_display_name:'H\u00e9l\u00e8ne Morel',
+    content_description:'Drone overflight of Butcha residential district',
+    content_language:'N/A (no audio)',
+    geo_latitude:50.5472,geo_longitude:30.2222,geo_place_name:'Butcha, Kyiv Oblast',geo_source:'exif',
+    availability_status:'accessible',
+    capture_tool_name:'Secure Transfer Agent',capture_tool_version:'2.1.4',
+    verification_status:'verified',
+    verification_notes:'EXIF cross-referenced with Sentinel-2 imagery. GPS coordinates match known checkpoint location. Timestamp corroborated by two witness statements (W-0144, W-0099).'
+  }
+};
+
+var CUSTODY = [
+  {action:'Evidence sealed',detail:'SHA-256 verified \xb7 RFC 3161 timestamp \xb7 block f209',actor:'System',ts:'18 Apr 2026, 11:42:04',type:'seal'},
+  {action:'Uploaded v3',detail:'228 MB \xb7 SHA-256 a7f2e4\u2026 \xb7 replaced v2 (colour correction)',actor:'H. Morel',ts:'18 Apr 2026, 11:42:00',type:'upload'},
+  {action:'Downloaded for analysis',detail:'Exported to secure workstation WS-017 \xb7 logged',actor:'Amir Haddad',ts:'18 Apr 2026, 14:08',type:'download'},
+  {action:'Viewed in browser',detail:'Preview only \xb7 no export \xb7 session 4f2a\u2026',actor:'Juliane Wirth',ts:'18 Apr 2026, 15:22',type:'view'},
+  {action:'Geolocation verified',detail:'EXIF GPS cross-referenced with Sentinel-2 \xb7 match confirmed',actor:'Amir Haddad',ts:'18 Apr 2026, 16:10',type:'seal'},
+  {action:'Redaction draft created',detail:'Draft "Defence disclosure" \xb7 2 areas marked \xb7 faces',actor:'Martyna Kovacs',ts:'19 Apr 2026, 09:14',type:'redact'},
+  {action:'Viewed in browser',detail:'Preview \xb7 session 8e1b\u2026',actor:'H. Morel',ts:'19 Apr 2026, 10:30',type:'view'},
+  {action:'Downloaded for court prep',detail:'Exported for disclosure package DISC-2026-019',actor:'H. Morel',ts:'19 Apr 2026, 13:45',type:'download'},
+  {action:'Assessment created',detail:'Relevance: 9/10 \xb7 Reliability: 8/10 \xb7 Source: Established',actor:'Amir Haddad',ts:'19 Apr 2026, 14:02',type:'seal'},
+  {action:'Corroboration linked',detail:'Linked to claim C-0412 as primary evidence',actor:'H. Morel',ts:'19 Apr 2026, 14:18',type:'seal'}
+];
+
+var VERSIONS = [
+  {id:'e-0918-v3',version:3,filename:'Butcha_drone_04_v3.mp4',size:'218 MB',hash:'a7f2e4c9\u2026',date:'18 Apr 2026',by:'H. Morel',current:true,note:'Colour-corrected, stabilised'},
+  {id:'e-0918-v2',version:2,filename:'Butcha_drone_04_v2.mp4',size:'224 MB',hash:'d91e7b2a\u2026',date:'16 Apr 2026',by:'H. Morel',current:false,note:'Stabilised version'},
+  {id:'e-0918-v1',version:1,filename:'DJI_0487.MP4',size:'412 MB',hash:'44bfe892\u2026',date:'15 Apr 2026',by:'H. Morel',current:false,note:'Original capture from drone SD card'}
+];
+
+var REDACTIONS = {
+  drafts:[
+    {id:'rd-1',name:'Defence disclosure',purpose:'disclosure_defence',areas:2,by:'Martyna Kovacs',saved:'19 Apr, 09:14',status:'draft'},
+    {id:'rd-2',name:'Public release',purpose:'public_release',areas:5,by:'Martyna Kovacs',saved:'19 Apr, 11:30',status:'draft'}
+  ],
+  finalized:[
+    {id:'rf-1',name:'Court submission v1',purpose:'court_submission',areas:3,by:'Martyna Kovacs',date:'17 Apr 2026',evidenceNumber:'E-0918-R1'}
+  ]
+};
+
+var ASSESSMENTS = [
+  {type:'Assessment',relevance:9,reliability:8,credibility:'Established',recommendation:'Collect',by:'Amir Haddad',date:'19 Apr 2026'},
+];
+
+var VERIFICATIONS = [
+  {type:'Geolocation Verification',finding:'Authentic',confidence:'High',method:'EXIF GPS cross-referenced with Sentinel-2 satellite imagery',by:'Amir Haddad',date:'18 Apr 2026'},
+  {type:'Chronolocation',finding:'Likely Authentic',confidence:'Medium',method:'Shadow analysis consistent with reported time. Corroborated by W-0144 timeline.',by:'Amir Haddad',date:'19 Apr 2026'}
+];
+
+var PURPOSE_LABELS = {
+  disclosure_defence:'Defence',disclosure_prosecution:'Prosecution',
+  public_release:'Public',court_submission:'Court',
+  witness_protection:'Witness',internal_review:'Internal'
+};
+
+// Berkeley Protocol phase computation
+function computeBPPhases(e){
+  var cm = e.capture_metadata||{};
+  return [
+    {num:'Phase 1',name:'Online inquiry',
+     complete: true,
+     items:['Search strategy documented','Tools & parameters logged','Discovery timeline: 18 Apr 10:00–10:30'],
+     missing:[],
+     link:'dash-inquiry.html'},
+    {num:'Phase 2',name:'Assessment',
+     complete: ASSESSMENTS.length>0,
+     items: ASSESSMENTS.length?['Relevance: '+ASSESSMENTS[0].relevance+'/10','Reliability: '+ASSESSMENTS[0].reliability+'/10','Source credibility: '+ASSESSMENTS[0].credibility,'Recommendation: '+ASSESSMENTS[0].recommendation]:['No assessment yet'],
+     missing: ASSESSMENTS.length?[]:['Relevance score','Reliability score','Source credibility'],
+     link:'#'},
+    {num:'Phase 3',name:'Collection',
+     complete: !!(cm.capture_method && cm.capture_timestamp && cm.collector_display_name && cm.content_language!==undefined && cm.geo_latitude),
+     items:['Method: '+((cm.capture_method||'').replace(/_/g,' ')),'Captured: '+(cm.capture_timestamp?new Date(cm.capture_timestamp).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—'),'Collector: '+(cm.collector_display_name||'—'),'Geo: '+(cm.geo_place_name||'—'),'Language: '+(cm.content_language||'—')],
+     missing:[],
+     link:'#'},
+    {num:'Phase 4',name:'Preservation',
+     complete: !!(e.sha256_hash && e.tsa_timestamp && CUSTODY.length>0),
+     items:['SHA-256 sealed','RFC 3161 timestamped','Custody chain: '+CUSTODY.length+' events','Storage: MinIO EU-WEST-2'],
+     missing:[],
+     link:'#'},
+    {num:'Phase 5',name:'Verification',
+     complete: VERIFICATIONS.length>0 && cm.verification_status==='verified',
+     partial: VERIFICATIONS.length>0 && cm.verification_status!=='verified',
+     items: VERIFICATIONS.map(function(v){return v.type+': '+v.finding}),
+     missing: cm.verification_status!=='verified'?['Full verification pending']:[],
+     link:'#'},
+    {num:'Phase 6',name:'Analysis',
+     complete: false,
+     partial: true,
+     items:['Corroboration C-0412 linked','2 witness cross-refs'],
+     missing:['Final analytical note pending'],
+     link:'dash-analysis.html'}
+  ];
+}
+
+function renderBPTracker(e){
+  var phases = computeBPPhases(e);
+  return '<div class="bp-tracker">'+
+    phases.map(function(p){
+      var st = p.complete?'done':(p.partial?'part':'none');
+      var stLabel = p.complete?'Complete':(p.partial?'In progress':'Not started');
+      var stClass = p.complete?'complete':(p.partial?'partial':'missing');
+      return '<div class="bp-phase '+st+'">'+
+        '<div class="bp-num">'+p.num+'</div>'+
+        '<div class="bp-name">'+p.name+'</div>'+
+        '<div class="bp-status '+stClass+'"><span class="dot"></span>'+stLabel+'</div>'+
+        '<div class="bp-detail">'+
+          p.items.slice(0,3).map(function(i){return '<div>'+i+'</div>'}).join('')+
+          (p.missing.length?'<div style="color:var(--accent);margin-top:3px">'+p.missing[0]+'</div>':'')+
+        '</div>'+
+        '<div class="bp-bar"><div class="bp-fill"></div></div>'+
+      '</div>';
+    }).join('')+'</div>';
+}
+
+function render(){
+  var e = EVIDENCE;
+  var cm = e.capture_metadata;
+
+  document.getElementById('d-content').innerHTML =
+    // Header
+    '<div class="ev-header">'+
+    '<div class="ev-badges">'+
+      '<span class="ev-num">'+e.evidence_number+' \xb7 v'+e.version+'</span>'+
+      '<span class="pl sealed">Sealed</span>'+
+      '<span class="tag" style="text-transform:capitalize">'+e.classification+'</span>'+
+    '</div>'+
+    '<h1><em class="a">'+e.title+'</em></h1>'+
+    '<p class="ev-desc">'+e.description+'</p>'+
+    '<div class="ev-actions">'+
+    '<a class="btn ghost sm" href="dash-evidence.html">\u2190 Back to evidence</a>'+
+    '<a class="btn ghost sm">Download</a>'+
+    '<a class="btn sm">Redact</a>'+
+    '</div></div>'+
+
+    // Berkeley Protocol phase tracker
+    renderBPTracker(e)+
+
+    // Layout
+    '<div class="ev-layout">'+
+      '<div class="ev-main">'+
+        renderPreview()+
+        renderTags(e)+
+        renderTabs()+
+        renderTabContent()+
+      '</div>'+
+      '<div class="ev-sidebar">'+
+        renderSidebarFile(e)+
+        renderSidebarDates(e)+
+        renderSidebarIntegrity(e)+
+        renderSidebarProvenance(cm)+
+        renderSidebarExif(e)+
+        renderSidebarInvestigation()+
+      '</div>'+
+    '</div>';
+}
+
+function renderPreview(){
+  // Generate random waveform bars
+  var bars = '';
+  for(var i=0;i<80;i++){
+    var h = Math.floor(Math.random()*30)+6;
+    bars += '<span style="height:'+h+'px"></span>';
+  }
+  return '<div class="ev-preview" style="margin-bottom:24px">'+
+    '<span class="file-badge">VIDEO \xb7 H.265 \xb7 3840\u00d72160</span>'+
+    '<span class="dur-badge">04:12</span>'+
+    '<button class="play-btn"><svg width="26" height="26" viewBox="0 0 24 24" fill="rgba(245,241,232,.9)" stroke="none"><polygon points="8,5 19,12 8,19"/></svg></button>'+
+    '<div class="waveform">'+bars+'</div>'+
+    '</div>';
+}
+
+function renderTags(e){
+  return '<div class="ev-tags">'+
+    e.tags.map(function(t){return '<span class="tag">'+t+'</span>'}).join('')+'</div>';
+}
+
+function renderTabs(){
+  return '<div class="ev-tabs">'+
+    '<a class="'+(activeTab==='custody'?'active':'')+'" onclick="activeTab=\'custody\';render()">Custody log<span class="ct">'+CUSTODY.length+'</span></a>'+
+    '<a class="'+(activeTab==='versions'?'active':'')+'" onclick="activeTab=\'versions\';render()">Versions<span class="ct">'+VERSIONS.length+'</span></a>'+
+    '<a class="'+(activeTab==='redactions'?'active':'')+'" onclick="activeTab=\'redactions\';render()">Redactions<span class="ct">'+(REDACTIONS.drafts.length+REDACTIONS.finalized.length)+'</span></a>'+
+    '<a class="'+(activeTab==='verification'?'active':'')+'" onclick="activeTab=\'verification\';render()">Verification<span class="ct">'+(ASSESSMENTS.length+VERIFICATIONS.length)+'</span></a>'+
+    '<a class="'+(activeTab==='manage'?'active':'')+'" onclick="activeTab=\'manage\';render()">Manage</a>'+
+    '</div>';
+}
+
+function renderTabContent(){
+  if(activeTab==='custody') return renderCustody();
+  if(activeTab==='versions') return renderVersions();
+  if(activeTab==='redactions') return renderRedactions();
+  if(activeTab==='verification') return renderVerification();
+  if(activeTab==='manage') return renderManage();
+  return '';
+}
+
+function renderCustody(){
+  return '<div class="cust-list" style="padding-top:14px">'+
+    CUSTODY.map(function(c){
+      return '<div class="cust-item '+c.type+'">'+
+        '<div><div class="act"><strong>'+c.action+'</strong></div>'+
+        '<div class="detail">'+c.detail+' \xb7 '+c.actor+'</div></div>'+
+        '<div class="ts">'+c.ts+'</div></div>';
+    }).join('')+'</div>';
+}
+
+function renderVersions(){
+  return '<div style="padding-top:14px">'+
+    VERSIONS.map(function(v){
+      return '<div class="ver-row'+(v.current?' current':'')+'">'+
+        '<div class="vn-wrap">v'+v.version+'</div>'+
+        '<div><div style="font-size:14px;font-weight:500;color:var(--ink);display:flex;align-items:center;gap:8px">'+v.filename+
+        (v.current?' <span class="pl sealed" style="font-size:10px;padding:2px 8px">Current</span>':' <span class="pl draft" style="font-size:10px;padding:2px 8px">Superseded</span>')+
+        '</div><div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5">'+v.note+' \xb7 <span style="font-family:JetBrains Mono,monospace;font-size:11px">'+v.hash+'</span></div></div>'+
+        '<div style="text-align:right"><div style="font-size:12px;color:var(--ink-2)">'+v.date+'</div><div style="font-size:11px;color:var(--muted-2);margin-top:2px">'+v.by+'</div></div>'+
+        '</div>';
+    }).join('')+'</div>';
+}
+
+function renderRedactions(){
+  var html = '<div style="padding-top:14px">';
+  if(REDACTIONS.drafts.length){
+    html += '<div class="sb-label" style="margin-bottom:10px">Drafts in progress</div>';
+    html += REDACTIONS.drafts.map(function(d){
+      return '<div class="red-card"><div class="red-head"><div>'+
+        '<span class="red-name">'+d.name+'</span>'+
+        ' <span class="tag" style="margin-left:6px">'+PURPOSE_LABELS[d.purpose]+'</span>'+
+        '</div><div style="display:flex;gap:6px"><a class="linkarrow" style="font-size:12px">Resume</a><a style="font-size:12px;color:#b35c5c;cursor:pointer">Discard</a></div></div>'+
+        '<div class="red-meta">'+d.areas+' area'+(d.areas!==1?'s':'')+' \xb7 Last saved '+d.saved+' \xb7 '+d.by+'</div></div>';
+    }).join('');
+  }
+  if(REDACTIONS.finalized.length){
+    html += '<div class="sb-label" style="margin-top:18px;margin-bottom:10px">Finalized</div>';
+    html += REDACTIONS.finalized.map(function(f){
+      return '<div class="red-card"><div class="red-head"><div>'+
+        '<span class="red-name">'+f.name+'</span>'+
+        ' <span class="tag" style="margin-left:6px">'+PURPOSE_LABELS[f.purpose]+'</span>'+
+        ' <span class="pl sealed" style="font-size:10px;padding:2px 7px">Applied</span>'+
+        '</div><div style="display:flex;gap:6px"><a class="linkarrow" style="font-size:12px">View</a><a class="linkarrow" style="font-size:12px">Download</a></div></div>'+
+        '<div class="red-meta">'+f.areas+' area'+(f.areas!==1?'s':'')+' \xb7 Finalized '+f.date+' \xb7 '+f.by+' \xb7 <span style="font-family:JetBrains Mono,monospace;font-size:11px">'+f.evidenceNumber+'</span></div></div>';
+    }).join('');
+  }
+  html += '<button class="btn ghost sm" style="margin-top:14px">+ New redacted version</button>';
+  return html + '</div>';
+}
+
+function renderVerification(){
+  var html = '<div style="padding-top:14px">';
+  if(ASSESSMENTS.length){
+    html += '<div class="sb-label" style="margin-bottom:10px">Assessment</div>';
+    html += ASSESSMENTS.map(function(a){
+      return '<div class="inv-card"><div class="inv-head"><span style="font-weight:500">Evidence Assessment</span><span style="font-size:12px;color:var(--muted)">'+a.date+'</span></div>'+
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:8px">'+
+        '<div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Relevance</div><div style="font-family:Fraunces,serif;font-size:24px;color:var(--ink)">'+a.relevance+'<span style="font-size:14px;color:var(--muted)">/10</span></div></div>'+
+        '<div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Reliability</div><div style="font-family:Fraunces,serif;font-size:24px;color:var(--ink)">'+a.reliability+'<span style="font-size:14px;color:var(--muted)">/10</span></div></div>'+
+        '<div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Credibility</div><div style="font-size:13px;color:var(--ink);margin-top:6px"><span class="pl sealed">'+a.credibility+'</span></div></div>'+
+        '<div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Recommendation</div><div style="font-size:13px;color:var(--ink);margin-top:6px"><span class="pl live">'+a.recommendation+'</span></div></div>'+
+        '</div><div style="font-size:12px;color:var(--muted);margin-top:8px">By '+a.by+'</div></div>';
+    }).join('');
+  }
+  if(VERIFICATIONS.length){
+    html += '<div class="sb-label" style="margin-top:18px;margin-bottom:10px">Verification records</div>';
+    html += VERIFICATIONS.map(function(v){
+      var findingCls = v.finding==='Authentic'?'sealed':v.finding==='Likely Authentic'?'live':'draft';
+      return '<div class="inv-card"><div class="inv-head"><span style="font-weight:500">'+v.type+'</span><span class="pl '+findingCls+'">'+v.finding+'</span></div>'+
+        '<div style="font-size:13px;color:var(--ink-2);line-height:1.55;margin-top:6px">'+v.method+'</div>'+
+        '<div style="display:flex;gap:14px;margin-top:8px;font-size:12px;color:var(--muted)"><span>Confidence: <strong style="color:var(--ink)">'+v.confidence+'</strong></span><span>By '+v.by+' \xb7 '+v.date+'</span></div></div>';
+    }).join('');
+  }
+  html += '<div style="display:flex;gap:8px;margin-top:14px"><button class="btn ghost sm">+ New assessment</button><button class="btn ghost sm">+ New verification</button></div>';
+  return html + '</div>';
+}
+
+function renderSidebarFile(e){
+  return '<div class="sb"><div class="sb-label">File</div>'+
+    sbRow('Name',e.filename)+
+    sbRow('Original',e.original_name)+
+    sbRow('Size',formatBytes(e.size_bytes))+
+    sbRow('Type',e.mime_type,'mono')+
+    sbRow('Version','v'+e.version,'mono')+
+    sbRow('Classification',e.classification)+
+    '</div>';
+}
+
+function renderSidebarDates(e){
+  return '<div class="sb"><div class="sb-label">Dates</div>'+
+    sbRow('Uploaded',formatDate(e.created_at))+
+    sbRow('By',e.uploaded_by_name)+
+    sbRow('Source',e.source)+
+    sbRow('Source date',formatDate(e.source_date))+
+    '</div>';
+}
+
+function renderSidebarIntegrity(e){
+  return '<div class="sb"><div class="sb-label">Integrity</div>'+
+    '<div style="margin-bottom:10px"><div style="font-family:JetBrains Mono,monospace;font-size:9px;color:var(--muted-2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">SHA-256</div>'+
+    '<div class="hash-display">'+e.sha256_hash+'</div></div>'+
+    sbRow('TSA','<span class="pl sealed" style="font-size:10px;padding:2px 7px">Verified</span>')+
+    sbRow('Authority',e.tsa_name,'mono')+
+    sbRow('Stamped',formatDate(e.tsa_timestamp))+
+    '</div>';
+}
+
+function renderSidebarProvenance(cm){
+  if(!cm) return '';
+  var vColor = cm.verification_status==='verified'?'var(--ok)':cm.verification_status==='disputed'?'var(--accent)':'var(--muted)';
+  return '<div class="sb"><div class="sb-label">Provenance <span class="bp-tag">Berkeley</span></div>'+
+    sbRow('Platform',cm.platform||'\u2014')+
+    sbRow('Method',cm.capture_method.replace(/_/g,' '))+
+    sbRow('Captured',formatDate(cm.capture_timestamp))+
+    sbRow('Published',formatDate(cm.publication_timestamp))+
+    sbRow('Collector',cm.collector_display_name||'\u2014')+
+    sbRow('Language',cm.content_language||'\u2014')+
+    (cm.geo_place_name?sbRow('Location',cm.geo_place_name):'')+
+    (cm.geo_latitude?sbRow('Coordinates',cm.geo_latitude.toFixed(4)+', '+cm.geo_longitude.toFixed(4),'mono'):'')+
+    sbRow('Geo source',cm.geo_source||'\u2014')+
+    sbRow('Availability','<span class="pl sealed" style="font-size:10px;padding:2px 6px">'+(cm.availability_status||'unknown')+'</span>')+
+    sbRow('Tool',cm.capture_tool_name+' '+cm.capture_tool_version,'mono')+
+    '<div style="margin-top:8px"><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Verification</div>'+
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="width:6px;height:6px;border-radius:50%;background:'+vColor+'"></span><span style="font-size:13px;color:'+vColor+';font-weight:500">'+cm.verification_status.replace(/_/g,' ')+'</span></div>'+
+    (cm.verification_notes?'<div style="font-size:12px;color:var(--muted);line-height:1.5">'+cm.verification_notes+'</div>':'')+
+    '</div></div>';
+}
+
+function renderSidebarExif(e){
+  var ex = e.metadata&&e.metadata.exif;
+  if(!ex) return '';
+  return '<div class="sb"><div class="sb-label">EXIF</div>'+
+    (ex.camera_make?sbRow('Camera',ex.camera_make+' '+ex.camera_model):'')+
+    (ex.capture_date?sbRow('Capture date',ex.capture_date):'')+
+    (ex.focal_length?sbRow('Focal length',ex.focal_length):'')+
+    (ex.gps_latitude?sbRow('GPS',ex.gps_latitude+', '+ex.gps_longitude,'mono'):'')+
+    sbRow('Resolution',e.metadata.resolution,'mono')+
+    sbRow('Codec',e.metadata.codec,'mono')+
+    sbRow('FPS',e.metadata.fps,'mono')+
+    '</div>';
+}
+
+function renderManage(){
+  var e = EVIDENCE;
+  return '<div style="padding-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:18px">'+
+
+    // Classification card
+    '<div class="inv-card" style="grid-column:span 2">'+
+    '<div class="inv-head"><span style="font-weight:500;font-size:15px">Classification</span><span style="font-size:12px;color:var(--muted)">Controls who can access this evidence</span></div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'+
+    ['public','restricted','confidential','ex_parte'].map(function(c){
+      var active = c===e.classification;
+      var colors = {public:'var(--ok)',restricted:'var(--accent)',confidential:'#b35c5c',ex_parte:'#5b4a6b'};
+      var bgs = {public:'rgba(74,107,58,.1)',restricted:'rgba(184,66,28,.1)',confidential:'rgba(179,92,92,.1)',ex_parte:'rgba(91,74,107,.1)'};
+      var labels = {public:'Public',restricted:'Restricted',confidential:'Confidential',ex_parte:'Ex Parte'};
+      return '<span style="padding:8px 16px;border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;border:2px solid '+(active?colors[c]:'var(--line-2)')+';background:'+(active?bgs[c]:'transparent')+';color:'+(active?colors[c]:'var(--muted)')+';transition:all .15s">'+labels[c]+'</span>';
+    }).join('')+'</div>'+
+    '<div style="font-size:12.5px;color:var(--muted);margin-top:12px;line-height:1.6">'+
+    ({public:'Accessible to all case members and may be shared publicly.',restricted:'Accessible to assigned team members only. Default for most evidence.',confidential:'Restricted to lead investigators and admins. Every access is logged.',ex_parte:'Visible only to one party (prosecution or defence). Requires side designation.'})[e.classification]+
+    '</div></div>'+
+
+    // Legal hold card
+    '<div class="inv-card">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-weight:500;font-size:15px">Legal hold</span></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--bg-2);margin-bottom:10px">'+
+    '<span style="width:10px;height:10px;border-radius:50%;background:var(--ok)"></span>'+
+    '<div><div style="font-size:13px;font-weight:500;color:var(--ink)">Not active</div>'+
+    '<div style="font-size:11.5px;color:var(--muted);margin-top:1px">Evidence can be modified and versioned</div></div></div>'+
+    '<button class="btn ghost sm" style="width:100%;justify-content:center" onclick="document.getElementById(\'modal-hold\').style.display=\'flex\'">Place legal hold</button>'+
+    '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.55">Freezes the evidence \u2014 no modifications, deletions, or new versions. All case members are notified.</div>'+
+    '</div>'+
+
+    // Versioning card
+    '<div class="inv-card">'+
+    '<div style="font-weight:500;font-size:15px;margin-bottom:10px">Versioning</div>'+
+    '<div style="display:flex;flex-direction:column;gap:8px">'+
+    '<button class="btn ghost sm" style="width:100%;justify-content:center" onclick="document.getElementById(\'modal-version\').style.display=\'flex\'">Upload new version</button>'+
+    '<button class="btn ghost sm" style="width:100%;justify-content:center" onclick="document.getElementById(\'modal-redact\').style.display=\'flex\'">Create redacted version</button>'+
+    '</div>'+
+    '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.55">Current: v'+e.version+'. Previous versions are preserved and accessible in the Versions tab.</div>'+
+    '</div>'+
+
+    // Integrity card
+    '<div class="inv-card" style="grid-column:span 2">'+
+    '<div style="font-weight:500;font-size:15px;margin-bottom:12px">Integrity actions</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+    '<button class="btn ghost sm">Re-verify hash integrity</button>'+
+    '<button class="btn ghost sm">Request new RFC 3161 timestamp</button>'+
+    '<button class="btn ghost sm">Export custody chain (PDF)</button>'+
+    '<a class="btn ghost sm" style="text-decoration:none">Download original</a>'+
+    '</div></div>'+
+
+    // Retention card
+    '<div class="inv-card" style="grid-column:span 2">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+    '<span style="font-weight:500;font-size:15px">Retention & destruction</span>'+
+    '<span class="pl sealed" style="font-size:10px;padding:2px 8px">Active</span></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px">'+
+    '<div style="padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg-2)"><div style="font-family:JetBrains Mono,monospace;font-size:9px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Policy</div><div style="font-size:13px;color:var(--ink)">Case closed + 50 yr</div></div>'+
+    '<div style="padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg-2)"><div style="font-family:JetBrains Mono,monospace;font-size:9px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Review date</div><div style="font-size:13px;color:var(--ink)">30 Jun 2076</div></div>'+
+    '<div style="padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg-2)"><div style="font-family:JetBrains Mono,monospace;font-size:9px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Status</div><div style="font-size:13px;color:var(--ok)">Not destroyed</div></div>'+
+    '</div>'+
+    '<button class="btn ghost sm" style="color:#b35c5c;border-color:rgba(179,92,92,.3)" onclick="document.getElementById(\'modal-destroy\').style.display=\'flex\'">Initiate destruction</button>'+
+    '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.55">Destruction removes file bytes permanently. Hash, metadata, and full custody chain are preserved. Requires written authority \u2014 a 4-step sealed process.</div>'+
+    '</div>'+
+
+    '</div>';
+}
+
+function renderSidebarInvestigation(){
+  var phases = computeBPPhases(EVIDENCE);
+  var done = phases.filter(function(p){return p.complete}).length;
+  var total = phases.length;
+  var pct = Math.round((done/total)*100);
+  return '<div class="sb"><div class="sb-label">Berkeley Protocol <span class="bp-tag">Compliance</span></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+
+      '<div style="font-family:Fraunces,serif;font-size:32px;letter-spacing:-.02em;color:'+(pct>=80?'var(--ok)':pct>=50?'var(--accent)':'var(--muted)')+'">'+done+'<span style="font-size:16px;color:var(--muted)">/'+total+'</span></div>'+
+      '<div style="flex:1"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Phases complete</div>'+
+        '<div style="height:6px;background:var(--bg-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+(pct>=80?'var(--ok)':'var(--accent)')+';border-radius:3px"></div></div>'+
+      '</div>'+
+    '</div>'+
+    phases.map(function(p){
+      var icon = p.complete?'<span style="color:var(--ok)">✓</span>':(p.partial?'<span style="color:var(--accent)">◔</span>':'<span style="color:var(--muted-2)">○</span>');
+      return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px">'+icon+'<span style="color:var(--ink-2)">'+p.num+': '+p.name+'</span></div>';
+    }).join('')+
+    '</div>'+
+    '<div class="sb"><div class="sb-label">Linked</div>'+
+    '<div style="display:flex;flex-direction:column;gap:7px;font-size:13px">'+
+    '<a style="color:var(--accent);cursor:pointer">Corroboration C-0412</a>'+
+    '<a style="color:var(--accent);cursor:pointer">Witness W-0144</a>'+
+    '<a style="color:var(--accent);cursor:pointer">Witness W-0099</a>'+
+    '<a style="color:var(--accent);cursor:pointer">Disclosure DISC-2026-019</a>'+
+    '</div></div>';
+}
+
+function sbRow(k,v,cls){
+  return '<div class="sb-row"><span class="k">'+k+'</span><span class="v'+(cls?' '+cls:'')+'">'+v+'</span></div>';
+}
+function formatBytes(b){
+  if(b>1e9) return (b/1e9).toFixed(1)+' GB';
+  if(b>1e6) return (b/1e6).toFixed(0)+' MB';
+  if(b>1e3) return (b/1e3).toFixed(0)+' KB';
+  return b+' B';
+}
+function formatDate(d){
+  if(!d) return '\u2014';
+  var dt=new Date(d);
+  return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+', '+dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+
+render();
+</script>
+
+<!-- Modal: Legal Hold -->
+<div id="modal-hold" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(20,17,12,.5);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+<div style="background:var(--paper);border-radius:var(--radius);max-width:480px;width:100%;padding:32px;box-shadow:var(--shadow-lg);margin:20px">
+  <h3 style="font-family:Fraunces,serif;font-size:22px;margin-bottom:6px">Place <em style="color:var(--accent)">legal hold</em></h3>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.6">This will freeze E-0918. No modifications, deletions, or new versions will be permitted. All case members on ICC-UKR-2024 will be notified.</p>
+  <div style="background:var(--bg-2);border-radius:10px;padding:14px;margin-bottom:18px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px">
+    <div><span style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:2px">Current</span><span style="color:var(--ink)">No hold</span></div>
+    <div><span style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:2px">Will change to</span><span style="color:var(--accent);font-weight:500">Legal hold active</span></div>
+  </div>
+  <div style="margin-bottom:18px">
+    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:6px">Reason (required — sent as notification)</label>
+    <textarea style="width:100%;padding:10px 14px;border:1px solid var(--line-2);border-radius:var(--radius-sm);font:inherit;font-size:13px;resize:vertical;min-height:80px;outline:none;background:var(--paper)" placeholder="e.g. Pending tribunal review of admissibility..."></textarea>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <button class="btn ghost sm" onclick="document.getElementById('modal-hold').style.display='none'">Cancel</button>
+    <button class="btn sm" onclick="alert('Legal hold placed (demo)');document.getElementById('modal-hold').style.display='none'">Place legal hold</button>
+  </div>
+</div>
+</div>
+
+<!-- Modal: Destruction -->
+<div id="modal-destroy" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(20,17,12,.5);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+<div style="background:var(--paper);border-radius:var(--radius);max-width:520px;width:100%;padding:32px;box-shadow:var(--shadow-lg);margin:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <h3 style="font-family:Fraunces,serif;font-size:22px;color:#b35c5c">Destroy evidence</h3>
+    <span style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:.06em">Step 1 of 4</span>
+  </div>
+  <div style="padding:18px;border:2px solid #b35c5c;border-radius:10px;background:#fbeee8;margin-bottom:18px">
+    <p style="font-size:13px;color:#b35c5c;line-height:1.6;font-weight:500">This action is irreversible. The file bytes for E-0918 will be permanently destroyed.</p>
+    <p style="font-size:12px;color:#8a5a4a;margin-top:8px;line-height:1.5">The following will be <strong>preserved</strong>: SHA-256 hash, all metadata, EXIF data, Berkeley Protocol provenance, full custody chain, assessment and verification records, and all redacted derivatives.</p>
+  </div>
+  <div style="background:var(--bg-2);border-radius:10px;padding:14px;margin-bottom:18px;font-size:13px">
+    <div style="display:grid;grid-template-columns:100px 1fr;gap:8px">
+      <span style="color:var(--muted)">Evidence</span><span style="font-family:JetBrains Mono,monospace;font-size:12px">E-0918</span>
+      <span style="color:var(--muted)">File</span><span>Butcha_drone_04_v3.mp4</span>
+      <span style="color:var(--muted)">Hash</span><span style="font-family:JetBrains Mono,monospace;font-size:11px;word-break:break-all">a7f2e4c91b3d…7d8e</span>
+    </div>
+  </div>
+  <div style="margin-bottom:18px">
+    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:6px">Destruction authority (required, min. 20 characters)</label>
+    <textarea style="width:100%;padding:10px 14px;border:1px solid var(--line-2);border-radius:var(--radius-sm);font:inherit;font-size:13px;resize:vertical;min-height:80px;outline:none;background:var(--paper)" placeholder="Cite the legal authority or order authorising destruction, e.g. 'Per Registrar order RO-2026-041, dated 18 April 2026, pursuant to Rule 81(4)...'"></textarea>
+  </div>
+  <div style="display:flex;justify-content:space-between;gap:10px">
+    <button class="btn ghost sm" onclick="document.getElementById('modal-destroy').style.display='none'">Cancel</button>
+    <button class="btn sm" style="background:#b35c5c;border-color:#b35c5c" onclick="alert('Step 2: Confirm hash and countersign (demo)')">Continue to step 2 →</button>
+  </div>
+</div>
+</div>
+
+<!-- Modal: New Redaction -->
+<div id="modal-redact" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(20,17,12,.5);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+<div style="background:var(--paper);border-radius:var(--radius);max-width:480px;width:100%;padding:32px;box-shadow:var(--shadow-lg);margin:20px">
+  <h3 style="font-family:Fraunces,serif;font-size:22px;margin-bottom:6px">New <em style="color:var(--accent)">redacted version</em></h3>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.6">Create a derivative with redacted areas for disclosure. The original is never modified.</p>
+  <div style="margin-bottom:14px">
+    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:6px">Name</label>
+    <input type="text" style="width:100%;padding:10px 14px;border:1px solid var(--line-2);border-radius:var(--radius-sm);font:inherit;font-size:13px;outline:none;background:var(--paper)" placeholder="e.g. Defence disclosure — faces redacted" />
+  </div>
+  <div style="margin-bottom:18px">
+    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:6px">Purpose</label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <span class="tag" style="cursor:pointer;padding:6px 12px;border:1.5px solid var(--accent);background:rgba(184,66,28,.08);color:var(--accent)">Defence</span>
+      <span class="tag" style="cursor:pointer;padding:6px 12px">Prosecution</span>
+      <span class="tag" style="cursor:pointer;padding:6px 12px">Public</span>
+      <span class="tag" style="cursor:pointer;padding:6px 12px">Court</span>
+      <span class="tag" style="cursor:pointer;padding:6px 12px">Witness</span>
+      <span class="tag" style="cursor:pointer;padding:6px 12px">Internal</span>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <button class="btn ghost sm" onclick="document.getElementById('modal-redact').style.display='none'">Cancel</button>
+    <button class="btn sm" onclick="alert('Opening redaction editor (demo)');document.getElementById('modal-redact').style.display='none'">Create draft & open editor →</button>
+  </div>
+</div>
+</div>
+
+<!-- Modal: Upload New Version -->
+<div id="modal-version" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(20,17,12,.5);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+<div style="background:var(--paper);border-radius:var(--radius);max-width:480px;width:100%;padding:32px;box-shadow:var(--shadow-lg);margin:20px">
+  <h3 style="font-family:Fraunces,serif;font-size:22px;margin-bottom:6px">Upload <em style="color:var(--accent)">new version</em></h3>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.6">Upload a corrected or enhanced version of E-0918. The current version (v3) will be superseded but preserved. Classification is inherited.</p>
+  <div style="border:2px dashed var(--line-2);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:14px" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--line-2)'">
+    <div style="font-family:Fraunces,serif;font-size:28px;color:var(--accent);margin-bottom:8px">↑</div>
+    <div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:4px">Drop file here or click to browse</div>
+    <div style="font-size:12px;color:var(--muted)">File will be hashed client-side (SHA-256 + BLAKE3) before upload</div>
+  </div>
+  <div style="margin-bottom:18px">
+    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:6px">Version note</label>
+    <input type="text" style="width:100%;padding:10px 14px;border:1px solid var(--line-2);border-radius:var(--radius-sm);font:inherit;font-size:13px;outline:none;background:var(--paper)" placeholder="e.g. Colour-corrected, enhanced audio" />
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <button class="btn ghost sm" onclick="document.getElementById('modal-version').style.display='none'">Cancel</button>
+    <button class="btn sm" style="opacity:.5;pointer-events:none">Upload & seal</button>
+  </div>
+</div>
+</div>
+</script>
+</body></html>

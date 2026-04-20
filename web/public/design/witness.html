@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Witness protection — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .idcard{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:28px;display:grid;grid-template-columns:120px 1fr;gap:22px;align-items:start}
+  @media (max-width:560px){.idcard{grid-template-columns:1fr}}
+  .idcard .silhouette{aspect-ratio:1;border-radius:50%;background:linear-gradient(135deg,#e8dccb,#d4c5b0);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif;font-style:italic;font-size:34px;color:var(--paper)}
+  .idcard .silhouette::after{content:"";position:absolute;inset:0;backdrop-filter:blur(8px);background:rgba(232,220,203,.3)}
+  .idcard .silhouette span{position:relative;z-index:1}
+  .idcard dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px}
+  .idcard dt{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);align-self:center}
+  .idcard dd{margin:0;font-family:"Fraunces",serif;font-size:16px;color:var(--ink);letter-spacing:-.005em}
+  .idcard dd.redacted{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--muted-2);background:var(--bg-2);padding:2px 8px;border-radius:4px;display:inline-block;width:fit-content}
+  .idcard .badge-row{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:14px;border-top:1px solid var(--line)}
+  .idcard .b{font-family:"JetBrains Mono",monospace;font-size:10.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+  .idcard .b.ok{color:var(--accent);border-color:var(--accent-soft)}
+
+  .break-glass{background:var(--ink);color:var(--bg);border-radius:var(--radius);padding:32px;margin-top:36px}
+  .break-glass h4{font-family:"Fraunces",serif;font-weight:400;font-size:24px;color:var(--bg);margin-bottom:8px}
+  .break-glass h4 em{color:var(--accent-soft);font-style:italic}
+  .break-glass p{color:var(--muted-2);font-size:14.5px;line-height:1.6;max-width:62ch}
+  .bg-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:24px;border-top:1px solid rgba(255,255,255,.14)}
+  @media (max-width:720px){.bg-flow{grid-template-columns:1fr 1fr}}
+  .bg-flow .step{padding:20px 16px 0 0;border-right:1px solid rgba(255,255,255,.14)}
+  .bg-flow .step:last-child{border-right:none}
+  @media (max-width:720px){.bg-flow .step:nth-child(2n){border-right:none}}
+  .bg-flow .n{font-family:"Fraunces",serif;font-style:italic;color:var(--accent-soft);font-size:13px;margin-bottom:8px;display:block}
+  .bg-flow h5{font-family:"Fraunces",serif;font-size:15px;font-weight:400;color:var(--bg);margin-bottom:4px}
+  .bg-flow p{font-size:12.5px;color:var(--muted-2);line-height:1.5}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>Platform · 03 of 05</span>
+    <h1>The investigator sees a <em>pseudonym.</em> The judge sees a name.</h1>
+    <p class="lead">A witness who spoke to your team in Donetsk in 2022 is still alive in 2026 because their real name never touched a database. VaultKeeper enforces that discipline structurally — pseudonymisation is not a policy, it is a column the application literally cannot SELECT without quorum approval.</p>
+    <div class="sp-hero-meta">
+      <div><span class="k">Default identity</span><span class="v">pseudonymised</span></div>
+      <div><span class="k">Real name</span><span class="v">break-the-glass</span></div>
+      <div><span class="k">Voice masking</span><span class="v">pitch · formant</span></div>
+      <div><span class="k">Geo</span><span class="v">fuzz · per-role</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">How they appear<small>Default view for all roles</small></div>
+    <div class="sp-body">
+      <h2>This is what your lead analyst sees.<br><em>Every time.</em></h2>
+      <p class="sp-lead">The witness record as it appears to investigators, translators, corroboration analysts, and the rest of your team. The pseudonym <strong>W-0144</strong> is a stable handle — cross-referenced across 34 exhibits, but decoupled from any personally-identifying information.</p>
+
+      <div class="idcard" style="margin-top:36px;max-width:640px">
+        <div class="silhouette"><span>W</span></div>
+        <dl>
+          <dt>Handle</dt><dd>W-0144</dd>
+          <dt>Given name</dt><dd class="redacted">[ sealed · access denied ]</dd>
+          <dt>Surname</dt><dd class="redacted">[ sealed · access denied ]</dd>
+          <dt>Region</dt><dd>Donetsk oblast (fuzz: 50 km)</dd>
+          <dt>Age band</dt><dd>40–55</dd>
+          <dt>Languages</dt><dd>uk · ru · en</dd>
+          <dt>Exhibits</dt><dd>34 linked · 7 corroborated</dd>
+          <dt>First contact</dt><dd>March 2024</dd>
+          <div class="badge-row">
+            <span class="b ok">voice-masked</span>
+            <span class="b ok">geo-fuzzed</span>
+            <span class="b">relocation · tier 2</span>
+            <span class="b">contact via · intermediary</span>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section dark">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Break-the-glass<small>The only path to a real name</small></div>
+    <div class="sp-body">
+      <h2>Real names <em>exist</em> — but only on the day the judge demands them.</h2>
+      <p class="sp-lead">Real identity lives in a separate tablespace with its own encryption key, held by the presiding witness-protection officer. Accessing it is a four-party event: the officer, a second officer, the case lead, and the judge. Every attempt — successful or not — is sealed into the chain.</p>
+
+      <div class="break-glass">
+        <h4>The <em>break-the-glass</em> quorum</h4>
+        <p>When the real identity of W-0144 is required — typically when the witness must appear in court under their own name — the unseal ceremony runs like this:</p>
+        <div class="bg-flow">
+          <div class="step"><span class="n">01</span><h5>Judge's order</h5><p>Signed PDF, filed in the case, referenced by exhibit ID.</p></div>
+          <div class="step"><span class="n">02</span><h5>WP officer</h5><p>Primary custodian unlocks with HSM-held key #1.</p></div>
+          <div class="step"><span class="n">03</span><h5>WP deputy</h5><p>Second custodian countersigns with HSM-held key #2.</p></div>
+          <div class="step"><span class="n">04</span><h5>Sealed view</h5><p>Case lead sees the name. View is timeboxed to 12h. Sealed into chain.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">What we mask<small>Every surface, by default</small></div>
+    <div class="sp-body">
+      <h2>Your witness's <em>voice</em> is also data that can kill them.</h2>
+      <p class="sp-lead">Identifying information is not just a name. It is a voice a neighbour recognises; a room a satellite can find; a phrase that only one person on Earth uses. VaultKeeper ships the masking pipeline on-box — no upload to a third-party speech API, no cloud model, no telemetry.</p>
+
+      <div class="sp-rows">
+        <div class="sp-row"><span class="idx">01 · Voice</span><h4>Pitch & formant <em>shifted</em> — offline</h4><p>Per-witness pitch/formant keys are stored with the witness record. Playback for investigators uses the masked track; the clean track lives in the sealed tier and requires the same break-the-glass as real-name access.</p></div>
+        <div class="sp-row"><span class="idx">02 · Face</span><h4>Redaction <em>baked</em> at export</h4><p>Face detection runs on-premises. Redactions are cryptographically linked to the source frame, so defence counsel can verify coverage without seeing the underlying face.</p></div>
+        <div class="sp-row"><span class="idx">03 · Geography</span><h4>Fuzz <em>per role</em></h4><p>Analysts see 50&nbsp;km radius. Corroboration leads see 10&nbsp;km. Presiding judge sees the exact coordinates. Every tier step is a custody event.</p></div>
+        <div class="sp-row"><span class="idx">04 · Text</span><h4>Named-entity <em>scrub</em></h4><p>LLM-assisted NER replaces names, villages, call-signs, and relatives in witness statements with stable handles. Original text kept sealed; scrubbed version is the default view.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-quote">
+  <div class="wrap">
+    <blockquote>"The first time a witness from 2022 contacted us again, in 2025, <em>we still had her real name.</em> We also had, in the same system, a full accounting of who had unsealed it, when, and why. She asked us to do exactly that accounting on the phone. We could."</blockquote>
+    <p class="who"><strong>Marta Vasylenko</strong> — Head of witness programme, Ukrainian Truth Initiative</p>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>Walk through a <em>witness-protection</em> ceremony.</h2>
+      <p>We'll simulate a break-the-glass unseal against a dummy witness on your infrastructure, with your officers, in about 40 minutes.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="security.html">Security architecture</a>
+      <a class="btn" href="contact.html">Book a demo <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="custody.html"><span class="k">Prev · 02/05</span><h5>Chain of custody</h5><p>How the append-only ledger makes forgery impossible.</p></a>
+    <a href="collaboration.html"><span class="k">Next · 04/05</span><h5>Live collaboration</h5><p>CRDT editing inside a sealed chain. How two tribunals work on one exhibit.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

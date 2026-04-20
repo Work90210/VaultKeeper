@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -48,7 +49,7 @@ func (h *Handler) SetOrgMembershipChecker(
 // Returns true if the caller may proceed.
 func (h *Handler) ensureOrgMembership(ctx context.Context, caseID uuid.UUID) bool {
 	if h.orgChecker == nil || h.caseLookupOrg == nil {
-		return true // not wired — skip check (backwards compat)
+		return false // not wired — deny access (fail closed)
 	}
 	ac, ok := auth.GetAuthContext(ctx)
 	if !ok {
@@ -98,7 +99,7 @@ func (h *Handler) ExportCaseCustody(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filename := fmt.Sprintf("custody-report-%s.pdf", refCode)
+	filename := fmt.Sprintf("custody-report-%s.pdf", sanitizeFilename(refCode))
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(pdfBytes)))
@@ -106,6 +107,11 @@ func (h *Handler) ExportCaseCustody(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(pdfBytes); err != nil {
 		slog.Error("failed to write custody PDF response", "case_id", caseID, "error", err)
 	}
+}
+
+func sanitizeFilename(s string) string {
+	r := strings.NewReplacer(`"`, "", `\`, "", "\r", "", "\n", "", ";", "", "=", "", "/", "-")
+	return r.Replace(s)
 }
 
 // ExportEvidenceCustody generates and serves a custody chain PDF for a single evidence item.
@@ -117,7 +123,11 @@ func (h *Handler) ExportEvidenceCustody(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Org membership gate: resolve evidence → case → org.
-	if h.orgChecker != nil && h.evidenceCaseLookup != nil {
+	if h.orgChecker == nil || h.evidenceCaseLookup == nil {
+		httputil.RespondError(w, http.StatusForbidden, "not a member of this organization")
+		return
+	}
+	{
 		caseID, err := h.evidenceCaseLookup(r.Context(), evidenceID)
 		if err != nil {
 			httputil.RespondError(w, http.StatusNotFound, "evidence not found")

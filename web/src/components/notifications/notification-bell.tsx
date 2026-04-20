@@ -27,7 +27,6 @@ export function NotificationBell() {
     return () => clearInterval(interval);
   }, [fetchCount]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -38,39 +37,28 @@ export function NotificationBell() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const displayCount = count > 99 ? '99+' : String(count);
-
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      {/* .d-iconbtn with .notif dot — matches design exactly */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-1.5 rounded-[var(--radius-md)] transition-colors"
-        style={{ color: 'var(--text-secondary)' }}
+        className="d-iconbtn"
+        title="Notifications"
         aria-label={t('title')}
         aria-expanded={isOpen}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.4}
+        >
+          <path d="M4 10.5a4 4 0 118 0v1H4zM6.5 12.5a1.5 1.5 0 003 0" />
         </svg>
-
-        {count > 0 && (
-          <span
-            className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full"
-            style={{
-              backgroundColor: 'var(--status-hold)',
-              color: 'var(--stone-50)',
-            }}
-          >
-            {displayCount}
-          </span>
-        )}
+        {count > 0 && <span className="notif" />}
       </button>
 
       {isOpen && (

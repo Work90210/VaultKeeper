@@ -92,11 +92,14 @@ export interface EvidenceItem {
   is_current: boolean;
   destroyed_at: string | null;
   metadata: Record<string, unknown>;
-  storage_key: string;
   thumbnail_key: string | null;
 
   // Berkeley Protocol capture metadata (present when online capture)
   capture_metadata?: CaptureMetadata;
+
+  // Berkeley Protocol phase tracking (six-phase investigative cycle)
+  bp_phase?: number;
+  bp_phase_max?: number;
 
   // Redaction metadata (populated only for finalized redacted derivatives)
   redaction_name?: string;
@@ -191,9 +194,70 @@ export interface CaseRole {
   id: string;
   case_id: string;
   user_id: string;
-  role: 'investigator' | 'prosecutor' | 'defence' | 'judge' | 'observer' | 'victim_representative';
+  role: string;
+  role_definition_id?: string;
   granted_by: string;
   granted_at: string;
+}
+
+export type CasePermission =
+  | 'view_evidence' | 'upload_evidence' | 'edit_evidence' | 'delete_evidence'
+  | 'view_witnesses' | 'manage_witnesses'
+  | 'view_disclosures' | 'manage_disclosures'
+  | 'manage_case' | 'manage_members'
+  | 'export' | 'manage_investigation';
+
+export const PERMISSION_GROUPS: { label: string; permissions: { value: CasePermission; label: string }[] }[] = [
+  {
+    label: 'Evidence',
+    permissions: [
+      { value: 'view_evidence', label: 'View evidence' },
+      { value: 'upload_evidence', label: 'Upload evidence' },
+      { value: 'edit_evidence', label: 'Edit evidence' },
+      { value: 'delete_evidence', label: 'Delete evidence' },
+    ],
+  },
+  {
+    label: 'Witnesses',
+    permissions: [
+      { value: 'view_witnesses', label: 'View witnesses' },
+      { value: 'manage_witnesses', label: 'Manage witnesses' },
+    ],
+  },
+  {
+    label: 'Disclosures',
+    permissions: [
+      { value: 'view_disclosures', label: 'View disclosures' },
+      { value: 'manage_disclosures', label: 'Manage disclosures' },
+    ],
+  },
+  {
+    label: 'Case management',
+    permissions: [
+      { value: 'manage_case', label: 'Manage case settings' },
+      { value: 'manage_members', label: 'Manage case members' },
+      { value: 'export', label: 'Export case data' },
+    ],
+  },
+  {
+    label: 'Investigation',
+    permissions: [
+      { value: 'manage_investigation', label: 'Manage investigation workflow' },
+    ],
+  },
+];
+
+export interface RoleDefinition {
+  id: string;
+  organization_id: string;
+  name: string;
+  slug: string;
+  description: string;
+  permissions: Record<CasePermission, boolean>;
+  is_default: boolean;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Disclosure {

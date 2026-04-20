@@ -54,6 +54,16 @@ type DestroyerRepository interface {
 	DestroyWithAuthority(ctx context.Context, id uuid.UUID, authority, actorID string) error
 }
 
+// AtomicDestroyerRepository extends DestroyerRepository with a method that
+// performs the legal-hold check and the evidence destruction atomically inside
+// a single database transaction, eliminating the TOCTOU race between
+// checkLegalHold and DestroyWithAuthority. PGRepository implements this
+// interface; test mocks that only implement DestroyerRepository are not
+// required to implement it.
+type AtomicDestroyerRepository interface {
+	DestroyWithLegalHoldCheck(ctx context.Context, id uuid.UUID, caseID uuid.UUID, authority, actorID string) error
+}
+
 // DestroyEvidence performs an audited physical destruction of an evidence
 // item, subject to legal-hold and retention checks. On success the file is
 // removed from object storage, the DB record is marked destroyed with the
@@ -63,7 +73,18 @@ func (s *Service) DestroyEvidence(ctx context.Context, input DestroyEvidenceInpu
 		return err
 	}
 
-	item, err := s.repo.FindByID(ctx, input.EvidenceID)
+	// Use FindByIDIncludingDestroyed for idempotency: if the item was already
+	// destroyed (e.g. by a concurrent request), return nil below. The
+	// destruction handler has already authenticated and authorized the caller.
+	var (
+		item EvidenceItem
+		err  error
+	)
+	if sr := s.getScoped(); sr != nil {
+		item, err = sr.FindByIDIncludingDestroyed(ctx, input.EvidenceID)
+	} else {
+		item, err = s.repo.FindByID(ctx, input.EvidenceID)
+	}
 	if err != nil {
 		return err
 	}
@@ -71,14 +92,8 @@ func (s *Service) DestroyEvidence(ctx context.Context, input DestroyEvidenceInpu
 		return nil // idempotent
 	}
 
-	// Legal hold guard — must come before any mutation. If no checker is
-	// injected we fall back to the CaseLookup.GetLegalHold shortcut so
-	// production still gets protection even before the adapter is wired.
-	if err := s.checkLegalHold(ctx, item.CaseID); err != nil {
-		return err
-	}
-
-	// Retention guard.
+	// Retention guard — evaluated before the atomic DB operation so we can
+	// return early without opening a transaction unnecessarily.
 	var caseRetention *time.Time
 	if crr, ok := s.repo.(CaseRetentionReader); ok {
 		caseRetention, err = crr.GetCaseRetention(ctx, item.CaseID)
@@ -96,15 +111,29 @@ func (s *Service) DestroyEvidence(ctx context.Context, input DestroyEvidenceInpu
 	storageKey := derefStr(item.StorageKey)
 	thumbnailKey := derefStr(item.ThumbnailKey)
 
-	// DB first: marking the row destroyed is reversible (we still have the
-	// storage object) and is the durable audit anchor. If this fails, the
-	// file is still intact and the caller can retry.
-	dr, ok := s.repo.(DestroyerRepository)
-	if !ok {
-		return fmt.Errorf("repository does not implement DestroyerRepository")
-	}
-	if err := dr.DestroyWithAuthority(ctx, item.ID, input.Authority, input.ActorID); err != nil {
-		return fmt.Errorf("mark destroyed: %w", err)
+	// Atomic legal-hold check + destruction: if the repository supports it,
+	// run both operations in a single transaction with a FOR SHARE row lock on
+	// the cases row. This eliminates the TOCTOU race where SetLegalHold(true)
+	// can slip between the check and the destruction. Test mocks that only
+	// implement DestroyerRepository fall through to the legacy two-step path.
+	if adr, ok := s.repo.(AtomicDestroyerRepository); ok {
+		if err := adr.DestroyWithLegalHoldCheck(ctx, item.ID, item.CaseID, input.Authority, input.ActorID); err != nil {
+			return fmt.Errorf("mark destroyed: %w", err)
+		}
+	} else {
+		// Legacy path: separate legal-hold check then destroy.
+		// NOTE: This path has a TOCTOU window and is only used by test mocks.
+		// Production always uses PGRepository which implements AtomicDestroyerRepository.
+		if err := s.checkLegalHold(ctx, item.CaseID); err != nil {
+			return err
+		}
+		dr, ok := s.repo.(DestroyerRepository)
+		if !ok {
+			return fmt.Errorf("repository does not implement DestroyerRepository")
+		}
+		if err := dr.DestroyWithAuthority(ctx, item.ID, input.Authority, input.ActorID); err != nil {
+			return fmt.Errorf("mark destroyed: %w", err)
+		}
 	}
 
 	// Custody event — records the hash at destruction so the chain is
@@ -178,6 +207,9 @@ func validateDestroyEvidenceInput(input DestroyEvidenceInput) error {
 			Field:   "authority",
 			Message: fmt.Sprintf("destruction authority must be at least %d characters", MinDestructionAuthorityLength),
 		}
+	}
+	if len(authority) > 2000 {
+		return &ValidationError{Field: "authority", Message: "destruction authority exceeds maximum length of 2000 characters"}
 	}
 	return nil
 }

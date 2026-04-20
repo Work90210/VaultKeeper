@@ -410,12 +410,12 @@ func TestNewBackupRunner(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	notifier := &recordingNotifier{}
 
-	br := NewBackupRunner(nil, "test-key", "/tmp/backups", logger, notifier, nil)
+	br := NewBackupRunner(nil, []byte("test-key"), "/tmp/backups", logger, notifier, nil)
 	if br == nil {
 		t.Fatal("NewBackupRunner returned nil")
 	}
-	if br.encKey != "test-key" {
-		t.Errorf("encKey: got %q, want %q", br.encKey, "test-key")
+	if string(br.encKey) != "test-key" {
+		t.Errorf("encKey: got %q, want %q", string(br.encKey), "test-key")
 	}
 	if br.destination != "/tmp/backups" {
 		t.Errorf("destination: got %q, want %q", br.destination, "/tmp/backups")
@@ -524,7 +524,7 @@ func TestSnapshotMinIO_GetError(t *testing.T) {
 func TestListBackups_DBError(t *testing.T) {
 	pool := dummyPool(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	br := NewBackupRunner(pool, "key", t.TempDir(), logger, nil, nil)
+	br := NewBackupRunner(pool, []byte("key"), t.TempDir(), logger, nil, nil)
 
 	_, err := br.ListBackups(context.Background())
 	if err == nil {
@@ -535,7 +535,7 @@ func TestListBackups_DBError(t *testing.T) {
 func TestGetLastBackupInfo_DBError(t *testing.T) {
 	pool := dummyPool(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	br := NewBackupRunner(pool, "key", t.TempDir(), logger, nil, nil)
+	br := NewBackupRunner(pool, []byte("key"), t.TempDir(), logger, nil, nil)
 
 	_, _, err := br.GetLastBackupInfo(context.Background())
 	if err == nil {
@@ -546,7 +546,7 @@ func TestGetLastBackupInfo_DBError(t *testing.T) {
 func TestVerifyBackup_DBError(t *testing.T) {
 	pool := dummyPool(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	br := NewBackupRunner(pool, "key", t.TempDir(), logger, nil, nil)
+	br := NewBackupRunner(pool, []byte("key"), t.TempDir(), logger, nil, nil)
 
 	err := br.VerifyBackup(context.Background(), uuid.New())
 	if err == nil {
@@ -557,7 +557,7 @@ func TestVerifyBackup_DBError(t *testing.T) {
 func TestRunBackup_DBError(t *testing.T) {
 	pool := dummyPool(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	br := NewBackupRunner(pool, "key", t.TempDir(), logger, nil, nil)
+	br := NewBackupRunner(pool, []byte("key"), t.TempDir(), logger, nil, nil)
 
 	_, err := br.RunBackup(context.Background())
 	if err == nil {
@@ -581,7 +581,7 @@ func TestUpdateLogCompleted_DBError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	br := &BackupRunner{db: pool, fs: osFS{}, logger: logger}
 
-	err := br.updateLogCompleted(context.Background(), uuid.New(), time.Now().UTC(), 1, 12345)
+	err := br.updateLogCompleted(context.Background(), uuid.New(), time.Now().UTC(), 1, 12345, "abc123")
 	if err == nil {
 		t.Fatal("expected error from updateLogCompleted with unreachable DB")
 	}
@@ -861,7 +861,7 @@ func TestRunBackup_FullSuccess(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "test-encryption-key",
+		encKey:      []byte("test-encryption-key"),
 		destination: dir,
 		logger:      logger,
 	}
@@ -900,7 +900,7 @@ func TestRunBackup_FullSuccessWithStorage(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "test-encryption-key",
+		encKey:      []byte("test-encryption-key"),
 		destination: dir,
 		logger:      logger,
 		storage:     storage,
@@ -928,7 +928,7 @@ func TestRunBackup_SuccessWithStorageError(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "test-encryption-key",
+		encKey:      []byte("test-encryption-key"),
 		destination: dir,
 		logger:      logger,
 		storage:     storage,
@@ -954,7 +954,7 @@ func TestRunBackup_DumpError(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "test-encryption-key",
+		encKey:      []byte("test-encryption-key"),
 		destination: dir,
 		logger:      logger,
 	}
@@ -979,7 +979,7 @@ func TestRunBackup_EncryptError(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "", // empty key causes Encrypt to fail
+		encKey:      nil, // empty key causes Encrypt to fail
 		destination: dir,
 		logger:      logger,
 	}
@@ -1009,7 +1009,7 @@ func TestRunBackup_WriteFileError(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          mfs,
-		encKey:      "test-key",
+		encKey:      []byte("test-key"),
 		destination: "/some/path",
 		logger:      logger,
 	}
@@ -1045,7 +1045,7 @@ func TestRunBackup_UpdateLogCompletedError(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "test-key",
+		encKey:      []byte("test-key"),
 		destination: dir,
 		logger:      logger,
 	}
@@ -1471,7 +1471,7 @@ func TestStartScheduler_ExecutesBackupSuccess(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "scheduler-test-key",
+		encKey:      []byte("scheduler-test-key"),
 		destination: dir,
 		logger:      logger,
 		newTimer: func(_ time.Duration) <-chan time.Time {
@@ -1523,7 +1523,7 @@ func TestStartScheduler_ExecutesBackupFailure(t *testing.T) {
 		db:          db,
 		dumper:      dumper,
 		fs:          osFS{},
-		encKey:      "scheduler-test-key",
+		encKey:      []byte("scheduler-test-key"),
 		destination: dir,
 		logger:      logger,
 		newTimer: func(_ time.Duration) <-chan time.Time {

@@ -23,6 +23,7 @@ type KeyRotationJob struct {
 	custody   CustodyRecorder
 	logger    *slog.Logger
 	progress  atomic.Pointer[KeyRotationProgress]
+	running   atomic.Bool
 }
 
 // NewKeyRotationJob creates a new key rotation job.
@@ -43,14 +44,105 @@ func (j *KeyRotationJob) Progress() KeyRotationProgress {
 	return *j.progress.Load()
 }
 
+// TryStart atomically marks the job as running. Returns true if the job was
+// successfully started, or false if it was already running. Callers must call
+// MarkDone when the job completes (or the job itself may call it).
+func (j *KeyRotationJob) TryStart() bool {
+	return j.running.CompareAndSwap(false, true)
+}
+
+// markDone clears the running flag so future TryStart calls can succeed.
+func (j *KeyRotationJob) markDone() {
+	j.running.Store(false)
+}
+
+// paginatedRepo is an optional extension of Repository that supports batched
+// reads. PGRepository satisfies this interface; test fakes may not.
+type paginatedRepo interface {
+	FindAllPaginated(ctx context.Context, limit, offset int) ([]Witness, error)
+}
+
+const rotationBatchSize = 100
+
 // Run executes the key rotation, re-encrypting all witnesses.
 // It is resumable: if interrupted, calling Run again will process remaining witnesses.
+// When the underlying repository supports FindAllPaginated the witnesses are
+// loaded in batches of rotationBatchSize rows to avoid loading the entire
+// table into memory at once. Repositories that do not implement the paginated
+// interface fall back to the original FindAll behaviour.
 func (j *KeyRotationJob) Run(ctx context.Context) error {
+	defer j.markDone()
+
+	if pagRepo, ok := j.repo.(paginatedRepo); ok {
+		return j.runBatched(ctx, pagRepo)
+	}
+
+	// Fallback: load all witnesses at once (e.g. test fakes without pagination).
 	witnesses, err := j.repo.FindAll(ctx)
 	if err != nil {
 		return fmt.Errorf("load witnesses for rotation: %w", err)
 	}
+	return j.processWitnesses(ctx, witnesses)
+}
 
+// runBatched iterates witnesses in fixed-size pages to bound memory usage.
+func (j *KeyRotationJob) runBatched(ctx context.Context, pagRepo paginatedRepo) error {
+	j.progress.Store(&KeyRotationProgress{Running: true})
+
+	var total, processed, failed int64
+	offset := 0
+
+	for {
+		batch, err := pagRepo.FindAllPaginated(ctx, rotationBatchSize, offset)
+		if err != nil {
+			return fmt.Errorf("load witnesses batch (offset=%d): %w", offset, err)
+		}
+		if len(batch) == 0 {
+			break
+		}
+
+		total += int64(len(batch))
+
+		for _, w := range batch {
+			select {
+			case <-ctx.Done():
+				j.progress.Store(&KeyRotationProgress{
+					Total:     total,
+					Processed: processed,
+					Failed:    failed,
+					Running:   false,
+				})
+				return ctx.Err()
+			default:
+			}
+
+			if allFieldsOnVersion(w, j.newEnc.CurrentVersion()) {
+				processed++
+				j.updateProgress(total, processed, failed, true)
+				continue
+			}
+
+			if err := j.rotateWitness(ctx, w); err != nil {
+				j.logger.Error("failed to rotate witness key",
+					"witness_id", w.ID, "error", err)
+				failed++
+				j.updateProgress(total, processed, failed, true)
+				continue
+			}
+
+			processed++
+			j.updateProgress(total, processed, failed, true)
+		}
+
+		offset += len(batch)
+	}
+
+	j.updateProgress(total, processed, failed, false)
+	return nil
+}
+
+// processWitnesses handles a pre-loaded slice of witnesses (fallback path).
+func (j *KeyRotationJob) processWitnesses(ctx context.Context, witnesses []Witness) error {
 	total := int64(len(witnesses))
 	j.progress.Store(&KeyRotationProgress{
 		Total:   total,

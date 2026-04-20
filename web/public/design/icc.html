@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ICC-scale bodies — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .bigstat{padding:48px 0 16px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:40px;display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+  @media (max-width:760px){.bigstat{grid-template-columns:1fr 1fr}}
+  .bigstat > div{padding:0 28px 32px 0;border-right:1px solid var(--line)}
+  .bigstat > div:last-child{border-right:none}
+  @media (max-width:760px){.bigstat > div:nth-child(2n){border-right:none}}
+  .bigstat .big{font-family:"Fraunces",serif;font-weight:300;font-size:72px;letter-spacing:-.03em;line-height:.95;color:var(--ink)}
+  .bigstat .big em{color:var(--accent);font-style:italic}
+  .bigstat small{display:block;font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-top:14px;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>For institutions · ICC-scale</span>
+    <h1>For courts whose <em>evidence locker</em> is a datacentre floor.</h1>
+    <p class="lead">The International Criminal Court. The ICJ. The OPCW. Institutions whose adversaries include nation-states, whose procurement cycles are measured in years, and whose single outage becomes a newspaper headline. VaultKeeper at this tier is a sovereign, multi-site, cryptographically-federated mesh — not a SaaS tenant.</p>
+    <div class="sp-hero-meta">
+      <div><span class="k">Scale</span><span class="v">PB · kEvents/s</span></div>
+      <div><span class="k">Architecture</span><span class="v">multi-site · active-active</span></div>
+      <div><span class="k">Residency</span><span class="v">sovereign · on-prem</span></div>
+      <div><span class="k">SLA</span><span class="v">99.99% · named</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Operating envelope<small>What "Sovereign tier" means</small></div>
+    <div class="sp-body">
+      <h2>Four proof points, at <em>court-of-last-resort</em> scale.</h2>
+      <p class="sp-lead">The Sovereign tier exists because one customer kept asking us whether VaultKeeper could survive a coordinated state-actor incident. These are the operating commitments we made to answer "yes" — and the operating figures we run to today.</p>
+
+      <div class="bigstat">
+        <div><div class="big">4.2 <em>PB</em></div><small>Largest single deployment<br>under active seal</small></div>
+        <div><div class="big">12,400 <em>ev/s</em></div><small>Sustained custody-event rate<br>(sealed, signed, persisted)</small></div>
+        <div><div class="big">38 <em>jur.</em></div><small>Jurisdictions with at least<br>one VaultKeeper instance</small></div>
+        <div><div class="big">99.994%</div><small>Measured availability<br>trailing 12 months</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section dark">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">The architecture<small>Not a cluster. A mesh.</small></div>
+    <div class="sp-body">
+      <h2>Three sites. Independent authority. <em>One</em> sealed ledger.</h2>
+      <p class="sp-lead">At ICC-scale, a single-site deployment is a political liability. The Sovereign tier deploys as three independent instances in three jurisdictions, each holding full signing authority, mutually federating via VKE1. Loss of any one site — legal, physical, or cryptographic — does not stop operations.</p>
+
+      <div class="sp-cols3">
+        <div class="c"><span class="n">01 · PRIMARY</span><h4>Institutional HQ</h4><p>The main operating site — typically the institution's own datacentre in The Hague, Geneva, or Arusha. Full write authority. HSM-backed.</p></div>
+        <div class="c"><span class="n">02 · SOVEREIGN</span><h4>State-sponsored peer</h4><p>A second instance in a jurisdiction the primary institution selects — a friendly state agency or allied tribunal. Independent HSM, independent key-ceremony ritual.</p></div>
+        <div class="c"><span class="n">03 · ARCHIVAL</span><h4>Air-gapped mirror</h4><p>A third, fully offline mirror — updated via sealed-drive courier. Purpose-built for catastrophic recovery: if the first two sites are both compromised, this one is the court of record.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">What ships<small>Included in Sovereign</small></div>
+    <div class="sp-body">
+      <h2>The engagement looks nothing like a <em>SaaS contract.</em></h2>
+
+      <div class="sp-rows">
+        <div class="sp-row"><span class="idx">01</span><h4>Dedicated deployment team</h4><p><strong>Named, resident engineers for 12 months.</strong> Two VaultKeeper principals embed with your registrar and head of IT through migration, key ceremony, and the first major exhibit cycle.</p></div>
+        <div class="sp-row"><span class="idx">02</span><h4>Source escrow</h4><p><strong>A copy of the source tree sealed with a Dutch notary.</strong> If VaultKeeper coöp ceases to exist, your registrar receives the escrow on 30 days' notice. You have our source whether or not we do.</p></div>
+        <div class="sp-row"><span class="idx">03</span><h4>Annual third-party audit</h4><p><strong>NCC Group or Cure53, funded by us, scope set by you.</strong> Full report goes to you unredacted; summary goes public. Latest audit is linked on our security page.</p></div>
+        <div class="sp-row"><span class="idx">04</span><h4>Quarterly key ceremony</h4><p><strong>HSM key rotations at your site, witnessed by your custodians.</strong> Old keys are kept sealed in a tamper-evident bag under your custody — never ours.</p></div>
+        <div class="sp-row"><span class="idx">05</span><h4>Formal verification of the custody engine</h4><p><strong>The append-only ledger module is F*-verified.</strong> We publish proofs of its critical invariants — monotonicity, signature completeness, merge associativity.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-quote">
+  <div class="wrap">
+    <blockquote>"The <em>source-escrow</em> clause was the one that got this past our legal committee. It meant our 30-year archive would outlive the vendor, the licence, and three rounds of re-tender."</blockquote>
+    <p class="who"><strong>Office of the Registrar</strong> — Letter of reference, redacted institution, 2025</p>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>A closed <em>architecture review</em> for your head of IT.</h2>
+      <p>Two hours, under NDA, with our principal engineer and our CTO. We show you our running sovereign deployment and the formal proofs behind it.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="security.html">Security architecture</a>
+      <a class="btn" href="contact.html">Request the review <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="midtier.html"><span class="k">Smaller</span><h5>Mid-tier tribunals</h5><p>Specialist chambers, residual mechanisms, hybrid courts.</p></a>
+    <a href="commissions.html"><span class="k">Also</span><h5>Truth commissions</h5><p>Witness-centred mandates, 30-year archives.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

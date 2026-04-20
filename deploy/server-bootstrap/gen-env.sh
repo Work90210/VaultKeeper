@@ -26,17 +26,23 @@ KEYCLOAK_CLIENT_SECRET_API="$(rand 48)"
 KEYCLOAK_CLIENT_SECRET_WEB="$(rand 48)"
 NEXTAUTH_SECRET="$(rand 48)"
 MEILISEARCH_API_KEY="$(rand 48)"
+WITNESS_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+MASTER_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+BACKUP_ENC_KEY="$(openssl rand -hex 32)"
+INSTANCE_ED25519_KEY="$(openssl rand -base64 64 | tr -d '\n')"
 
-# Patch realm-export.json so Keycloak imports matching client secrets
-python3 - <<PY
-import json, pathlib
+# Patch realm-export.json so Keycloak imports matching client secrets.
+# Secrets are passed as argv to avoid shell-injection via heredoc interpolation.
+python3 - "$KEYCLOAK_CLIENT_SECRET_API" "$KEYCLOAK_CLIENT_SECRET_WEB" <<'PY'
+import json, pathlib, sys
+secret_api, secret_web = sys.argv[1], sys.argv[2]
 p = pathlib.Path('keycloak/realm-export.json')
 realm = json.loads(p.read_text())
 for c in realm.get('clients', []):
     if c.get('clientId') == 'vaultkeeper-api':
-        c['secret'] = "$KEYCLOAK_CLIENT_SECRET_API"
+        c['secret'] = secret_api
     elif c.get('clientId') == 'vaultkeeper-web':
-        c['secret'] = "$KEYCLOAK_CLIENT_SECRET_WEB"
+        c['secret'] = secret_web
 p.write_text(json.dumps(realm, indent=2))
 print("[gen-env] patched realm-export.json client secrets")
 PY
@@ -58,14 +64,14 @@ CORS_ORIGINS=
 # --- PostgreSQL ---
 POSTGRES_USER=vaultkeeper
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-DATABASE_URL=postgres://vaultkeeper:${POSTGRES_PASSWORD}@postgres:5432/vaultkeeper?sslmode=disable
+DATABASE_URL=postgres://vaultkeeper:${POSTGRES_PASSWORD}@postgres:5432/vaultkeeper?sslmode=require
 
 # --- MinIO ---
 MINIO_ENDPOINT=minio:9000
 MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
 MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
 MINIO_BUCKET=evidence
-MINIO_USE_SSL=false
+MINIO_USE_SSL=true
 
 # --- Keycloak ---
 KEYCLOAK_URL=http://keycloak:8080
@@ -81,11 +87,17 @@ NEXTAUTH_URL=https://vaultkeeper.eu
 
 # --- TSA (trusted timestamping) ---
 TSA_ENABLED=true
-TSA_URL=http://timestamp.digicert.com
+TSA_URL=https://timestamp.digicert.com
 
 # --- Meilisearch ---
 MEILISEARCH_URL=http://meilisearch:7700
 MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
+
+# --- Encryption ---
+WITNESS_ENCRYPTION_KEY=${WITNESS_ENCRYPTION_KEY}
+MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY}
+BACKUP_ENC_KEY=${BACKUP_ENC_KEY}
+INSTANCE_ED25519_KEY=${INSTANCE_ED25519_KEY}
 
 # --- Limits ---
 MAX_CONCURRENT_SESSIONS=3
@@ -108,6 +120,10 @@ KEYCLOAK_CLIENT_SECRET_API=${KEYCLOAK_CLIENT_SECRET_API}
 KEYCLOAK_CLIENT_SECRET_WEB=${KEYCLOAK_CLIENT_SECRET_WEB}
 NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
 MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
+WITNESS_ENCRYPTION_KEY=${WITNESS_ENCRYPTION_KEY}
+MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY}
+BACKUP_ENC_KEY=${BACKUP_ENC_KEY}
+INSTANCE_ED25519_KEY=${INSTANCE_ED25519_KEY}
 ================================================
 
 EOF

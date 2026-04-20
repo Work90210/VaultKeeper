@@ -111,9 +111,8 @@ export function RedactionEditor({
     };
   }, []);
 
-  // Detect if click is near the edge of a selected rect for resizing
   const detectEdge = (pos: { x: number; y: number }): { id: string; edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' } | null => {
-    const threshold = 1.5; // percentage
+    const threshold = 1.5;
     for (const rect of rects) {
       const nearLeft = Math.abs(pos.x - rect.x) < threshold && pos.y >= rect.y - threshold && pos.y <= rect.y + rect.height + threshold;
       const nearRight = Math.abs(pos.x - (rect.x + rect.width)) < threshold && pos.y >= rect.y - threshold && pos.y <= rect.y + rect.height + threshold;
@@ -136,7 +135,6 @@ export function RedactionEditor({
     if (previewMode) return;
     const pos = getCanvasCoords(e);
 
-    // Check for resize on existing rect edges
     const edge = detectEdge(pos);
     if (edge) {
       setResizing(edge);
@@ -153,7 +151,6 @@ export function RedactionEditor({
   const handleMouseMove = (e: React.MouseEvent) => {
     const pos = getCanvasCoords(e);
 
-    // Handle resize
     if (resizing && startPos) {
       setRects((prev) =>
         prev.map((r) => {
@@ -167,7 +164,6 @@ export function RedactionEditor({
           if (resizing.edge.includes('n')) { y += dy; height -= dy; }
           if (resizing.edge.includes('s')) { height += dy; }
 
-          // Enforce minimum size
           if (width < 0.5) { width = 0.5; }
           if (height < 0.5) { height = 0.5; }
 
@@ -178,7 +174,6 @@ export function RedactionEditor({
       return;
     }
 
-    // Handle draw
     if (!drawing || !startPos) return;
     setCurrentRect({
       x: Math.min(startPos.x, pos.x),
@@ -201,7 +196,6 @@ export function RedactionEditor({
       return;
     }
 
-    // Minimum size check
     if (currentRect.width > 0.5 && currentRect.height > 0.5) {
       const newRect: RedactionRect = {
         id: crypto.randomUUID(),
@@ -243,54 +237,66 @@ export function RedactionEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex"
-      style={{ backgroundColor: 'var(--bg-primary)' }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        background: 'var(--paper)',
+      }}
     >
       {/* Sidebar */}
       <div
-        className="w-80 flex-shrink-0 overflow-y-auto border-r p-[var(--space-md)] space-y-[var(--space-md)]"
-        style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--bg-elevated)' }}
+        style={{
+          width: 320,
+          flexShrink: 0,
+          overflowY: 'auto',
+          borderRight: '1px solid var(--line)',
+          background: 'var(--bg)',
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
       >
-        <div className="flex items-center justify-between">
-          <h3
-            className="font-[family-name:var(--font-heading)] text-lg"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            Redaction Editor
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, margin: 0 }}>
+            Redaction <em>editor</em>
           </h3>
-          <button onClick={onClose} className="btn-ghost text-sm">Close</button>
+          <button onClick={onClose} className="chip">Close</button>
         </div>
 
-        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+        <p style={{ fontSize: '12.5px', color: 'var(--muted)', margin: 0 }}>
           Click and drag on the image to draw redaction areas. Each area requires a reason.
         </p>
 
         {rects.length === 0 ? (
-          <div className="text-center py-[var(--space-lg)]">
-            <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+          <div style={{ textAlign: 'center', padding: '30px 0' }}>
+            <p style={{ fontSize: '13.5px', color: 'var(--muted)' }}>
               No redaction areas yet
             </p>
           </div>
         ) : (
-          <div className="space-y-[var(--space-sm)]">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {rects.map((rect, i) => (
               <div
                 key={rect.id}
-                className="p-[var(--space-sm)] rounded"
-                style={{
-                  backgroundColor: rect.id === selectedRect ? 'var(--amber-subtle)' : 'transparent',
-                  border: `1px solid ${rect.id === selectedRect ? 'var(--amber-accent)' : 'var(--border-default)'}`,
-                }}
                 onClick={() => setSelectedRect(rect.id)}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: `1px solid ${rect.id === selectedRect ? 'var(--accent)' : 'var(--line)'}`,
+                  background: rect.id === selectedRect ? 'var(--bg-2)' : 'transparent',
+                  cursor: 'pointer',
+                }}
               >
-                <div className="flex items-center justify-between mb-[var(--space-xs)]">
-                  <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--ink)' }}>
                     Area {i + 1}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteRect(rect.id); }}
-                    className="text-xs"
-                    style={{ color: 'var(--status-hold)' }}
+                    style={{ all: 'unset', cursor: 'pointer', fontSize: 12, color: 'var(--err)' }}
                   >
                     Remove
                   </button>
@@ -300,31 +306,40 @@ export function RedactionEditor({
                   value={rect.reason}
                   onChange={(e) => updateReason(rect.id, e.target.value)}
                   placeholder="Reason for redaction..."
-                  className="input-field text-xs"
-                  required
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px',
+                    fontSize: '12.5px',
+                    border: '1px solid var(--line)',
+                    borderRadius: 6,
+                    background: 'var(--paper)',
+                    color: 'var(--ink)',
+                  }}
                 />
               </div>
             ))}
           </div>
         )}
 
-        <div className="space-y-[var(--space-sm)] pt-[var(--space-md)]" style={{ borderTop: '1px solid var(--border-default)' }}>
+        <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8, marginTop: 'auto' }}>
           <button
             onClick={() => setPreviewMode(!previewMode)}
             disabled={rects.length === 0}
-            className="btn-secondary w-full"
+            className="btn ghost"
+            style={{ width: '100%', justifyContent: 'center' }}
           >
             {previewMode ? 'Edit Mode' : 'Preview'}
           </button>
           <button
             onClick={() => setShowConfirm(true)}
             disabled={rects.length === 0 || !allReasonsProvided}
-            className="btn-primary w-full"
+            className="btn"
+            style={{ width: '100%', justifyContent: 'center' }}
           >
-            Apply Redactions
+            Apply Redactions <span className="arr">&rarr;</span>
           </button>
           {rects.length > 0 && !allReasonsProvided && (
-            <p className="text-xs text-center" style={{ color: 'var(--amber-accent)' }}>
+            <p style={{ fontSize: '11px', textAlign: 'center', color: 'var(--err)', margin: 0 }}>
               All areas require a reason
             </p>
           )}
@@ -334,40 +349,63 @@ export function RedactionEditor({
       {/* Canvas area */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto flex items-center justify-center p-[var(--space-lg)]"
-        style={{ backgroundColor: 'var(--bg-inset)' }}
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 30,
+          background: 'var(--bg-2)',
+        }}
       >
         {imageLoaded ? (
           <canvas
             ref={canvasRef}
-            className="max-w-full max-h-full shadow-lg"
-            style={{ cursor: previewMode ? 'default' : 'crosshair' }}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              boxShadow: '0 4px 24px rgba(0,0,0,.12)',
+              cursor: previewMode ? 'default' : 'crosshair',
+            }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           />
         ) : (
-          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Loading image...</p>
+          <p style={{ fontSize: '13.5px', color: 'var(--muted)' }}>Loading image&hellip;</p>
         )}
       </div>
 
       {/* Confirmation dialog */}
       {showConfirm && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center" style={{ backgroundColor: 'oklch(0.2 0.01 50 / 0.6)' }}>
-          <div className="card max-w-md w-full mx-[var(--space-lg)] p-[var(--space-lg)] space-y-[var(--space-md)]">
-            <h4 className="font-[family-name:var(--font-heading)] text-lg" style={{ color: 'var(--text-primary)' }}>
-              Apply Redactions
-            </h4>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              This will create a new copy with {rects.length} redacted area{rects.length !== 1 ? 's' : ''}.
-              The original file is preserved.
-            </p>
-            <div className="flex gap-[var(--space-sm)] justify-end">
-              <button onClick={() => setShowConfirm(false)} className="btn-ghost">Cancel</button>
-              <button onClick={handleApply} disabled={applying} className="btn-primary">
-                {applying ? 'Applying...' : 'Confirm'}
-              </button>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,.45)',
+          }}
+        >
+          <div className="panel" style={{ maxWidth: 440, width: '100%', margin: '0 24px' }}>
+            <div className="panel-h">
+              <h3>Apply Redactions</h3>
+            </div>
+            <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <p style={{ fontSize: '13.5px', color: 'var(--ink-2)', margin: 0 }}>
+                This will create a new copy with {rects.length} redacted area{rects.length !== 1 ? 's' : ''}.
+                The original file is preserved.
+              </p>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowConfirm(false)} className="btn ghost">Cancel</button>
+                <button onClick={handleApply} disabled={applying} className="btn">
+                  {applying ? 'Applying\u2026' : 'Confirm'} <span className="arr">&rarr;</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

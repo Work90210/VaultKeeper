@@ -29,9 +29,12 @@ export function OrgSwitcher() {
   if (loading) {
     return (
       <div
-        className="skeleton"
-        style={{ height: '2rem', borderRadius: 'var(--radius-sm)' }}
-      />
+        className="d-org"
+        style={{ opacity: 0.5, pointerEvents: 'none' }}
+      >
+        <span className="av" style={{ background: 'var(--bg-2)' }}>&nbsp;</span>
+        <span className="name">Loading&hellip;</span>
+      </div>
     );
   }
 
@@ -39,31 +42,11 @@ export function OrgSwitcher() {
     return (
       <button
         onClick={() => router.push('/en/organizations/new')}
-        className="flex w-full items-center gap-[var(--space-sm)]"
-        style={{
-          padding: '6px var(--space-sm)',
-          fontSize: 'var(--text-sm)',
-          color: 'var(--text-tertiary)',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          transition: `all var(--duration-fast) ease`,
-        }}
+        className="d-org"
+        style={{ border: '1px dashed var(--line-2)' }}
       >
-        <svg
-          style={{ width: '1rem', height: '1rem' }}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4v16m8-8H4"
-          />
-        </svg>
-        Create Organization
+        <span className="av" style={{ background: 'var(--muted)', fontSize: '18px' }}>+</span>
+        <span className="name">Create Organization</span>
       </button>
     );
   }
@@ -71,86 +54,46 @@ export function OrgSwitcher() {
   const initial = activeOrg.name.charAt(0).toUpperCase();
 
   return (
-    <div ref={ref} className="relative">
-      <button
+    <div ref={ref} style={{ position: 'relative' }}>
+      {/* Org picker button: .d-org > .av + .name > small */}
+      <div
+        className="d-org"
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-[var(--space-sm)]"
-        style={{
-          padding: '6px var(--space-sm)',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-          borderRadius: 'var(--radius-sm)',
-          transition: `background-color var(--duration-fast) ease`,
-        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setOpen(!open); }}
       >
-        {/* Org avatar */}
-        <div
-          className="flex items-center justify-center shrink-0"
-          style={{
-            width: '1.25rem',
-            height: '1.25rem',
-            borderRadius: 'var(--radius-full)',
-            backgroundColor: 'var(--amber-accent)',
-            fontSize: '0.6875rem',
-            fontWeight: 700,
-            color: 'var(--bg-primary)',
-            lineHeight: 1,
-          }}
-        >
-          {initial}
-        </div>
-
-        {/* Org name */}
-        <span
-          className="flex-1 truncate"
-          style={{
-            fontSize: 'var(--text-sm)',
-            fontWeight: 500,
-            color: 'var(--text-primary)',
-          }}
-        >
+        <span className="av">{initial}</span>
+        <span className="name">
           {activeOrg.name}
+          <small>{ROLE_LABELS[activeOrg.role] ?? activeOrg.role}</small>
         </span>
-
-        {/* Chevron */}
         <svg
-          className="shrink-0"
-          style={{
-            width: '0.75rem',
-            height: '0.75rem',
-            color: 'var(--text-tertiary)',
-            transform: open ? 'rotate(180deg)' : 'none',
-            transition: `transform var(--duration-fast) ease`,
-          }}
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
           fill="none"
-          viewBox="0 0 24 24"
           stroke="currentColor"
+          strokeWidth={1.4}
+          style={{
+            color: 'var(--muted)',
+            opacity: open ? 1 : 0,
+            transition: 'opacity 0.2s',
+          }}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
+          <path d="M4 6l-2 2 2 2M12 6l2 2-2 2M6 8h4" />
         </svg>
-      </button>
+      </div>
 
+      {/* Dropdown: .d-org-dropdown */}
       {open && (
         <div
-          className="absolute left-0 right-0 z-50"
-          style={{
-            marginTop: '2px',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-default)',
-            backgroundColor: 'var(--bg-elevated)',
-            boxShadow: 'var(--shadow-lg)',
-            padding: '0.25rem 0',
-          }}
+          className="d-org-dropdown"
+          style={{ display: 'block', position: 'absolute', left: 0, right: 0, zIndex: 50 }}
         >
           {userOrgs.map((org) => {
             const isSelected = org.id === activeOrg.id;
+            const orgInitial = org.name.charAt(0).toUpperCase();
             return (
               <button
                 key={org.id}
@@ -158,137 +101,57 @@ export function OrgSwitcher() {
                   setActiveOrg(org);
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-[var(--space-sm)]"
-                style={{
-                  padding: '6px var(--space-sm)',
-                  fontSize: 'var(--text-sm)',
-                  color: isSelected
-                    ? 'var(--text-primary)'
-                    : 'var(--text-secondary)',
-                  fontWeight: isSelected ? 500 : 400,
-                  backgroundColor: isSelected
-                    ? 'var(--bg-inset)'
-                    : 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  width: '100%',
-                  transition: `background-color var(--duration-fast) ease`,
-                }}
+                className={`org-item${isSelected ? ' active' : ''}`}
               >
-                <div
-                  className="flex items-center justify-center shrink-0"
-                  style={{
-                    width: '1.25rem',
-                    height: '1.25rem',
-                    borderRadius: 'var(--radius-full)',
-                    backgroundColor: isSelected
-                      ? 'var(--amber-accent)'
-                      : 'var(--bg-inset)',
-                    fontSize: '0.6875rem',
-                    fontWeight: 700,
-                    color: isSelected
-                      ? 'var(--bg-primary)'
-                      : 'var(--text-tertiary)',
-                    lineHeight: 1,
-                  }}
-                >
-                  {org.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="flex-1 truncate">{org.name}</span>
                 <span
-                  className="badge shrink-0"
-                  style={{
-                    backgroundColor: 'var(--bg-inset)',
-                    color: 'var(--text-tertiary)',
-                    fontSize: '0.6875rem',
-                  }}
+                  className="oa"
+                  style={{ background: isSelected ? 'var(--ink)' : 'var(--muted)' }}
                 >
-                  {ROLE_LABELS[org.role] ?? org.role}
+                  {orgInitial}
+                </span>
+                <span>
+                  {org.name}
+                  <small>{ROLE_LABELS[org.role] ?? org.role}</small>
                 </span>
               </button>
             );
           })}
-          <div
-            style={{
-              borderTop: '1px solid var(--border-subtle)',
-              marginTop: '0.25rem',
-              paddingTop: '0.25rem',
-            }}
-          >
-            {activeOrg && (activeOrg.role === 'owner' || activeOrg.role === 'admin') && (
-              <button
-                onClick={() => {
-                  router.push('/en/settings?tab=organization');
-                  setOpen(false);
-                }}
-                className="flex w-full items-center gap-[var(--space-sm)]"
-                style={{
-                  padding: '6px var(--space-sm)',
-                  fontSize: 'var(--text-sm)',
-                  color: 'var(--text-secondary)',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  width: '100%',
-                }}
-              >
-                <svg
-                  style={{ width: '0.875rem', height: '0.875rem' }}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-                Manage organization
-              </button>
-            )}
+
+          {/* Divider + actions */}
+          <div style={{ height: '1px', background: 'var(--line)', margin: '4px 0' }} />
+
+          {activeOrg && (activeOrg.role === 'owner' || activeOrg.role === 'admin') && (
             <button
               onClick={() => {
-                router.push('/en/organizations/new');
+                router.push('/en/settings?tab=organization');
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-[var(--space-sm)]"
-              style={{
-                padding: '6px var(--space-sm)',
-                fontSize: 'var(--text-sm)',
-                color: 'var(--text-tertiary)',
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-                width: '100%',
-              }}
+              className="org-item"
             >
-              <svg
-                style={{ width: '0.875rem', height: '0.875rem' }}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              Create organization
+              <span className="oa" style={{ background: 'transparent' }}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth={1.4}>
+                  <circle cx="8" cy="8" r="2" />
+                  <path d="M8 2v2M8 12v2M2 8h2M12 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" />
+                </svg>
+              </span>
+              <span style={{ color: 'var(--ink-2)' }}>Manage organization</span>
             </button>
-          </div>
+          )}
+
+          <button
+            onClick={() => {
+              router.push('/en/organizations/new');
+              setOpen(false);
+            }}
+            className="org-item"
+          >
+            <span className="oa" style={{ background: 'transparent' }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth={1.4}>
+                <path d="M8 3v10M3 8h10" />
+              </svg>
+            </span>
+            <span style={{ color: 'var(--muted)' }}>Create organization</span>
+          </button>
         </div>
       )}
     </div>

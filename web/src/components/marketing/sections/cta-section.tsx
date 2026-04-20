@@ -3,71 +3,62 @@
 import { motion } from 'motion/react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
-import { TextureButton } from '@/components/ui/texture-button';
 
 export function CtaSection({ locale }: { locale: string }) {
   const t = useTranslations('marketing.cta');
 
   return (
-    <section className="py-20 md:py-28">
-      <div className="marketing-section max-w-3xl text-center">
+    <section className="section">
+      <div className="wrap">
         <motion.div
+          className="cta-banner"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.4fr auto',
+            gap: '40px',
+            alignItems: 'center',
+          }}
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
         >
-          <h2
-            className="font-[family-name:var(--font-heading)] text-balance mb-5"
-            style={{
-              color: 'var(--text-primary)',
-              fontSize: 'clamp(1.75rem, 1.2rem + 2vw, 2.75rem)',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {t('title')}
-          </h2>
-          <p
-            className="max-w-lg mx-auto mb-10"
-            style={{
-              color: 'var(--text-secondary)',
-              fontSize: 'var(--text-base)',
-            }}
-          >
-            {t('description')}
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href={`/${locale}/contact`}>
-              <TextureButton variant="primary" size="lg">
-                {t('primaryCta')}
-                <ArrowRight size={16} />
-              </TextureButton>
-            </Link>
-            <Link href={`/${locale}/features`}>
-              <TextureButton variant="minimal" size="lg">
-                {t('secondaryCta')}
-              </TextureButton>
-            </Link>
+          <div>
+            <h2
+              style={{
+                fontSize: 'clamp(32px, 4vw, 52px)',
+                lineHeight: 1.1,
+              }}
+            >
+              {t('title')}
+            </h2>
+            <p
+              style={{
+                color: 'var(--muted-2)',
+                fontSize: '16px',
+                marginTop: '16px',
+                maxWidth: '48ch',
+                lineHeight: 1.55,
+              }}
+            >
+              {t('description')}
+            </p>
           </div>
-
-          {/* Trust line */}
-          <div className="flex items-center justify-center gap-6 mt-12">
-            {(['badge1', 'badge2', 'badge3'] as const).map((key, i) => (
-              <span
-                key={key}
-                className="text-[10px] font-medium uppercase tracking-[0.12em]"
-                style={{ color: 'var(--text-tertiary)' }}
-              >
-                {i > 0 && (
-                  <span className="mr-6" style={{ color: 'var(--border-default)' }}>
-                    /
-                  </span>
-                )}
-                {t(key)}
-              </span>
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <Link
+              href={`/${locale}/contact`}
+              className="btn"
+              style={{ background: 'var(--bg)', color: 'var(--ink)' }}
+            >
+              {t('primaryCta')} <span className="arr">&rarr;</span>
+            </Link>
+            <Link
+              href={`/${locale}/features`}
+              className="btn ghost"
+              style={{ color: 'var(--bg)', borderColor: 'rgba(255,255,255,0.2)' }}
+            >
+              {t('secondaryCta')}
+            </Link>
           </div>
         </motion.div>
       </div>

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Start a pilot — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .steplist{margin-top:48px;display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  @media (max-width:760px){.steplist{grid-template-columns:1fr}}
+  .steplist .st{padding:32px 28px 32px 0;border-right:1px solid var(--line)}
+  .steplist .st:last-child{border-right:none;padding-right:0}
+  .steplist .st:first-child{padding-left:0}
+  @media (max-width:760px){.steplist .st{padding:28px 0;border-right:none;border-bottom:1px solid var(--line)}.steplist .st:last-child{border-bottom:none}}
+  .steplist .t{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
+  .steplist .n{font-family:"Fraunces",serif;font-style:italic;color:var(--accent);font-size:20px;line-height:1;display:block;margin-bottom:6px}
+  .steplist h4{font-family:"Fraunces",serif;font-weight:400;font-size:22px;letter-spacing:-.015em;margin-bottom:10px;line-height:1.2}
+  .steplist p{color:var(--muted);font-size:14px;line-height:1.55}
+
+  .pilot-form{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-lg);padding:40px;margin-top:48px}
+  .pilot-form .fhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+  .pilot-form .fhead h3{font-family:"Fraunces",serif;font-weight:400;font-size:26px;letter-spacing:-.015em}
+  .pilot-form .fhead h3 em{color:var(--accent);font-style:italic}
+  .pilot-form .fhead span{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .pilot-form .row{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+  @media (max-width:640px){.pilot-form .row{grid-template-columns:1fr}}
+  .pilot-form label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-family:"JetBrains Mono",monospace;letter-spacing:.04em;text-transform:uppercase}
+  .pilot-form input,.pilot-form select,.pilot-form textarea{width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-family:"Fraunces",serif;font-size:17px;color:var(--ink);font-style:italic;letter-spacing:-.005em}
+  .pilot-form input::placeholder,.pilot-form textarea::placeholder{color:var(--muted-2);font-style:italic}
+  .pilot-form input:focus,.pilot-form select:focus,.pilot-form textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(200,126,94,.12)}
+  .pilot-form textarea{min-height:120px;font-family:"Inter",sans-serif;font-style:normal;font-size:15px;line-height:1.5;resize:vertical}
+  .pilot-form .submit{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+  .pilot-form .note{font-size:13px;color:var(--muted);max-width:44ch;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>For institutions · Pilot</span>
+    <h1>Thirty minutes, <em>your</em> hardware, three <em>real</em> exhibits.</h1>
+    <p class="lead">A VaultKeeper pilot is not a salescall. It is a working session in which we spin up the system on infrastructure you control, ingest a handful of your actual exhibits, seal them into the custody chain, and hand you an export your tribunal's clerk can verify. If it doesn't work, you walk away. If it does, you keep the box.</p>
+    <div class="sp-hero-meta">
+      <div><span class="k">Session length</span><span class="v">30–45 min</span></div>
+      <div><span class="k">Cost</span><span class="v"><em>€0</em></span></div>
+      <div><span class="k">Your hardware</span><span class="v">or ours · shared</span></div>
+      <div><span class="k">Post-call</span><span class="v">the box stays up</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">The arc<small>A pilot, end-to-end</small></div>
+    <div class="sp-body">
+      <h2>What happens on the <em>call.</em></h2>
+
+      <div class="steplist">
+        <div class="st">
+          <div class="t">T-0 · 00:00</div>
+          <span class="n">01</span>
+          <h4>We meet</h4>
+          <p>Your head of IT, registrar, and one investigator join the call. We confirm jurisdiction, sovereignty requirements, and what you care most about proving.</p>
+        </div>
+        <div class="st">
+          <div class="t">T+05 · 00:05</div>
+          <span class="n">02</span>
+          <h4>Hardware up</h4>
+          <p>We spin up a VaultKeeper instance on your Hetzner/Scaleway/AWS account (or a shared pilot node, your choice). DNS, TLS, witness nodes: all live.</p>
+        </div>
+        <div class="st">
+          <div class="t">T+15 · 00:15</div>
+          <span class="n">03</span>
+          <h4>Ingest three exhibits</h4>
+          <p>Three real files of yours — or three from our demo corpus. Hashed, timestamped, witness-signed, sealed. You watch the custody log in real time.</p>
+        </div>
+        <div class="st">
+          <div class="t">T+30 · 00:30</div>
+          <span class="n">04</span>
+          <h4>Export & verify</h4>
+          <p>We export a tribunal-shaped bundle. You run the clerk validator on your laptop. Either the chain holds, or we've failed the pilot.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Request a slot<small>We'll confirm within 48h</small></div>
+    <div class="sp-body">
+      <h2>Tell us the <em>shape</em> of your institution.</h2>
+      <p class="sp-lead">We schedule two pilots per week. Most are run by our tribunal-operations lead, Dr. Ingrid Velasco; specialist sessions (commissions, ICC-scale, air-gapped) are run by our CTO, Jonas Arvidsson. Fill this in and we'll match you.</p>
+
+      <form class="pilot-form" onsubmit="event.preventDefault();this.querySelector('.submit button').textContent='Sent ✓';this.querySelector('.submit button').disabled=true;">
+        <div class="fhead">
+          <h3>Pilot request — <em>VK-PILOT-2026</em></h3>
+          <span>encrypted in transit · PGP: 3F9A…</span>
+        </div>
+        <div class="row">
+          <div><label>Institution</label><input placeholder="e.g. Kosovo Specialist Chambers" required></div>
+          <div><label>Jurisdiction</label><input placeholder="Country / sovereignty tier" required></div>
+        </div>
+        <div class="row">
+          <div><label>Your role</label><input placeholder="Head of IT · Registrar · Legal" required></div>
+          <div><label>Team size</label><select><option>3–15 (NGO / unit)</option><option>16–50 (mid-tier chamber)</option><option>51–150 (tribunal)</option><option>150+ (ICC-scale)</option></select></div>
+        </div>
+        <div class="row">
+          <div><label>Current system</label><input placeholder="Relativity · Nuix · Google Drive · none"></div>
+          <div><label>Approx. evidence volume</label><input placeholder="~ 8 TB · 40 TB · PB"></div>
+        </div>
+        <div class="row" style="grid-template-columns:1fr">
+          <div><label>What would make the pilot a success for you?</label><textarea placeholder="e.g. 'A sealed export the ICC Registrar's office will accept on first submission.'"></textarea></div>
+        </div>
+        <div class="submit">
+          <span class="note">We'll respond within 48 hours with two timeslot options and a short pre-read. No follow-up automation, no CRM chase.</span>
+          <button class="btn" type="submit">Request pilot <span class="arr">→</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<section class="sp-quote">
+  <div class="wrap">
+    <blockquote>"The pilot call ran thirty-two minutes. The ingest worked. The export validated. We <em>kept</em> the box and went to production ninety days later."</blockquote>
+    <p class="who"><strong>Pieter De Vries</strong> — Registrar, a Dutch prosecution unit (name withheld by request)</p>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="ngos.html"><span class="k">Small teams</span><h5>NGOs in The Hague</h5><p>Three-person shops, €25/month tier.</p></a>
+    <a href="icc.html"><span class="k">Large bodies</span><h5>ICC-scale</h5><p>Multi-site sovereign architecture.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

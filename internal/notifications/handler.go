@@ -55,8 +55,12 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit := 25
+	const maxLimit = 100
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			if parsed > maxLimit {
+				parsed = maxLimit
+			}
 			limit = parsed
 		}
 	}
@@ -174,6 +178,7 @@ func (h *Handler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	var prefs NotificationPreferences
 	if err := json.NewDecoder(r.Body).Decode(&prefs); err != nil {
 		httputil.RespondError(w, http.StatusBadRequest, "invalid request body")

@@ -3,6 +3,7 @@ package integrity
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -41,7 +42,7 @@ func VerifyFileHash(ctx context.Context, reader FileReader, storageKey, expected
 		return "", fmt.Errorf("hash object %q: %w", storageKey, err)
 	}
 
-	if computed != expectedHash {
+	if subtle.ConstantTimeCompare([]byte(computed), []byte(expectedHash)) != 1 {
 		return computed, fmt.Errorf("hash mismatch for %q: expected %s, got %s", storageKey, expectedHash, computed)
 	}
 

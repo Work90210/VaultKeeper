@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"fmt"
+	"html"
 	"log/slog"
 	"time"
 
@@ -90,7 +91,8 @@ func (s *Service) Notify(ctx context.Context, event NotificationEvent) error {
 				s.logger.Warn("could not resolve email for user, skipping email delivery",
 					"user_id", userID, "error", resolveErr)
 			} else {
-				_ = s.emailer.Send(ctx, email, event.Title, event.Body, event.Body)
+				htmlBody := "<pre>" + html.EscapeString(event.Body) + "</pre>"
+				_ = s.emailer.Send(ctx, email, event.Title, htmlBody, event.Body)
 			}
 		}
 	}
@@ -155,6 +157,21 @@ func (s *Service) resolveRecipients(ctx context.Context, event NotificationEvent
 
 	case EventRetentionExpiring, EventBackupFailed:
 		return s.adminUserIDs, nil
+
+	case EventReportSubmittedForReview, EventReportPublished, EventEvidenceNeedsVerification:
+		return s.repo.GetCaseUserIDs(ctx, event.CaseID)
+
+	case EventSafetyProfileUpdated:
+		if event.TargetUserID != "" {
+			return []string{event.TargetUserID}, nil
+		}
+		return s.repo.GetCaseUserIDs(ctx, event.CaseID)
+
+	case EventAnalysisNoteSuperseded:
+		if event.TargetUserID != "" {
+			return []string{event.TargetUserID}, nil
+		}
+		return nil, nil
 
 	default:
 		s.logger.Warn("unknown notification event type", "type", event.Type)

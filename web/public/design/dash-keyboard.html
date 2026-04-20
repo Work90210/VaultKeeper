@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Keyboard — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--paper);border:1px solid var(--line-2);box-shadow:0 1px 0 rgba(20,17,12,.06);font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--ink);letter-spacing:0}
+.kb-group{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--paper)}
+@media (max-width:820px){.kb-group{grid-template-columns:1fr}}
+.kb-col{padding:24px 26px;border-right:1px solid var(--line)}
+.kb-col:last-child{border-right:none}
+@media (max-width:820px){.kb-col{border-right:none;border-bottom:1px solid var(--line)}.kb-col:last-child{border-bottom:none}}
+.kb-col h4{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.kb-row{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.kb-row:last-child{border-bottom:none}
+.kb-row .l{font-size:13.5px;color:var(--ink-2)}
+.kb-row .l small{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+.kb-keys{display:flex;gap:4px;align-items:center}
+.kb-keys .sep{font-size:10px;color:var(--muted);padding:0 2px}
+
+/* Command palette */
+.pal{max-width:640px;margin:0 auto;background:var(--paper);border:1px solid var(--line-2);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden}
+.pal .top{padding:16px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+.pal .top svg{color:var(--muted)}
+.pal .top input{flex:1;border:none;outline:none;background:none;font:inherit;font-family:"Fraunces",serif;font-size:22px;letter-spacing:-.01em;color:var(--ink)}
+.pal .top .hk{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);letter-spacing:.04em}
+.pal .sec{padding:6px 20px 4px;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:0}
+.pal .item{display:grid;grid-template-columns:22px 1fr auto;gap:14px;align-items:center;padding:12px 20px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--line)}
+.pal .item:last-child{border-bottom:none}
+.pal .item:hover,.pal .item.sel{background:var(--bg-2)}
+.pal .item.sel{background:var(--ink);color:var(--bg)}
+.pal .item.sel .k,.pal .item.sel .sub{color:var(--muted-2)}
+.pal .item.sel kbd{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.16);color:var(--bg)}
+.pal .item .ic{width:22px;height:22px;border-radius:5px;background:var(--bg-2);display:grid;place-items:center;font-family:"Fraunces",serif;font-size:13px;color:var(--accent)}
+.pal .item.sel .ic{background:rgba(228,164,135,.2);color:var(--accent-soft)}
+.pal .item .t{line-height:1.2;font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.005em}
+.pal .item .sub{display:block;font-size:11.5px;color:var(--muted);font-family:"Inter",sans-serif;margin-top:2px}
+.pal .foot{padding:10px 20px;display:flex;justify-content:space-between;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);letter-spacing:.04em;background:var(--bg-2);border-top:1px solid var(--line)}
+
+/* Cheatsheet overlay */
+.cheat-stage{position:relative;background:rgba(20,17,12,.55);border-radius:var(--radius);overflow:hidden;padding:40px;backdrop-filter:blur(2px)}
+.cheat{background:var(--paper);border:1px solid var(--line-2);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden}
+.cheat-h{padding:18px 22px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;border-bottom:1px solid var(--line)}
+.cheat-h .ic{width:28px;height:28px;border-radius:8px;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-family:"Fraunces",serif;font-size:14px}
+.cheat-h .t{font-family:"Fraunces",serif;font-size:20px;letter-spacing:-.01em}
+.cheat-h .t em{color:var(--accent);font-style:italic}
+.cheat-h .close{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.04em}
+</style>
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('overview', `<a href="dash.html">Workspace</a><span class="sep">/</span><span class="here">Keyboard · ⌘K</span>`);
+
+document.getElementById('d-content').innerHTML = `
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Keyboard · command layer</span>
+      <h1>Hands on the <em>keys</em></h1>
+      <p class="sub">Investigators touch this app eight hours a day. Every destination is two keys away; every signed action is three. The command palette is not a demo — it's the load-bearing navigation for everyone past their first week.</p>
+    </div>
+    <div class="actions">
+      <span style="display:flex;gap:6px;align-items:center"><kbd>⌘</kbd><kbd>K</kbd></span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.04em">always open</span>
+    </div>
+  </section>
+
+  <div style="padding:40px 0;background:linear-gradient(135deg,var(--bg-2),var(--paper));border-radius:var(--radius);border:1px solid var(--line);margin-bottom:32px">
+    <div class="pal">
+      <div class="top">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/></svg>
+        <input value="sea"/>
+        <span class="hk">⌘K</span>
+      </div>
+      <div class="sec">Jump to</div>
+      <div class="item sel"><span class="ic">⌕</span><div><span class="t">Search</span><span class="sub">Cross-case semantic · on-box embeddings</span></div><span><kbd>⏎</kbd></span></div>
+      <div class="item"><span class="ic">◩</span><div><span class="t">Sealed bundles</span><span class="sub">Disclosures → Bundles</span></div><span><kbd>G</kbd> <kbd>D</kbd></span></div>
+      <div class="sec">Actions · on this case</div>
+      <div class="item"><span class="ic">↑</span><div><span class="t">Seal new exhibit…</span><span class="sub">client-side hash + timestamp</span></div><span><kbd>N</kbd> <kbd>E</kbd></span></div>
+      <div class="item"><span class="ic">¶</span><div><span class="t">Seal analysis note…</span><span class="sub">hypothesis / counter-evidence</span></div><span><kbd>N</kbd> <kbd>N</kbd></span></div>
+      <div class="item"><span class="ic">◉</span><div><span class="t">Add witness (pseudonymous)…</span><span class="sub">triggers mapping-vault unseal</span></div><span><kbd>N</kbd> <kbd>W</kbd></span></div>
+      <div class="sec">Recently opened</div>
+      <div class="item"><span class="ic">E</span><div><span class="t">E-0912 · W-0144 sworn statement v3</span><span class="sub">draft · 14:21 today</span></div><span><kbd>⌥</kbd> <kbd>1</kbd></span></div>
+      <div class="foot"><span>38 commands · ↑↓ to move · ⏎ to select · esc to close</span><span>writes a SEARCH event to the chain</span></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:32px">
+    <div class="kb-group">
+      <div class="kb-col">
+        <h4>Navigation · go to</h4>
+        <div class="kb-row"><div class="l">Command palette<small>Anything, fuzzy</small></div><span class="kb-keys"><kbd>⌘</kbd><kbd>K</kbd></span></div>
+        <div class="kb-row"><div class="l">Overview</div><span class="kb-keys"><kbd>G</kbd><kbd>O</kbd></span></div>
+        <div class="kb-row"><div class="l">Cases</div><span class="kb-keys"><kbd>G</kbd><kbd>C</kbd></span></div>
+        <div class="kb-row"><div class="l">Evidence</div><span class="kb-keys"><kbd>G</kbd><kbd>E</kbd></span></div>
+        <div class="kb-row"><div class="l">Witnesses</div><span class="kb-keys"><kbd>G</kbd><kbd>W</kbd></span></div>
+        <div class="kb-row"><div class="l">Audit log</div><span class="kb-keys"><kbd>G</kbd><kbd>A</kbd></span></div>
+      </div>
+      <div class="kb-col">
+        <h4>Navigation · within a case</h4>
+        <div class="kb-row"><div class="l">Switch tab left / right</div><span class="kb-keys"><kbd>[</kbd><span class="sep">·</span><kbd>]</kbd></span></div>
+        <div class="kb-row"><div class="l">Previous / next exhibit</div><span class="kb-keys"><kbd>J</kbd><span class="sep">·</span><kbd>K</kbd></span></div>
+        <div class="kb-row"><div class="l">Back to case</div><span class="kb-keys"><kbd>⌘</kbd><kbd>↑</kbd></span></div>
+        <div class="kb-row"><div class="l">Recent exhibit 1–9</div><span class="kb-keys"><kbd>⌥</kbd><kbd>1..9</kbd></span></div>
+        <div class="kb-row"><div class="l">Toggle sidebar</div><span class="kb-keys"><kbd>⌘</kbd><kbd>\\</kbd></span></div>
+        <div class="kb-row"><div class="l">Focus mode</div><span class="kb-keys"><kbd>F</kbd></span></div>
+      </div>
+    </div>
+    <div class="kb-group">
+      <div class="kb-col">
+        <h4>Actions · seal events</h4>
+        <div class="kb-row"><div class="l">New exhibit</div><span class="kb-keys"><kbd>N</kbd><kbd>E</kbd></span></div>
+        <div class="kb-row"><div class="l">New note</div><span class="kb-keys"><kbd>N</kbd><kbd>N</kbd></span></div>
+        <div class="kb-row"><div class="l">New witness</div><span class="kb-keys"><kbd>N</kbd><kbd>W</kbd></span></div>
+        <div class="kb-row"><div class="l">New disclosure bundle</div><span class="kb-keys"><kbd>N</kbd><kbd>D</kbd></span></div>
+        <div class="kb-row"><div class="l">Seal & countersign<small>confirms & writes block</small></div><span class="kb-keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>S</kbd></span></div>
+        <div class="kb-row"><div class="l">Request countersign from…</div><span class="kb-keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>R</kbd></span></div>
+      </div>
+      <div class="kb-col">
+        <h4>Redaction editor</h4>
+        <div class="kb-row"><div class="l">Mark redaction<small>on selection</small></div><span class="kb-keys"><kbd>⌘</kbd><kbd>R</kbd></span></div>
+        <div class="kb-row"><div class="l">Pseudonymise</div><span class="kb-keys"><kbd>⌘</kbd><kbd>P</kbd></span></div>
+        <div class="kb-row"><div class="l">Geo-fuzz selection</div><span class="kb-keys"><kbd>⌘</kbd><kbd>G</kbd></span></div>
+        <div class="kb-row"><div class="l">Add gloss / note</div><span class="kb-keys"><kbd>⌘</kbd><kbd>'</kbd></span></div>
+        <div class="kb-row"><div class="l">Navigate marks</div><span class="kb-keys"><kbd>⌥</kbd><kbd>↑</kbd><span class="sep">·</span><kbd>⌥</kbd><kbd>↓</kbd></span></div>
+        <div class="kb-row"><div class="l">Revert mark under cursor</div><span class="kb-keys"><kbd>⌘</kbd><kbd>Z</kbd></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:32px">
+    <div class="kb-group">
+      <div class="kb-col">
+        <h4>Selection · rows & cards</h4>
+        <div class="kb-row"><div class="l">Select row / card</div><span class="kb-keys"><kbd>X</kbd></span></div>
+        <div class="kb-row"><div class="l">Select all visible</div><span class="kb-keys"><kbd>⌘</kbd><kbd>A</kbd></span></div>
+        <div class="kb-row"><div class="l">Invert selection</div><span class="kb-keys"><kbd>⌘</kbd><kbd>I</kbd></span></div>
+        <div class="kb-row"><div class="l">Bulk add to bundle</div><span class="kb-keys"><kbd>B</kbd></span></div>
+        <div class="kb-row"><div class="l">Tag selected…</div><span class="kb-keys"><kbd>T</kbd></span></div>
+      </div>
+      <div class="kb-col">
+        <h4>View · this page</h4>
+        <div class="kb-row"><div class="l">Refresh (writes READ event)</div><span class="kb-keys"><kbd>R</kbd></span></div>
+        <div class="kb-row"><div class="l">Grid / table</div><span class="kb-keys"><kbd>V</kbd></span></div>
+        <div class="kb-row"><div class="l">Dark mode</div><span class="kb-keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd></span></div>
+        <div class="kb-row"><div class="l">Print-ready filing view</div><span class="kb-keys"><kbd>⌘</kbd><kbd>P</kbd></span></div>
+        <div class="kb-row"><div class="l">Cheatsheet</div><span class="kb-keys"><kbd>?</kbd></span></div>
+      </div>
+    </div>
+    <div class="kb-group">
+      <div class="kb-col">
+        <h4>Search</h4>
+        <div class="kb-row"><div class="l">Focus search bar</div><span class="kb-keys"><kbd>/</kbd></span></div>
+        <div class="kb-row"><div class="l">Open cross-case search</div><span class="kb-keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>F</kbd></span></div>
+        <div class="kb-row"><div class="l">Toggle semantic / lexical</div><span class="kb-keys"><kbd>⌘</kbd><kbd>L</kbd></span></div>
+        <div class="kb-row"><div class="l">Jump to hit 1–9</div><span class="kb-keys"><kbd>1</kbd>..<kbd>9</kbd></span></div>
+      </div>
+      <div class="kb-col">
+        <h4>Safety</h4>
+        <div class="kb-row"><div class="l">Panic-lock workstation<small>all tabs, re-auth on return</small></div><span class="kb-keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd></span></div>
+        <div class="kb-row"><div class="l">Duress unlock<small>opens decoy vault silently</small></div><span class="kb-keys"><kbd>hold ⌘</kbd><kbd>⇧</kbd><kbd>ESC</kbd></span></div>
+        <div class="kb-row"><div class="l">Sign out all sessions</div><span class="kb-keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>Q</kbd></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cheat-stage">
+    <div class="cheat" style="max-width:720px;margin:0 auto">
+      <div class="cheat-h">
+        <span class="ic">?</span>
+        <span class="t">Keyboard <em>cheatsheet</em> — overlay</span>
+        <span class="close">press <kbd>?</kbd> or <kbd>esc</kbd> to dismiss</span>
+      </div>
+      <div style="padding:22px;display:grid;grid-template-columns:1fr 1fr;gap:22px">
+        <div>
+          <h4 style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Most-used</h4>
+          <div class="kb-row" style="padding:7px 0"><div class="l">Command palette</div><span class="kb-keys"><kbd>⌘</kbd><kbd>K</kbd></span></div>
+          <div class="kb-row" style="padding:7px 0"><div class="l">Seal & countersign</div><span class="kb-keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>S</kbd></span></div>
+          <div class="kb-row" style="padding:7px 0"><div class="l">Mark redaction</div><span class="kb-keys"><kbd>⌘</kbd><kbd>R</kbd></span></div>
+          <div class="kb-row" style="padding:7px 0;border:none"><div class="l">Panic lock</div><span class="kb-keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd></span></div>
+        </div>
+        <div>
+          <h4 style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">What you pressed</h4>
+          <p style="font-size:13px;color:var(--muted);line-height:1.55">Your last 24h of keyboard activity is written to the audit log as a single hourly summary — no keystroke content, only counts, so you can track your own pace.</p>
+          <div style="margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--bg-2);display:flex;gap:18px;justify-content:space-between"><span><span style="font-family:'Fraunces',serif;font-size:26px;color:var(--accent)">412</span><small style="display:block;font-size:11px;color:var(--muted)">palette opens</small></span><span><span style="font-family:'Fraunces',serif;font-size:26px">38</span><small style="display:block;font-size:11px;color:var(--muted)">seal events</small></span><span><span style="font-family:'Fraunces',serif;font-size:26px">0</span><small style="display:block;font-size:11px;color:var(--muted)">panic locks</small></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+`;
+</script></body></html>

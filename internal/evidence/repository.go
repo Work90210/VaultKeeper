@@ -156,6 +156,72 @@ func (r *PGRepository) FindByID(ctx context.Context, id uuid.UUID) (EvidenceItem
 	return e, nil
 }
 
+// FindByIDActive fetches a non-destroyed evidence item by ID. It adds a
+// `destroyed_at IS NULL` predicate so destroyed records are never surfaced
+// through normal service paths. Use FindByIDIncludingDestroyed for GDPR or
+// destruction flows that require idempotency on already-destroyed records.
+func (r *PGRepository) FindByIDActive(ctx context.Context, id uuid.UUID) (EvidenceItem, error) {
+	query := fmt.Sprintf(`SELECT %s FROM evidence_items WHERE id = $1 AND destroyed_at IS NULL`, evidenceColumns)
+	e, err := scanEvidence(r.pool.QueryRow(ctx, query, id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EvidenceItem{}, ErrNotFound
+		}
+		return EvidenceItem{}, fmt.Errorf("find active evidence by id: %w", err)
+	}
+	return e, nil
+}
+
+// FindByIDIncludingDestroyed fetches an evidence item by ID with no
+// case_id scope and no destroyed_at filter. Used only by internal GDPR
+// and destruction flows that must locate a record regardless of its state.
+// Do NOT use this from any path reachable by an unauthenticated or
+// cross-case caller.
+func (r *PGRepository) FindByIDIncludingDestroyed(ctx context.Context, id uuid.UUID) (EvidenceItem, error) {
+	query := fmt.Sprintf(`SELECT %s FROM evidence_items WHERE id = $1`, evidenceColumns)
+	e, err := scanEvidence(r.pool.QueryRow(ctx, query, id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EvidenceItem{}, ErrNotFound
+		}
+		return EvidenceItem{}, fmt.Errorf("find evidence by id (including destroyed): %w", err)
+	}
+	return e, nil
+}
+
+// FindByIDScoped fetches an active (not destroyed) evidence item and
+// enforces that it belongs to the given case. Returns ErrNotFound when
+// the ID does not exist, belongs to a different case, or has been
+// destroyed. This is the secure variant that prevents cross-case IDOR.
+func (r *PGRepository) FindByIDScoped(ctx context.Context, caseID, id uuid.UUID) (EvidenceItem, error) {
+	query := fmt.Sprintf(`SELECT %s FROM evidence_items WHERE id = $1 AND case_id = $2 AND destroyed_at IS NULL`, evidenceColumns)
+	e, err := scanEvidence(r.pool.QueryRow(ctx, query, id, caseID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EvidenceItem{}, ErrNotFound
+		}
+		return EvidenceItem{}, fmt.Errorf("find evidence by id (scoped): %w", err)
+	}
+	return e, nil
+}
+
+// findCaseIDForEvidence returns only the case_id for an evidence item.
+// Used internally to bootstrap case_id when the caller only has an
+// evidence ID (e.g. the /api/evidence/{id} route which has no caseID
+// in the URL). After obtaining the caseID, callers should validate
+// membership before using it to scope further queries.
+func (r *PGRepository) findCaseIDForEvidence(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	var caseID uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT case_id FROM evidence_items WHERE id = $1`, id).Scan(&caseID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrNotFound
+		}
+		return uuid.Nil, fmt.Errorf("find case_id for evidence %s: %w", id, err)
+	}
+	return caseID, nil
+}
+
 func (r *PGRepository) FindByCase(ctx context.Context, filter EvidenceFilter, page Pagination) ([]EvidenceItem, int, error) {
 	page = ClampPagination(page)
 
@@ -200,7 +266,7 @@ func (r *PGRepository) FindByCase(ctx context.Context, filter EvidenceFilter, pa
 		conditions = append(conditions, fmt.Sprintf(
 			"(e.filename ILIKE $%d OR e.original_name ILIKE $%d OR e.description ILIKE $%d)",
 			argIdx, argIdx, argIdx))
-		args = append(args, "%"+filter.SearchQuery+"%")
+		args = append(args, "%"+escapeLikePattern(filter.SearchQuery)+"%")
 		argIdx++
 	}
 
@@ -435,12 +501,16 @@ func (r *PGRepository) IncrementEvidenceCounter(ctx context.Context, caseID uuid
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	// Advisory lock per case for gap-free numbering
-	lockID := int64(caseID[0])<<56 | int64(caseID[1])<<48 | int64(caseID[2])<<40 |
-		int64(caseID[3])<<32 | int64(caseID[4])<<24 | int64(caseID[5])<<16 |
-		int64(caseID[6])<<8 | int64(caseID[7])
-	// Use a different lock namespace than custody (offset by 1)
-	lockID = lockID ^ 0x4556_4944 // "EVID"
+	// Advisory lock per case for gap-free numbering.
+	// XOR-fold the full 16-byte UUID into a 64-bit lock ID to avoid
+	// collisions that would occur by truncating to the first 8 bytes.
+	lockID := int64(0)
+	for i := 0; i < 8; i++ {
+		lockID |= int64(caseID[i]^caseID[i+8]) << (56 - i*8)
+	}
+	// XOR with a namespace constant to keep this lock distinct from the
+	// custody advisory lock which uses the same UUID.
+	lockID ^= 0x4556_4944 // "EVID"
 
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, lockID); err != nil {
 		return 0, fmt.Errorf("lock evidence counter: %w", err)
@@ -484,9 +554,9 @@ func (r *PGRepository) FindVersionHistory(ctx context.Context, evidenceID uuid.U
 	}
 
 	query := fmt.Sprintf(
-		`SELECT %s FROM evidence_items WHERE (id = $1 OR parent_id = $1) ORDER BY version ASC`,
+		`SELECT %s FROM evidence_items WHERE (id = $1 OR parent_id = $1) AND case_id = $2 ORDER BY version ASC`,
 		evidenceColumns)
-	rows, err := r.pool.Query(ctx, query, rootID)
+	rows, err := r.pool.Query(ctx, query, rootID, e.CaseID)
 	if err != nil {
 		return nil, fmt.Errorf("find version history: %w", err)
 	}
@@ -829,14 +899,62 @@ func (r *PGRepository) GetManagementView(ctx context.Context, evidenceID uuid.UU
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	finalized, err := r.ListFinalizedRedactions(ctx, evidenceID)
+	// Run both inner queries on the transaction to honour REPEATABLE READ isolation.
+	finalizedRows, err := tx.Query(ctx,
+		`SELECT e.id, COALESCE(e.evidence_number, ''), COALESCE(e.redaction_name, ''),
+		        COALESCE(e.redaction_purpose, 'internal_review'), COALESCE(e.redaction_area_count, 0),
+		        COALESCE(e.uploaded_by_name, e.uploaded_by::text), COALESCE(e.redaction_finalized_at, e.created_at)
+		 FROM evidence_items e
+		 WHERE e.parent_id = $1 AND e.redaction_name IS NOT NULL
+		 ORDER BY e.created_at DESC`,
+		evidenceID,
+	)
 	if err != nil {
-		return RedactionManagementView{}, err
+		return RedactionManagementView{}, fmt.Errorf("list finalized redactions: %w", err)
+	}
+	defer finalizedRows.Close()
+
+	var finalized []FinalizedRedaction
+	for finalizedRows.Next() {
+		var f FinalizedRedaction
+		if err := finalizedRows.Scan(&f.ID, &f.EvidenceNumber, &f.Name, &f.Purpose, &f.AreaCount, &f.Author, &f.FinalizedAt); err != nil {
+			return RedactionManagementView{}, fmt.Errorf("scan finalized redaction: %w", err)
+		}
+		finalized = append(finalized, f)
+	}
+	if err := finalizedRows.Err(); err != nil {
+		return RedactionManagementView{}, fmt.Errorf("iterate finalized redactions: %w", err)
+	}
+	finalizedRows.Close()
+	if finalized == nil {
+		finalized = []FinalizedRedaction{}
 	}
 
-	drafts, err := r.ListDrafts(ctx, evidenceID)
+	draftRows, err := tx.Query(ctx,
+		`SELECT id, evidence_id, case_id, name, purpose, area_count, created_by, status, last_saved_at, created_at
+		 FROM redaction_drafts WHERE evidence_id = $1 AND status != 'discarded'
+		 ORDER BY last_saved_at DESC`,
+		evidenceID,
+	)
 	if err != nil {
-		return RedactionManagementView{}, err
+		return RedactionManagementView{}, fmt.Errorf("list drafts: %w", err)
+	}
+	defer draftRows.Close()
+
+	var drafts []RedactionDraft
+	for draftRows.Next() {
+		var d RedactionDraft
+		if err := draftRows.Scan(&d.ID, &d.EvidenceID, &d.CaseID, &d.Name, &d.Purpose, &d.AreaCount, &d.CreatedBy, &d.Status, &d.LastSavedAt, &d.CreatedAt); err != nil {
+			return RedactionManagementView{}, fmt.Errorf("scan draft row: %w", err)
+		}
+		drafts = append(drafts, d)
+	}
+	if err := draftRows.Err(); err != nil {
+		return RedactionManagementView{}, fmt.Errorf("iterate drafts: %w", err)
+	}
+	draftRows.Close()
+	if drafts == nil {
+		drafts = []RedactionDraft{}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -992,6 +1110,69 @@ func (r *PGRepository) DestroyWithAuthority(ctx context.Context, id uuid.UUID, a
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+// DestroyWithLegalHoldCheck atomically verifies that the owning case is NOT
+// under legal hold and then marks the evidence item as destroyed — all inside
+// a single serializable transaction. The SELECT ... FOR SHARE on the cases row
+// means a concurrent SetLegalHold(true) must wait until this transaction
+// commits or rolls back, closing the TOCTOU window that exists when the check
+// and the destruction are two separate statements.
+//
+// Returns ErrLegalHoldActive if the case is under hold (transaction is rolled
+// back). Returns ErrNotFound if the evidence row is absent or already
+// destroyed.
+func (r *PGRepository) DestroyWithLegalHoldCheck(ctx context.Context, id uuid.UUID, caseID uuid.UUID, authority, actorID string) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	// Acquire a shared lock on the cases row. This prevents a concurrent
+	// UPDATE cases SET legal_hold = true from committing until we're done.
+	var legalHold bool
+	err = tx.QueryRow(ctx,
+		`SELECT legal_hold FROM cases WHERE id = $1 FOR SHARE`, caseID,
+	).Scan(&legalHold)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("destroy with legal hold check: case not found")
+		}
+		return fmt.Errorf("destroy with legal hold check: read legal hold: %w", err)
+	}
+	if legalHold {
+		err = ErrLegalHoldActive
+		return err
+	}
+
+	// Legal hold is clear — destroy the evidence item in the same transaction.
+	var tag pgconn.CommandTag
+	tag, err = tx.Exec(ctx,
+		`UPDATE evidence_items
+		 SET storage_key = NULL,
+		     destroyed_at = now(),
+		     destroyed_by = $1,
+		     destruction_authority = $2
+		 WHERE id = $3 AND destroyed_at IS NULL`,
+		actorID, authority, id,
+	)
+	if err != nil {
+		return fmt.Errorf("destroy with legal hold check: update evidence: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		err = ErrNotFound
+		return err
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("destroy with legal hold check: commit: %w", err)
 	}
 	return nil
 }

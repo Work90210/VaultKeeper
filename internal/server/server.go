@@ -21,6 +21,7 @@ func NewHTTPServer(cfg config.Config, logger *slog.Logger, version string, jwks 
 	router.Use(logging.Middleware(logger))
 	router.Use(corsMiddleware(cfg.CORSOrigins, cfg.AppURL))
 	router.Use(chimiddleware.Recoverer)
+	router.Use(securityHeadersMiddleware)
 
 	authMiddleware := auth.NewMiddleware(jwks, cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, logger, audit)
 	router.Use(authMiddleware.Authenticate)
@@ -93,6 +94,18 @@ func corsMiddleware(origins []string, appURL string) func(http.Handler) http.Han
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		// Strict-Transport-Security and Referrer-Policy are set by Caddy (the
+		// TLS-terminating reverse proxy). Setting them here would create
+		// duplicate headers and prevent Caddy from being the single source of
+		// truth for transport-level security policy.
+		next.ServeHTTP(w, r)
+	})
 }
 
 func isOriginAllowed(origin string, allowed map[string]struct{}) bool {

@@ -41,10 +41,11 @@ type Room struct {
 	logger     *slog.Logger
 	onEmpty    func(uuid.UUID)
 
-	mu      sync.RWMutex
-	clients map[*Client]struct{}
-	updates [][]byte
-	dirty   bool
+	mu               sync.RWMutex
+	clients          map[*Client]struct{}
+	updates          [][]byte
+	totalUpdateBytes int
+	dirty            bool
 	closed  bool
 	stopCh  chan struct{}
 }
@@ -153,9 +154,17 @@ func (r *Room) HandleMessage(_ context.Context, sender *Client, payload []byte) 
 
 	switch msg[0] {
 	case msgTypeSync:
+		if len(msg) < minSyncMessageSize {
+			return nil // drop trivially small sync messages
+		}
 		r.appendUpdate(msg)
 		r.broadcast(sender, msg)
 	case msgTypeAwareness:
+		const maxAwarenessSize = 8 * 1024 // 8 KB
+		if len(msg) > maxAwarenessSize {
+			r.logger.Warn("awareness message too large, dropping", "size", len(msg))
+			return nil
+		}
 		r.broadcast(sender, msg)
 	default:
 		r.logger.Debug("ignoring unknown message type", "type", msg[0])
@@ -164,10 +173,25 @@ func (r *Room) HandleMessage(_ context.Context, sender *Client, payload []byte) 
 	return nil
 }
 
+const (
+	maxTotalUpdateBytes = 50 * 1024 * 1024 // 50 MB
+	maxUpdatesPerRoom   = 10000            // prevent slice-header memory exhaustion from tiny messages
+	minSyncMessageSize  = 2                // msgType byte + at least 1 byte of payload
+)
+
 func (r *Room) appendUpdate(msg []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if len(r.updates) >= maxUpdatesPerRoom {
+		r.logger.Warn("update count limit reached, dropping update", "evidence_id", r.evidenceID)
+		return
+	}
+	if r.totalUpdateBytes+len(msg) > maxTotalUpdateBytes {
+		r.logger.Warn("update buffer full, dropping update", "evidence_id", r.evidenceID)
+		return
+	}
 	r.updates = append(r.updates, msg)
+	r.totalUpdateBytes += len(msg)
 	r.dirty = true
 }
 

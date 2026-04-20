@@ -57,7 +57,7 @@ func (r *PGInvitationRepository) GetByTokenHash(ctx context.Context, hash string
 		`SELECT id, organization_id, email, role, token_hash, status, expires_at,
 		        invited_by, accepted_by, accepted_at, created_at
 		 FROM organization_invitations
-		 WHERE token_hash = $1`,
+		 WHERE token_hash = $1 AND status = 'pending' AND expires_at > now()`,
 		hash,
 	).Scan(&inv.ID, &inv.OrganizationID, &inv.Email, &inv.Role,
 		&inv.TokenHash, &inv.Status, &inv.ExpiresAt,

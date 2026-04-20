@@ -1,7 +1,6 @@
 package backup
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	crypto_rand "crypto/rand"
@@ -67,10 +66,13 @@ func deriveKey(passphrase []byte, salt []byte) []byte {
 	return pbkdf2.Key(passphrase, salt, pbkdf2Iterations, 32, sha256.New)
 }
 
-// Encrypt reads all plaintext from r, encrypts it with AES-256-GCM, and
-// returns a reader over the ciphertext (header + encrypted chunks).
-// Each chunk is prefixed by its 4-byte big-endian length so the decrypter
-// knows where one chunk ends and the next begins.
+// Encrypt reads plaintext from r, encrypts it with AES-256-GCM, and returns
+// a streaming reader over the ciphertext (header + encrypted chunks).
+//
+// The encryption runs in a background goroutine writing to an io.Pipe so that
+// the caller can consume ciphertext without buffering the entire plaintext or
+// ciphertext in memory. Each chunk is prefixed by its 4-byte big-endian length
+// so the decrypter knows where one chunk ends and the next begins.
 func Encrypt(r io.Reader, key []byte) (io.Reader, error) {
 	if len(key) == 0 {
 		return nil, errors.New("encryption key must not be empty")
@@ -87,40 +89,58 @@ func Encrypt(r io.Reader, key []byte) (io.Reader, error) {
 	// cipher.NewGCM cannot fail with a standard AES block cipher.
 	gcm := mustGCM(derived)
 
-	var buf bytes.Buffer
-	// writeHeader writes to bytes.Buffer which never fails.
-	_ = writeHeader(&buf, salt)
+	pr, pw := io.Pipe()
 
-	chunk := make([]byte, chunkSize)
-	for {
-		n, readErr := io.ReadFull(r, chunk)
-		if n > 0 {
-			nonce := make([]byte, nonceLen)
-			if _, err := io.ReadFull(randReader, nonce); err != nil {
-				return nil, fmt.Errorf("generate nonce: %w", err)
-			}
-			sealed := gcm.Seal(nonce, nonce, chunk[:n], nil)
-
-			// Write chunk length prefix (4 bytes big-endian).
-			lenBuf := make([]byte, 4)
-			binary.BigEndian.PutUint32(lenBuf, uint32(len(sealed)))
-			// bytes.Buffer.Write never fails.
-			buf.Write(lenBuf)
-			buf.Write(sealed)
+	go func() {
+		// Write the fixed-size plaintext header.
+		if err := writeHeader(pw, salt); err != nil {
+			pw.CloseWithError(fmt.Errorf("write header: %w", err))
+			return
 		}
-		if readErr != nil {
-			if errors.Is(readErr, io.EOF) || errors.Is(readErr, io.ErrUnexpectedEOF) {
-				break
-			}
-			return nil, fmt.Errorf("read plaintext: %w", readErr)
-		}
-	}
 
-	return bytes.NewReader(buf.Bytes()), nil
+		chunk := make([]byte, chunkSize)
+		lenBuf := make([]byte, 4)
+		for {
+			n, readErr := io.ReadFull(r, chunk)
+			if n > 0 {
+				nonce := make([]byte, nonceLen)
+				if _, err := io.ReadFull(randReader, nonce); err != nil {
+					pw.CloseWithError(fmt.Errorf("generate nonce: %w", err))
+					return
+				}
+				sealed := gcm.Seal(nonce, nonce, chunk[:n], nil)
+
+				// Write 4-byte big-endian chunk length prefix.
+				binary.BigEndian.PutUint32(lenBuf, uint32(len(sealed)))
+				if _, err := pw.Write(lenBuf); err != nil {
+					pw.CloseWithError(err)
+					return
+				}
+				if _, err := pw.Write(sealed); err != nil {
+					pw.CloseWithError(err)
+					return
+				}
+			}
+			if readErr != nil {
+				if errors.Is(readErr, io.EOF) || errors.Is(readErr, io.ErrUnexpectedEOF) {
+					break
+				}
+				pw.CloseWithError(fmt.Errorf("read plaintext: %w", readErr))
+				return
+			}
+		}
+
+		pw.Close()
+	}()
+
+	return pr, nil
 }
 
-// Decrypt reads ciphertext produced by Encrypt and returns a reader over
-// the recovered plaintext.
+// Decrypt reads ciphertext produced by Encrypt and returns a streaming reader
+// over the recovered plaintext. The header is validated synchronously; chunk
+// decryption then runs in a background goroutine writing to an io.Pipe so
+// that the caller can consume plaintext without buffering the entire backup
+// in memory.
 func Decrypt(r io.Reader, key []byte) (io.Reader, error) {
 	if len(key) == 0 {
 		return nil, errors.New("decryption key must not be empty")
@@ -137,40 +157,52 @@ func Decrypt(r io.Reader, key []byte) (io.Reader, error) {
 	// cipher.NewGCM cannot fail with a standard AES block cipher.
 	gcm := mustGCM(derived)
 
-	var plaintext bytes.Buffer
-	lenBuf := make([]byte, 4)
-	for {
-		if _, err := io.ReadFull(r, lenBuf); err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-				break
+	pr, pw := io.Pipe()
+
+	go func() {
+		defer pw.Close()
+
+		lenBuf := make([]byte, 4)
+		for {
+			if _, err := io.ReadFull(r, lenBuf); err != nil {
+				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+					return
+				}
+				pw.CloseWithError(fmt.Errorf("read chunk length: %w", err))
+				return
 			}
-			return nil, fmt.Errorf("read chunk length: %w", err)
-		}
-		chunkLen := binary.BigEndian.Uint32(lenBuf)
-		const maxChunkLen = 1 << 20 // 1 MiB — well above 64 KiB chunk + GCM overhead
-		if chunkLen > maxChunkLen {
-			return nil, fmt.Errorf("encrypted chunk length %d exceeds maximum %d", chunkLen, maxChunkLen)
-		}
-		sealed := make([]byte, chunkLen)
-		if _, err := io.ReadFull(r, sealed); err != nil {
-			return nil, fmt.Errorf("read encrypted chunk: %w", err)
-		}
+			chunkLen := binary.BigEndian.Uint32(lenBuf)
+			const maxChunkLen = 1 << 20 // 1 MiB — well above 64 KiB chunk + GCM overhead
+			if chunkLen > maxChunkLen {
+				pw.CloseWithError(fmt.Errorf("encrypted chunk length %d exceeds maximum %d", chunkLen, maxChunkLen))
+				return
+			}
+			sealed := make([]byte, chunkLen)
+			if _, err := io.ReadFull(r, sealed); err != nil {
+				pw.CloseWithError(fmt.Errorf("read encrypted chunk: %w", err))
+				return
+			}
 
-		if len(sealed) < nonceLen {
-			return nil, errors.New("encrypted chunk too short for nonce")
-		}
-		nonce := sealed[:nonceLen]
-		ciphertext := sealed[nonceLen:]
+			if len(sealed) < nonceLen {
+				pw.CloseWithError(errors.New("encrypted chunk too short for nonce"))
+				return
+			}
+			nonce := sealed[:nonceLen]
+			ciphertext := sealed[nonceLen:]
 
-		decrypted, err := gcm.Open(nil, nonce, ciphertext, nil)
-		if err != nil {
-			return nil, fmt.Errorf("decrypt chunk: %w", err)
+			decrypted, err := gcm.Open(nil, nonce, ciphertext, nil)
+			if err != nil {
+				pw.CloseWithError(fmt.Errorf("decrypt chunk: %w", err))
+				return
+			}
+			if _, err := pw.Write(decrypted); err != nil {
+				// Pipe reader was closed; stop silently.
+				return
+			}
 		}
-		// bytes.Buffer.Write never fails.
-		plaintext.Write(decrypted)
-	}
+	}()
 
-	return bytes.NewReader(plaintext.Bytes()), nil
+	return pr, nil
 }
 
 // mustGCM creates an AES-256-GCM cipher from a 32-byte derived key.

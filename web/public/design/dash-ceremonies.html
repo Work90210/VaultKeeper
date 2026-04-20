@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Key Ceremonies — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+.cer-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:24px}
+.cer-tabs a{padding:14px 20px;font-size:14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;transition:color .15s}
+.cer-tabs a:hover{color:var(--ink)}
+.cer-tabs a.active{color:var(--ink);border-bottom-color:var(--accent);font-weight:500}
+.cer-tabs a .ct{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);margin-left:6px}
+.cer-console{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--paper)}
+.cer-console-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.cer-console-head h3{font-family:"Fraunces",serif;font-weight:400;font-size:22px;letter-spacing:-.01em}
+.cer-console-head h3 em{color:var(--accent);font-style:italic}
+.cer-status{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--line);font-size:13.5px}
+.cer-status .pulse{width:10px;height:10px;border-radius:50%;background:var(--accent);position:relative;flex-shrink:0}
+.cer-status .pulse::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--accent);animation:cer-pulse 2s ease-in-out infinite}
+@keyframes cer-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.3)}}
+.cer-status.complete .pulse{background:var(--ok)}
+.cer-status.complete .pulse::after{border-color:var(--ok);animation:none}
+.cer-status.waiting .pulse{background:var(--muted-2)}
+.cer-status.waiting .pulse::after{border-color:var(--muted-2)}
+.quorum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-bottom:1px solid var(--line)}
+.q-holder{padding:24px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;position:relative}
+.q-holder:last-child{border-right:none}
+.q-holder .q-av{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-family:"Fraunces",serif;font-style:italic;font-size:22px;color:#fff;position:relative}
+.q-holder .q-av .q-ring{position:absolute;inset:-4px;border-radius:50%;border:2.5px solid var(--line-2)}
+.q-holder.authenticated .q-av .q-ring{border-color:var(--ok)}
+.q-holder.pending .q-av .q-ring{border-color:var(--accent);border-style:dashed;animation:q-spin 8s linear infinite}
+.q-holder.offline .q-av .q-ring{border-color:var(--line-2)}
+@keyframes q-spin{to{transform:rotate(360deg)}}
+.q-holder .q-name{font-weight:500;font-size:14px}
+.q-holder .q-hw{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);letter-spacing:.04em}
+.q-holder .q-status{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:11.5px;font-weight:500}
+.q-holder.authenticated .q-status{background:rgba(74,107,58,.1);color:var(--ok)}
+.q-holder.pending .q-status{background:rgba(184,66,28,.1);color:var(--accent)}
+.q-holder.offline .q-status{background:var(--bg-2);color:var(--muted)}
+.q-holder .q-time{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);letter-spacing:.02em}
+.steps-track{display:flex;align-items:center;padding:24px;gap:0}
+.step-node{display:flex;flex-direction:column;align-items:center;gap:8px;flex:0 0 auto;position:relative;z-index:1}
+.step-dot{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;border:2px solid var(--line-2);background:var(--paper);color:var(--muted);transition:all .3s}
+.step-node.done .step-dot{background:var(--ok);border-color:var(--ok);color:#fff}
+.step-node.active .step-dot{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 4px rgba(184,66,28,.15)}
+.step-label{font-size:11px;color:var(--muted);white-space:nowrap;font-family:"JetBrains Mono",monospace;letter-spacing:.02em}
+.step-node.done .step-label,.step-node.active .step-label{color:var(--ink)}
+.step-line{flex:1;height:2px;background:var(--line-2);min-width:20px}
+.step-line.done{background:var(--ok)}
+.cer-log{padding:0;max-height:300px;overflow-y:auto;font-family:"JetBrains Mono",monospace;font-size:12px;background:var(--ink);color:rgba(245,241,232,.7);border-radius:0 0 var(--radius) var(--radius)}
+.cer-log-line{padding:6px 20px;border-bottom:1px solid rgba(245,241,232,.06);display:grid;grid-template-columns:70px 1fr;gap:16px}
+.cer-log-line .ts{color:rgba(245,241,232,.3)}
+.cer-log-line .ev{color:rgba(245,241,232,.7)}
+.cer-log-line .ev em{color:var(--accent-soft);font-style:normal}
+.cer-log-line .ev strong{color:rgba(245,241,232,.95);font-weight:500}
+.hist-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);overflow:hidden;transition:all .2s}
+.hist-card:hover{border-color:var(--accent-soft);box-shadow:var(--shadow-sm)}
+.hist-card-head{padding:18px 22px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}
+.hist-card-body{padding:0 22px 18px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.hist-card-body .hc-kv{display:flex;flex-direction:column;gap:2px}
+.hist-card-body .hc-kv .k{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.hist-card-body .hc-kv .v{font-size:13px;color:var(--ink-2)}
+.hist-card-foot{padding:12px 22px;border-top:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.02em;display:flex;gap:12px;flex-wrap:wrap}
+.btg-box{border:2px solid #b35c5c;border-radius:var(--radius);padding:32px;text-align:center;background:var(--paper)}
+.btg-box h3{color:#b35c5c;font-size:24px}
+.btg-icon{width:64px;height:64px;border-radius:50%;background:#fbeee8;display:grid;place-items:center;margin:0 auto 20px}
+.btg-confirm{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap}
+.btg-input{padding:12px 16px;border:2px solid #b35c5c;border-radius:var(--radius-sm);font:inherit;font-size:14px;width:300px;text-align:center;outline:none;background:var(--paper)}
+.btg-input:focus{box-shadow:0 0 0 4px rgba(179,92,92,.15)}
+.sched-form{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.sched-form .field{display:flex;flex-direction:column;gap:6px}
+.sched-form .field label{font-size:12px;font-weight:500;color:var(--ink-2)}
+.sched-form .field select,.sched-form .field input{padding:10px 14px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--paper);font:inherit;font-size:13.5px;outline:none}
+.sched-form .field select:focus,.sched-form .field input:focus{border-color:var(--accent)}
+</style>
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('settings', '<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-settings.html">Settings</a><span class="sep">/</span><span class="here">Key Ceremonies</span>');
+
+var activeView = 'console';
+
+var LOG_LINES = [
+  {ts:'14:22:04',ev:'Ceremony <em>CER-2026-009</em> initiated by <strong>H. Morel</strong>'},
+  {ts:'14:22:05',ev:'Type: <strong>Scheduled quarterly rotation</strong> · Key A'},
+  {ts:'14:22:05',ev:'Quorum requirement: <em>2-of-3</em> key holders'},
+  {ts:'14:22:06',ev:'Notification sent to <strong>W. Nyoka</strong> (Key B)'},
+  {ts:'14:22:06',ev:'Notification sent to <strong>R. Hämmerli</strong> (Key C)'},
+  {ts:'14:22:11',ev:'<strong>H. Morel</strong> presented hardware token · YubiHSM2'},
+  {ts:'14:22:12',ev:'Token challenge-response <em>passed</em> · sig 7f3a…'},
+  {ts:'14:22:12',ev:'Key A holder <strong>authenticated</strong> (1/2 quorum)'},
+  {ts:'14:22:38',ev:'<strong>W. Nyoka</strong> presented hardware token · YubiHSM2'},
+  {ts:'14:22:39',ev:'Token challenge-response <em>passed</em> · sig e2b1…'},
+  {ts:'14:22:39',ev:'Key B holder <strong>authenticated</strong> (2/2 quorum)'},
+  {ts:'14:22:40',ev:'<em>Quorum reached.</em> Proceeding to key generation.'},
+  {ts:'14:22:41',ev:'Generating Ed25519 keypair inside HSM envelope…'},
+  {ts:'14:22:42',ev:'New public key: <em>vke1-ed25519-pub-a4f8…</em>'},
+  {ts:'14:22:42',ev:'Old key archived: <em>vke1-ed25519-pub-91ab…</em>'},
+  {ts:'14:22:43',ev:'Chain head re-signed with new key · block <em>f209</em>'},
+  {ts:'14:22:44',ev:'Federation peers notified · 72h re-validation window open'},
+  {ts:'14:22:44',ev:'Awaiting countersign from both holders…'},
+];
+
+var HISTORY = [
+  {id:'CER-2026-009',type:'Quarterly rotation',key:'Key A',status:'In progress',date:'19 Apr 2026, 14:22',holders:['H. Morel','W. Nyoka'],duration:'—',hash:'—'},
+  {id:'CER-2026-008',type:'Quarterly rotation',key:'Key B',status:'Completed',date:'15 Jan 2026, 10:00',holders:['W. Nyoka','R. Hämmerli'],duration:'4m 22s',hash:'sha256:8a2f…c341'},
+  {id:'CER-2026-007',type:'Emergency revocation',key:'Key C (old)',status:'Completed',date:'3 Dec 2025, 09:14',holders:['H. Morel','W. Nyoka','R. Hämmerli'],duration:'1m 08s',hash:'sha256:d91e…7b2a'},
+  {id:'CER-2025-006',type:'Quarterly rotation',key:'Key C',status:'Completed',date:'1 Oct 2025, 10:00',holders:['H. Morel','R. Hämmerli'],duration:'3m 51s',hash:'sha256:44bf…e892'},
+  {id:'CER-2025-005',type:'Initial issuance',key:'All keys',status:'Completed',date:'1 Jul 2025, 14:00',holders:['H. Morel','W. Nyoka','R. Hämmerli'],duration:'12m 04s',hash:'sha256:0001…aabb'},
+];
+
+function render(){
+  var tabs = '<div class="cer-tabs">'+
+    '<a class="'+(activeView==='console'?'active':'')+'" onclick="activeView=\'console\';render()">Live console</a>'+
+    '<a class="'+(activeView==='history'?'active':'')+'" onclick="activeView=\'history\';render()">Ceremony log<span class="ct">'+HISTORY.length+'</span></a>'+
+    '<a class="'+(activeView==='schedule'?'active':'')+'" onclick="activeView=\'schedule\';render()">Schedule</a>'+
+    '<a class="'+(activeView==='btg'?'active':'')+'" onclick="activeView=\'btg\';render()" style="color:#b35c5c">Break the glass</a>'+
+    '</div>';
+
+  var content = '';
+  if(activeView==='console') content = renderConsole();
+  else if(activeView==='history') content = renderHistory();
+  else if(activeView==='schedule') content = renderSchedule();
+  else if(activeView==='btg') content = renderBTG();
+
+  document.getElementById('d-content').innerHTML =
+    '<section class="d-pagehead"><div>'+
+    '<span class="eyebrow-m">Security \xb7 2-of-3 quorum</span>'+
+    '<h1>Key <em>ceremonies</em></h1>'+
+    '<p class="sub">Cryptographic key lifecycle managed through witnessed, sealed ceremonies. Every operation requires physical hardware tokens and quorum approval.</p>'+
+    '</div><div class="actions"><a class="btn ghost" href="dash-settings.html">Back to settings</a><a class="btn" onclick="activeView=\'schedule\';render()">Schedule ceremony <span class="arr">\u2192</span></a></div></section>'+
+    tabs + content;
+}
+
+function renderConsole(){
+  return '<div class="cer-console">'+
+    '<div class="cer-console-head"><h3>Ceremony <em>CER-2026-009</em></h3><span class="meta">Quarterly rotation \xb7 Key A</span></div>'+
+
+    // Status
+    '<div class="cer-status"><span class="pulse"></span><span><strong>Awaiting countersign</strong> \u2014 quorum reached, key rotated. Both holders must countersign to finalise.</span></div>'+
+
+    // Steps
+    '<div class="steps-track">'+
+    stepNode(1,'Initiate','done')+stepLine(true)+
+    stepNode(2,'Assemble','done')+stepLine(true)+
+    stepNode(3,'Verify','done')+stepLine(true)+
+    stepNode(4,'Execute','done')+stepLine(false)+
+    stepNode(5,'Countersign','active')+stepLine(false)+
+    stepNode(6,'Seal','')+'</div>'+
+
+    // Quorum
+    '<div class="quorum-grid">'+
+    qHolder('H','#c87e5e','H. Morel','Key A \xb7 YubiHSM2','authenticated','Verified 14:22:12','sig 7f3a\u2026')+
+    qHolder('W','#5b4a6b','W. Nyoka','Key B \xb7 YubiHSM2','authenticated','Verified 14:22:39','sig e2b1\u2026')+
+    qHolder('R','#8a6a3a','R. H\u00e4mmerli','Key C \xb7 Nitrokey HSM','offline','Not required','quorum met')+'</div>'+
+
+    // Live log
+    '<div style="padding:14px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center"><span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Ceremony log</span><span style="font-size:12px;color:var(--muted)">'+LOG_LINES.length+' events</span></div>'+
+    '<div class="cer-log">'+LOG_LINES.map(function(l){
+      return '<div class="cer-log-line"><span class="ts">'+l.ts+'</span><span class="ev">'+l.ev+'</span></div>';
+    }).join('')+'</div>'+
+    '</div>'+
+
+    // Actions
+    '<div style="display:flex;gap:12px;margin-top:18px;justify-content:flex-end">'+
+    '<button class="btn ghost sm">Download transcript</button>'+
+    '<button class="btn sm" onclick="activeView=\'console\';render()">Countersign now \u2192</button></div>';
+}
+
+function stepNode(n,label,state){
+  return '<div class="step-node '+state+'"><span class="step-dot">'+(state==='done'?'\u2713':n)+'</span><span class="step-label">'+label+'</span></div>';
+}
+function stepLine(done){return '<div class="step-line'+(done?' done':'')+'"></div>'}
+
+function qHolder(av,col,name,hw,state,time,sig){
+  return '<div class="q-holder '+state+'">'+
+    '<div class="q-av" style="background:'+col+'"><span class="q-ring"></span>'+av+'</div>'+
+    '<span class="q-name">'+name+'</span>'+
+    '<span class="q-hw">'+hw+'</span>'+
+    '<span class="q-status">'+(state==='authenticated'?'\u2713 Authenticated':state==='pending'?'\u25cf Awaiting':'\u25cb Offline')+'</span>'+
+    '<span class="q-time">'+time+'</span>'+
+    '<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted-2)">'+sig+'</span></div>';
+}
+
+function renderHistory(){
+  return '<div style="display:flex;flex-direction:column;gap:16px">'+
+    HISTORY.map(function(h){
+      var statusCls = h.status==='Completed'?'sealed':'hold';
+      return '<div class="hist-card">'+
+        '<div class="hist-card-head"><div>'+
+        '<span style="font-family:\'Fraunces\',serif;font-size:18px;letter-spacing:-.01em">'+h.id+'</span>'+
+        '<span style="margin-left:12px"><span class="pl '+statusCls+'">'+h.status+'</span></span>'+
+        '</div><span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--muted)">'+h.date+'</span></div>'+
+        '<div class="hist-card-body">'+
+        '<div class="hc-kv"><span class="k">Type</span><span class="v">'+h.type+'</span></div>'+
+        '<div class="hc-kv"><span class="k">Key</span><span class="v">'+h.key+'</span></div>'+
+        '<div class="hc-kv"><span class="k">Duration</span><span class="v">'+h.duration+'</span></div>'+
+        '</div>'+
+        '<div class="hist-card-foot">'+
+        '<span>Holders: '+h.holders.join(' \xb7 ')+'</span>'+
+        (h.hash!=='\u2014'?'<span style="margin-left:auto">'+h.hash+'</span>':'')+
+        '</div></div>';
+    }).join('')+'</div>';
+}
+
+function renderSchedule(){
+  return '<div class="panel"><div class="panel-h"><h3>Schedule a ceremony</h3></div><div class="panel-body">'+
+    '<div class="sched-form">'+
+    '<div class="field"><label>Ceremony type</label><select><option>Quarterly rotation</option><option>Emergency revocation</option><option>Re-issuance (3-of-3)</option><option>Initial issuance</option></select></div>'+
+    '<div class="field"><label>Key</label><select><option>Key A \u2014 H. Morel</option><option>Key B \u2014 W. Nyoka</option><option>Key C \u2014 R. H\u00e4mmerli</option><option>All keys</option></select></div>'+
+    '<div class="field"><label>Date</label><input type="date" value="2026-04-30" /></div>'+
+    '<div class="field"><label>Time (UTC)</label><input type="time" value="10:00" /></div>'+
+    '<div class="field" style="grid-column:span 2"><label>Location / notes</label><input type="text" placeholder="e.g. Hague office, Room 3.14 — all holders must be physically present" /></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:12px;margin-top:24px;justify-content:flex-end">'+
+    '<button class="btn ghost sm">Cancel</button>'+
+    '<button class="btn sm">Schedule & notify holders \u2192</button></div>'+
+    '</div></div>'+
+
+    '<div class="panel" style="margin-top:18px"><div class="panel-h"><h3>Upcoming</h3></div>'+
+    '<div class="panel-body">'+
+    '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)">'+
+    '<span style="font-family:\'Fraunces\',serif;font-size:16px">30 Apr</span>'+
+    '<div><strong>Quarterly rotation \xb7 Key A</strong><div style="font-size:12px;color:var(--muted);margin-top:2px">H. Morel + 1 holder required \xb7 Hague office, 10:00 UTC</div></div>'+
+    '<span class="pl hold">Scheduled</span></div>'+
+    '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:12px 0">'+
+    '<span style="font-family:\'Fraunces\',serif;font-size:16px">30 Jul</span>'+
+    '<div><strong>Quarterly rotation \xb7 Key B</strong><div style="font-size:12px;color:var(--muted);margin-top:2px">W. Nyoka + 1 holder required \xb7 TBD</div></div>'+
+    '<span class="pl draft">Tentative</span></div>'+
+    '</div></div>';
+}
+
+function renderBTG(){
+  return '<div style="max-width:560px;margin:0 auto">'+
+    '<div class="btg-box">'+
+    '<div class="btg-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#b35c5c" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg></div>'+
+    '<h3>Break the glass</h3>'+
+    '<p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:12px;max-width:420px;margin-left:auto;margin-right:auto">Emergency key revocation that bypasses normal quorum requirements. This action is <strong style="color:#b35c5c">immediately broadcast to all federation peers</strong> and cannot be undone. All signing operations will halt until a new key ceremony is completed.</p>'+
+    '<div style="margin-top:24px;padding:16px;border-radius:10px;background:#fbeee8;font-size:13px;color:#b35c5c;line-height:1.5">'+
+    '<strong>This will:</strong><br>'+
+    '\u2022 Revoke all active signing keys immediately<br>'+
+    '\u2022 Broadcast revocation to 4 federation peers<br>'+
+    '\u2022 Halt all sealing operations instance-wide<br>'+
+    '\u2022 Require a full 3-of-3 re-issuance ceremony to resume</div>'+
+    '<div class="btg-confirm">'+
+    '<input class="btg-input" type="text" placeholder="Type REVOKE ALL KEYS to confirm" />'+
+    '</div>'+
+    '<div style="margin-top:16px"><button class="btn sm" style="background:#b35c5c;border-color:#b35c5c;opacity:.5;pointer-events:none">Emergency revoke all keys</button></div>'+
+    '<p style="font-size:11px;color:var(--muted);margin-top:16px">This action is logged as a sealed event with your Ed25519 signature and an RFC 3161 timestamp, even if quorum is not met.</p>'+
+    '</div>'+
+
+    '<div class="panel" style="margin-top:24px"><div class="panel-h"><h3>Previous break-the-glass events</h3></div>'+
+    '<div class="panel-body">'+
+    '<div style="display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;padding:10px 0">'+
+    '<span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--muted)">3 Dec 2025</span>'+
+    '<div><strong>Key C emergency revocation</strong><div style="font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5">Initiated by H. Morel after suspected HSM compromise on R. H\u00e4mmerli\u2019s Nitrokey. Full 3-of-3 re-issuance completed same day (CER-2026-007). Downtime: 47 minutes.</div></div>'+
+    '</div></div></div></div>';
+}
+
+render();
+</script>
+</body></html>

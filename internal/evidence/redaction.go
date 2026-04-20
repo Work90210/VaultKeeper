@@ -44,12 +44,20 @@ type RedactedResult struct {
 	NewHash        string    `json:"new_hash"`
 }
 
+// DerivationRecorder records parent–child derivation relationships for
+// cross-border federation. Defined here (point of use) so the evidence
+// package does not import the federation package.
+type DerivationRecorder interface {
+	RecordDerivation(ctx context.Context, parentID, childID uuid.UUID, childSHA256 string, parentSHA256 *string, redactionMethod, redactionPurpose string, parameters any) error
+}
+
 // RedactionService handles document redaction.
 type RedactionService struct {
 	evidenceSvc *Service
 	storage     ObjectStorage
 	tsa         integrity.TimestampAuthority
 	custody     CustodyRecorder
+	derivation  DerivationRecorder
 	logger      *slog.Logger
 }
 
@@ -61,6 +69,20 @@ func NewRedactionService(evidenceSvc *Service, storage ObjectStorage, tsa integr
 		tsa:         tsa,
 		custody:     custody,
 		logger:      logger,
+	}
+}
+
+// WithDerivationRecorder attaches a DerivationRecorder to the service.
+// When set, finalized redactions will create a derivation record for
+// federation tracking.
+func (rs *RedactionService) WithDerivationRecorder(recorder DerivationRecorder) *RedactionService {
+	return &RedactionService{
+		evidenceSvc: rs.evidenceSvc,
+		storage:     rs.storage,
+		tsa:         rs.tsa,
+		custody:     rs.custody,
+		derivation:  recorder,
+		logger:      rs.logger,
 	}
 }
 
@@ -158,8 +180,25 @@ func (rs *RedactionService) ApplyRedactions(ctx context.Context, evidenceID uuid
 	if err := rs.storage.PutObject(ctx, storageKey, bytes.NewReader(redactedData), int64(len(redactedData)), mimeType); err != nil {
 		return RedactedResult{}, fmt.Errorf("store redacted file: %w", err)
 	}
+	storageCleanup := func() { _ = rs.storage.DeleteObject(ctx, storageKey) }
 
-	// Create new evidence record with parent_id pointing to original
+	// Create new evidence record with parent_id pointing to original.
+	// Steps 2-4 (Create, UpdateVersionFields, MarkNonCurrent) run inside a
+	// transaction so that a partial failure cannot leave an orphaned record
+	// without parent linkage.
+	repo, ok := rs.evidenceSvc.repo.(*PGRepository)
+	if !ok {
+		storageCleanup()
+		return RedactedResult{}, fmt.Errorf("apply redactions requires PGRepository")
+	}
+
+	tx, err := repo.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		storageCleanup()
+		return RedactedResult{}, fmt.Errorf("begin redaction tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
 	evidenceNumber := derefStr(original.EvidenceNumber) + "-R"
 	createInput := CreateEvidenceInput{
 		CaseID:         original.CaseID,
@@ -180,19 +219,23 @@ func (rs *RedactionService) ApplyRedactions(ctx context.Context, evidenceID uuid
 		TSAStatus:      tsaStatus,
 	}
 
-	newEvidence, err := rs.evidenceSvc.repo.Create(ctx, createInput)
+	newEvidence, err := repo.CreateWithTx(ctx, tx, createInput)
 	if err != nil {
+		storageCleanup()
 		return RedactedResult{}, fmt.Errorf("create redacted evidence record: %w", err)
 	}
 
-	// Set parent_id pointing to original. The redacted copy is a derivative —
-	// the original remains current (source of truth for legal proceedings).
+	// Set parent_id pointing to original and mark the derivative as non-current.
+	// The original remains current (source of truth for legal proceedings).
 	// Redacted copies are accessed via disclosures or the version/derivatives list.
-	if err := rs.evidenceSvc.repo.UpdateVersionFields(ctx, newEvidence.ID, original.ID, 1); err != nil {
-		rs.logger.Error("failed to set parent_id on redacted evidence", "id", newEvidence.ID, "error", err)
+	if err := repo.SetDerivativeParentWithTx(ctx, tx, newEvidence.ID, original.ID); err != nil {
+		storageCleanup()
+		return RedactedResult{}, fmt.Errorf("set derivative parent: %w", err)
 	}
-	if err := rs.evidenceSvc.repo.MarkNonCurrent(ctx, newEvidence.ID); err != nil {
-		rs.logger.Error("failed to mark redacted copy as non-current", "id", newEvidence.ID, "error", err)
+
+	if err := tx.Commit(ctx); err != nil {
+		storageCleanup()
+		return RedactedResult{}, fmt.Errorf("commit redaction tx: %w", err)
 	}
 
 	// Custody log with redaction details
@@ -206,6 +249,9 @@ func (rs *RedactionService) ApplyRedactions(ctx context.Context, evidenceID uuid
 			"redaction_count": fmt.Sprintf("%d", len(redactions)),
 		})
 	}
+
+	// Record derivation for federation tracking
+	rs.recordDerivation(ctx, original.ID, newEvidence.ID, hashHex, original.SHA256Hash, mimeType, "", redactions)
 
 	return RedactedResult{
 		NewEvidenceID:  newEvidence.ID,
@@ -391,9 +437,14 @@ func redactPDF(data []byte, areas []RedactionArea) ([]byte, error) {
 	return outBuf.Bytes(), nil
 }
 
+const maxRedactionAreas = 500
+
 func validateRedactionAreas(areas []RedactionArea) error {
 	if len(areas) == 0 {
 		return &ValidationError{Field: "redactions", Message: "at least one redaction area is required"}
+	}
+	if len(areas) > maxRedactionAreas {
+		return &ValidationError{Field: "redactions", Message: fmt.Sprintf("too many redaction areas (max %d)", maxRedactionAreas)}
 	}
 
 	for i, area := range areas {
@@ -417,6 +468,9 @@ func validateRedactionAreas(areas []RedactionArea) error {
 		}
 		if strings.TrimSpace(area.Reason) == "" {
 			return &ValidationError{Field: "redactions", Message: fmt.Sprintf("area %d: reason is required", i)}
+		}
+		if len(strings.TrimSpace(area.Reason)) > 2000 {
+			return &ValidationError{Field: "redactions", Message: fmt.Sprintf("area %d: reason exceeds maximum length of 2000 characters", i)}
 		}
 	}
 
@@ -665,6 +719,9 @@ func (rs *RedactionService) FinalizeFromDraft(ctx context.Context, input Finaliz
 		})
 	}
 
+	// Record derivation for federation tracking
+	rs.recordDerivation(custodyCtx, original.ID, newEvidence.ID, hashHex, original.SHA256Hash, mimeType, string(draft.Purpose), redactions)
+
 	return RedactedResult{
 		NewEvidenceID:  newEvidence.ID,
 		OriginalID:     original.ID,
@@ -679,5 +736,32 @@ func (rs *RedactionService) recordCustody(ctx context.Context, caseID, evidenceI
 	}
 	if err := rs.custody.RecordEvidenceEvent(ctx, caseID, evidenceID, action, actorID, detail); err != nil {
 		rs.logger.Error("failed to record custody event", "evidence_id", evidenceID, "action", action, "error", err)
+	}
+}
+
+// redactionMethodForMIME returns the derivation method identifier based on the
+// content type of the redacted file.
+func redactionMethodForMIME(mimeType string) string {
+	if mimeType == "application/pdf" {
+		return "pdf-redact-v1"
+	}
+	return "image-blur-v1"
+}
+
+func (rs *RedactionService) recordDerivation(ctx context.Context, parentID, childID uuid.UUID, childSHA256, parentSHA256, mimeType, purpose string, areas []RedactionArea) {
+	if rs.derivation == nil {
+		return
+	}
+	var parentHash *string
+	if parentSHA256 != "" {
+		parentHash = &parentSHA256
+	}
+	method := redactionMethodForMIME(mimeType)
+	params := map[string]any{
+		"areas":      areas,
+		"area_count": len(areas),
+	}
+	if err := rs.derivation.RecordDerivation(ctx, parentID, childID, childSHA256, parentHash, method, purpose, params); err != nil {
+		rs.logger.Error("failed to record derivation", "parent_id", parentID, "child_id", childID, "error", err)
 	}
 }

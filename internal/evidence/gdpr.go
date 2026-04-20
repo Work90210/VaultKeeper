@@ -57,6 +57,24 @@ type ErasureRepository interface {
 	UpdateErasureDecision(ctx context.Context, id uuid.UUID, status, decision, decidedBy string, decidedAt time.Time) (ErasureRequest, error)
 }
 
+// scopedErasureRepository is an optional extension of ErasureRepository
+// satisfied by PGRepository. When the underlying repo implements this
+// interface the service uses case-scoped SQL to prevent cross-case IDOR.
+// In-memory test fakes do not implement it, so the service falls back
+// gracefully to the unscoped ErasureRepository methods.
+type scopedErasureRepository interface {
+	// FindCaseIDForErasureRequest returns the case_id for the evidence item
+	// referenced by the given erasure request. Used to bootstrap case-scoped
+	// operations when only the erasure request ID is known.
+	FindCaseIDForErasureRequest(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// FindErasureRequestScoped loads an erasure request by ID, restricted to
+	// the given case. Returns ErrNotFound for cross-case lookups.
+	FindErasureRequestScoped(ctx context.Context, caseID, id uuid.UUID) (ErasureRequest, error)
+	// UpdateErasureDecisionScoped transitions an erasure request restricted
+	// to the given case. Returns ErrNotFound for cross-case updates.
+	UpdateErasureDecisionScoped(ctx context.Context, caseID, id uuid.UUID, status, decision, decidedBy string, decidedAt time.Time) (ErasureRequest, error)
+}
+
 // WithErasureRepo injects the erasure-request persistence. Returns the
 // service for chaining.
 func (s *Service) WithErasureRepo(repo ErasureRepository) *Service {
@@ -64,11 +82,22 @@ func (s *Service) WithErasureRepo(repo ErasureRepository) *Service {
 	return s
 }
 
-// FindErasureRequest loads an erasure request by ID. It delegates to the
-// underlying erasure repository.
+// FindErasureRequest loads an erasure request by ID.
+//
+// When the underlying repository satisfies scopedErasureRepository the
+// lookup is case-scoped via a SQL JOIN on evidence_items so a caller
+// cannot read an erasure request that belongs to a different case (IDOR
+// prevention). In-memory test fakes fall back to the unscoped path.
 func (s *Service) FindErasureRequest(ctx context.Context, id uuid.UUID) (ErasureRequest, error) {
 	if s.erasureRepo == nil {
 		return ErasureRequest{}, fmt.Errorf("erasure repository not configured")
+	}
+	if scoped, ok := s.erasureRepo.(scopedErasureRepository); ok {
+		caseID, err := scoped.FindCaseIDForErasureRequest(ctx, id)
+		if err != nil {
+			return ErasureRequest{}, fmt.Errorf("resolve case for erasure request: %w", err)
+		}
+		return scoped.FindErasureRequestScoped(ctx, caseID, id)
 	}
 	return s.erasureRepo.FindErasureRequest(ctx, id)
 }
@@ -83,6 +112,9 @@ func (s *Service) CreateErasureRequest(ctx context.Context, evidenceID uuid.UUID
 	if rationale == "" {
 		return ErasureRequest{}, ConflictReport{}, &ValidationError{Field: "rationale", Message: "rationale is required"}
 	}
+	if len(rationale) > 2000 {
+		return ErasureRequest{}, ConflictReport{}, &ValidationError{Field: "rationale", Message: "rationale exceeds maximum length of 2000 characters"}
+	}
 	if strings.TrimSpace(requestedBy) == "" {
 		return ErasureRequest{}, ConflictReport{}, &ValidationError{Field: "requested_by", Message: "requested_by is required"}
 	}
@@ -90,7 +122,18 @@ func (s *Service) CreateErasureRequest(ctx context.Context, evidenceID uuid.UUID
 		return ErasureRequest{}, ConflictReport{}, fmt.Errorf("erasure repository not configured")
 	}
 
-	item, err := s.repo.FindByID(ctx, evidenceID)
+	// Use FindByIDIncludingDestroyed so erasure requests can be created even
+	// for items that are already destroyed (idempotency). The GDPR handler
+	// enforces its own authorization gate before calling this method.
+	var (
+		item EvidenceItem
+		err  error
+	)
+	if sr := s.getScoped(); sr != nil {
+		item, err = sr.FindByIDIncludingDestroyed(ctx, evidenceID)
+	} else {
+		item, err = s.repo.FindByID(ctx, evidenceID)
+	}
 	if err != nil {
 		return ErasureRequest{}, ConflictReport{}, err
 	}
@@ -131,6 +174,9 @@ func (s *Service) ResolveErasureConflict(ctx context.Context, requestID uuid.UUI
 	if rationale == "" {
 		return &ValidationError{Field: "rationale", Message: "rationale is required"}
 	}
+	if len(rationale) > 2000 {
+		return &ValidationError{Field: "rationale", Message: "rationale exceeds maximum length of 2000 characters"}
+	}
 	if decision != ErasureDecisionPreserve && decision != ErasureDecisionErase {
 		return &ValidationError{Field: "decision", Message: "decision must be preserve or erase"}
 	}
@@ -141,17 +187,46 @@ func (s *Service) ResolveErasureConflict(ctx context.Context, requestID uuid.UUI
 		return fmt.Errorf("erasure repository not configured")
 	}
 
-	req, err := s.erasureRepo.FindErasureRequest(ctx, requestID)
-	if err != nil {
-		return fmt.Errorf("find erasure request: %w", err)
+	// When the repository supports scoped queries (production PGRepository),
+	// resolve the owning case first so both the find and the update are
+	// case-scoped, preventing cross-case IDOR. In-memory test fakes fall
+	// back to the unscoped ErasureRepository methods.
+	var (
+		req    ErasureRequest
+		caseID uuid.UUID
+		err    error
+	)
+	if scoped, ok := s.erasureRepo.(scopedErasureRepository); ok {
+		caseID, err = scoped.FindCaseIDForErasureRequest(ctx, requestID)
+		if err != nil {
+			return fmt.Errorf("find erasure request: %w", err)
+		}
+		req, err = scoped.FindErasureRequestScoped(ctx, caseID, requestID)
+		if err != nil {
+			return fmt.Errorf("find erasure request: %w", err)
+		}
+	} else {
+		req, err = s.erasureRepo.FindErasureRequest(ctx, requestID)
+		if err != nil {
+			return fmt.Errorf("find erasure request: %w", err)
+		}
 	}
 	if req.Status == ErasureStatusResolvedErase || req.Status == ErasureStatusResolvedPreserve {
 		return &ValidationError{Field: "status", Message: "erasure request is already resolved"}
 	}
+	if req.Status != ErasureStatusConflictPending {
+		return &ValidationError{Field: "status", Message: "only conflict_pending erasure requests can be resolved via this endpoint"}
+	}
 
 	// Load the evidence up front so we can emit the custody event regardless
-	// of which branch we take.
-	item, err := s.repo.FindByID(ctx, req.EvidenceID)
+	// of which branch we take. Use FindByIDIncludingDestroyed because the
+	// item may already be destroyed (idempotency on re-resolve attempts).
+	var item EvidenceItem
+	if sr := s.getScoped(); sr != nil {
+		item, err = sr.FindByIDIncludingDestroyed(ctx, req.EvidenceID)
+	} else {
+		item, err = s.repo.FindByID(ctx, req.EvidenceID)
+	}
 	if err != nil {
 		return fmt.Errorf("load evidence for erasure resolution: %w", err)
 	}
@@ -191,7 +266,12 @@ func (s *Service) ResolveErasureConflict(ctx context.Context, requestID uuid.UUI
 	if decision == ErasureDecisionErase {
 		newStatus = ErasureStatusResolvedErase
 	}
-	updated, err := s.erasureRepo.UpdateErasureDecision(ctx, requestID, newStatus, decision, decidedBy, time.Now())
+	var updated ErasureRequest
+	if scoped, ok := s.erasureRepo.(scopedErasureRepository); ok {
+		updated, err = scoped.UpdateErasureDecisionScoped(ctx, caseID, requestID, newStatus, decision, decidedBy, time.Now())
+	} else {
+		updated, err = s.erasureRepo.UpdateErasureDecision(ctx, requestID, newStatus, decision, decidedBy, time.Now())
+	}
 	if err != nil {
 		// At this point the evidence may already be destroyed (erase path).
 		// Return an error so the operator can investigate — the custody
@@ -223,9 +303,22 @@ func (s *Service) destroyEvidenceOverride(ctx context.Context, input DestroyEvid
 		return err
 	}
 
-	item, err := s.repo.FindByID(ctx, input.EvidenceID)
-	if err != nil {
-		return fmt.Errorf("find evidence for override destruction: %w", err)
+	// Use FindByIDIncludingDestroyed for idempotency: the item may already
+	// be destroyed from a prior run. The caller (ResolveErasureConflict)
+	// has already authorized this override path.
+	var item EvidenceItem
+	if sr := s.getScoped(); sr != nil {
+		var fetchErr error
+		item, fetchErr = sr.FindByIDIncludingDestroyed(ctx, input.EvidenceID)
+		if fetchErr != nil {
+			return fmt.Errorf("find evidence for override destruction: %w", fetchErr)
+		}
+	} else {
+		var fetchErr error
+		item, fetchErr = s.repo.FindByID(ctx, input.EvidenceID)
+		if fetchErr != nil {
+			return fmt.Errorf("find evidence for override destruction: %w", fetchErr)
+		}
 	}
 	if item.DestroyedAt != nil {
 		return nil // idempotent

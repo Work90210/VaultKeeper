@@ -691,7 +691,7 @@ func TestRoleRepo_Assign_Success(t *testing.T) {
 		},
 	}
 	repo := &RoleRepository{pool: pool}
-	cr, err := repo.Assign(context.Background(), caseID, "user-1", "investigator", "admin-1")
+	cr, err := repo.Assign(context.Background(), caseID, "user-1", "investigator", "admin-1", nil)
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
 	}
@@ -707,7 +707,7 @@ func TestRoleRepo_Assign_Duplicate(t *testing.T) {
 		},
 	}
 	repo := &RoleRepository{pool: pool}
-	_, err := repo.Assign(context.Background(), uuid.New(), "user-1", "investigator", "admin-1")
+	_, err := repo.Assign(context.Background(), uuid.New(), "user-1", "investigator", "admin-1", nil)
 	if err == nil {
 		t.Fatal("expected error for duplicate")
 	}
@@ -723,7 +723,7 @@ func TestRoleRepo_Assign_GeneralError(t *testing.T) {
 		},
 	}
 	repo := &RoleRepository{pool: pool}
-	_, err := repo.Assign(context.Background(), uuid.New(), "user-1", "investigator", "admin-1")
+	_, err := repo.Assign(context.Background(), uuid.New(), "user-1", "investigator", "admin-1", nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}

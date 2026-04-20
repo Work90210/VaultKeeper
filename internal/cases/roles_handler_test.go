@@ -24,7 +24,7 @@ type mockRoleRepo struct {
 	listErr      error
 }
 
-func (m *mockRoleRepo) Assign(_ context.Context, caseID uuid.UUID, userID, role, grantedBy string) (CaseRole, error) {
+func (m *mockRoleRepo) Assign(_ context.Context, caseID uuid.UUID, userID, role, grantedBy string, _ *uuid.UUID) (CaseRole, error) {
 	if m.assignErr != nil {
 		return CaseRole{}, m.assignErr
 	}

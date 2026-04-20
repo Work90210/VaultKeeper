@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Audit log — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js"></script>
+<script>
+renderDashShell('audit', `<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><span class="here">Audit log</span>`);
+
+const ev=[
+  {t:"14:22:04",who:"ts-eu-west",ac:"RFC 3161 timestamp",tgt:"block f208…bc91",sig:"ts:9fa1",c:"e",k:"seal"},
+  {t:"14:22:02",who:"H. Morel",ac:"sealed evidence upload",tgt:"E-0918 Butcha_drone_04.mp4 · 218 MB",sig:"ed25519:7f22",c:"a",k:"ingest"},
+  {t:"14:21:58",who:"Amir H.",ac:"corroboration score assigned 0.78",tgt:"C-0412",sig:"ed25519:bb09",c:"c",k:"invest"},
+  {t:"14:21:44",who:"W. Nyoka",ac:"strike — witness-identifying",tgt:"E-0912 p2",sig:"ed25519:e3f1",c:"e",k:"redact"},
+  {t:"14:21:30",who:"Juliane",ac:"pseudonymise Col. M. → S-038",tgt:"E-0912",sig:"ed25519:a1be",c:"d",k:"pseudo"},
+  {t:"14:21:18",who:"Amir H.",ac:"edit timestamp 17:40 → 17:52",tgt:"E-0912 p2",sig:"ed25519:2c14",c:"c",k:"edit"},
+  {t:"14:21:11",who:"Martyna",ac:"geo-fuzz 50 km · \"Andriivka\"",tgt:"E-0912",sig:"ed25519:d9a7",c:"b",k:"redact"},
+  {t:"14:20:58",who:"CIJA (federated)",ac:"submit 12 CRDT ops",tgt:"sub-chain /CIJA",sig:"vke1:91ab",c:"e",k:"fed"},
+  {t:"14:20:12",who:"witness-node-02",ac:"countersign block",tgt:"91ab…8204",sig:"ed25519:cc20",c:"e",k:"seal"},
+  {t:"14:19:44",who:"W. Nyoka",ac:"linked exhibit",tgt:"E-0412 ↔ W-0144",sig:"ed25519:d9fa",c:"e",k:"link"},
+  {t:"14:18:02",who:"H. Morel",ac:"opened disclosure wizard",tgt:"DISC-2026-019",sig:"ed25519:7e12",c:"a",k:"disc"},
+  {t:"14:17:21",who:"api-key · clerk-verify",ac:"chain head read",tgt:"head f208…",sig:"api:4a91",c:"e",k:"read"}
+];
+const km={seal:'sealed',ingest:'live',invest:'disc',redact:'hold',pseudo:'pseud',edit:'draft',fed:'live',link:'sealed',disc:'hold',read:'draft'};
+
+document.getElementById('d-content').innerHTML=`
+  <section class="d-pagehead">
+    <div>
+      <span class="eyebrow-m">Case · ICC-UKR-2024 · full chain</span>
+      <h1>Audit <em>log</em></h1>
+      <p class="sub">Every row below was written to an append-only PostgreSQL table the DB itself refuses to UPDATE or DELETE. Each row hash-chains the previous. Replay any window with the open validator — no VaultKeeper service required.</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="validator.html">Verify offline</a>
+      <a class="btn" href="#">Export range <span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <div class="d-kpis" style="margin-bottom:22px">
+    <div class="d-kpi"><div class="k">Events · this case</div><div class="v">48.2<em>k</em></div><div class="sub">since 14 Feb 2024</div></div>
+    <div class="d-kpi"><div class="k">Chain integrity</div><div class="v">100<em>%</em></div><div class="sub">0 breaks · last verified 14:22</div></div>
+    <div class="d-kpi"><div class="k">Snapshot cadence</div><div class="v">60<em>s</em></div><div class="sub">compacted · BLAKE3 root</div></div>
+    <div class="d-kpi"><div class="k">Last countersign</div><div class="v" style="font-size:22px;font-family:'JetBrains Mono',monospace;padding-top:6px">witness-node-02</div><div class="sub">cc20… · 2 min ago</div></div>
+  </div>
+
+  <div class="panel" style="margin-bottom:22px">
+    <div class="fbar">
+      <div class="fsearch"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--muted)"><circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/></svg><input placeholder="hash, actor, exhibit, signature…"/></div>
+      <span class="chip active">All</span>
+      <span class="chip">Ingest</span><span class="chip">Redaction</span><span class="chip">Pseudonym</span>
+      <span class="chip">Federation</span><span class="chip">Disclosure</span>
+      <span class="chip">Actor ▾</span><span class="chip">Range · 24h ▾</span>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Kind</th><th>Signature</th></tr></thead>
+      <tbody>
+        ${ev.map(e=>`
+          <tr>
+            <td class="mono">${e.t}</td>
+            <td><span style="display:inline-flex;align-items:center;gap:8px"><span class="avs"><span class="av ${e.c}" style="width:22px;height:22px;font-size:10px;border-width:1.5px">${e.who[0]}</span></span>${e.who}</span></td>
+            <td style="font-size:13.5px">${e.ac}</td>
+            <td class="mono" style="color:var(--ink-2)">${e.tgt}</td>
+            <td><span class="pl ${km[e.k]}">${e.k}</span></td>
+            <td class="mono" style="color:var(--accent)">${e.sig}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="g2">
+    <div class="panel"><div class="panel-h"><h3>Chain verify</h3><span class="meta">client-side · Ed25519 + SHA-256</span></div><div class="panel-body"><pre style="background:#0a0907;color:var(--bg);border-radius:10px;padding:18px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;overflow:auto;margin:0">$ vk-verify --case ICC-UKR-2024 --range last-24h
+<span style="color:#9cb28b">[ok]</span>  read 3,812 events from sealed log
+<span style="color:#9cb28b">[ok]</span>  reconstructed hash chain (BLAKE3)
+<span style="color:#9cb28b">[ok]</span>  verified 3,812 Ed25519 signatures
+<span style="color:#9cb28b">[ok]</span>  verified 63 RFC 3161 timestamps
+<span style="color:#9cb28b">[ok]</span>  4 federated merges · countersigned
+<span style="color:#e4a487">head</span>  f208e1a94bc91...
+<span style="color:#9cb28b">PASS</span>  no chain breaks · 0 tampered rows
+</pre></div></div>
+    <div class="panel"><div class="panel-h"><h3>Actor share · 24h</h3><span class="meta">3,812 events</span></div><div class="panel-body">
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
+        ${[
+          {n:"H. Morel",p:32,v:"1,219"},{n:"Martyna K.",p:24,v:"914"},{n:"Amir H.",p:18,v:"685"},{n:"Juliane",p:10,v:"381"},{n:"CIJA (federated)",p:9,v:"343"},{n:"witness-nodes",p:7,v:"270"}
+        ].map(a=>`
+          <div style="display:grid;grid-template-columns:1fr auto;gap:10px"><span>${a.n}</span><span class="num">${a.v}</span></div>
+          <div style="background:var(--bg-2);height:5px;border-radius:2px;overflow:hidden"><div style="height:100%;width:${a.p*3}%;background:var(--accent);opacity:.85"></div></div>
+        `).join('')}
+      </div>
+    </div></div>
+  </div>
+`;
+</script></body></html>

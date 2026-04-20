@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import { ContactPageContent } from './content';
 
 export const metadata: Metadata = {
-  title: 'Contact — Pilot Program',
+  title: 'Contact',
   description:
-    'Register for the VaultKeeper pilot program. Join investigation teams already using sovereign evidence management for secure intake, custody tracking, and court-ready disclosure.',
+    'Get in touch with the VaultKeeper team. Request a demo, discuss pricing, plan a migration, or ask about sovereign deployment options.',
   alternates: {
     languages: {
       en: '/en/contact',
@@ -13,10 +13,6 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ContactPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
-  return <ContactPageContent locale={params.locale} />;
+export default function ContactPage() {
+  return <ContactPageContent />;
 }

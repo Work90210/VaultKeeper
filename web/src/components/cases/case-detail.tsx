@@ -9,7 +9,6 @@ import { DisclosureList } from '@/components/disclosures/disclosure-list';
 import { InvestigationPageClient } from '@/components/investigation/investigation-page-client';
 import type { EvidenceItem, Witness, Disclosure, CaseRole } from '@/types';
 import { CaseMembersPanel } from './case-members-panel';
-import { CaseHandoverDialog } from './case-handover-dialog';
 import { useCaseContext } from '@/components/providers/case-provider';
 
 interface CaseData {
@@ -27,11 +26,8 @@ interface CaseData {
   updated_at: string;
 }
 
-const STATUS_STYLES: Record<string, { color: string; bg: string }> = {
-  active: { color: 'var(--status-active)', bg: 'var(--status-active-bg)' },
-  closed: { color: 'var(--status-closed)', bg: 'var(--status-closed-bg)' },
-  archived: { color: 'var(--status-archived)', bg: 'var(--status-archived-bg)' },
-};
+// Status pill class mapping for .pl design component
+
 
 export type TabKey =
   | 'overview' | 'evidence'
@@ -105,8 +101,6 @@ export function CaseDetail({
   const activeTab = contextTab as TabKey || resolvedInitial;
   const setActiveTab = contextSetActiveTab;
 
-  const status = STATUS_STYLES[caseData.status] || STATUS_STYLES.archived;
-
   const isInvestigationSection = INVESTIGATION_SECTIONS.has(activeTab);
 
   const handleCountsLoaded = useCallback((counts: Record<string, number>) => {
@@ -156,52 +150,71 @@ export function CaseDetail({
     });
   }, [evidenceTotal, witnesses.length, disclosures.length, caseMembers.length, setSidebarCounts]);
 
+  const PL_STATUS: Record<string, string> = {
+    active: 'sealed',
+    closed: 'disc',
+    archived: 'draft',
+  };
+
   return (
-    <div style={{ animation: 'fade-in var(--duration-slow) var(--ease-out-expo)' }}>
+    <div>
       {/* ── Case header ── */}
-      <header className="mb-[var(--space-lg)]">
-        <div className="flex items-center gap-[var(--space-sm)] mb-[var(--space-xs)]">
-          <span
-            className="font-[family-name:var(--font-mono)] text-xs tracking-wide"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            {caseData.reference_code}
+      <section className="d-pagehead">
+        <div>
+          <span className="eyebrow-m">
+            Case · {caseData.jurisdiction || 'Criminal'} · since {formatDate(caseData.created_at)}
           </span>
-          <span
-            className="badge"
-            style={{ backgroundColor: status.bg, color: status.color }}
-          >
-            {caseData.status}
-          </span>
-          {caseMembers.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('members')}
-              className="badge cursor-pointer"
-              style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text-secondary)' }}
-            >
-              {caseMembers.length} member{caseMembers.length !== 1 ? 's' : ''}
-            </button>
-          )}
-          {caseData.legal_hold && (
-            <span
-              className="badge"
-              style={{
-                backgroundColor: 'var(--status-hold-bg)',
-                color: 'var(--status-hold)',
-              }}
-            >
-              LEGAL HOLD
-            </span>
+          <h1>
+            {caseData.reference_code} · <em>{caseData.title}</em>
+          </h1>
+          <p className="sub">
+            {caseData.description || '\u2014'}
+            {' '}
+            <span className={`pl ${PL_STATUS[caseData.status] || 'draft'}`}>{caseData.status}</span>
+            {caseData.legal_hold && <span className="pl hold" style={{ marginLeft: 6 }}>Legal hold</span>}
+          </p>
+        </div>
+        <div className="actions">
+          <button type="button" onClick={() => setActiveTab('disclosures')} className="btn ghost">
+            Create disclosure
+          </button>
+          <button type="button" onClick={() => setActiveTab('evidence')} className="btn">
+            Upload evidence <span className="arr">{'\u2192'}</span>
+          </button>
+        </div>
+      </section>
+
+      {/* ── Tabs ── */}
+      <div className="panel" style={{ marginBottom: 22 }}>
+        <div className="tabs">
+          <a href="#" className={activeTab === 'overview' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('overview'); }}>
+            Overview<span className="ct">{'\u00B7'}</span>
+          </a>
+          <a href="#" className={activeTab === 'evidence' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('evidence'); }}>
+            Evidence<span className="ct">{evidenceTotal}</span>
+          </a>
+          <a href="#" className={activeTab === 'witnesses' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('witnesses'); }}>
+            Witnesses<span className="ct">{witnesses.length}</span>
+          </a>
+          <a href="#" className={activeTab === 'analysis' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('analysis'); }}>
+            Notes
+          </a>
+          <a href="#" className={activeTab === 'corroborations' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('corroborations'); }}>
+            Corroborations
+          </a>
+          <a href="#" className={activeTab === 'disclosures' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('disclosures'); }}>
+            Disclosures<span className="ct">{disclosures.length}</span>
+          </a>
+          <a href="#" className={activeTab === 'inquiry-logs' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('inquiry-logs'); }}>
+            Chain
+          </a>
+          {canEdit && (
+            <a href="#" className={activeTab === 'settings' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('settings'); }}>
+              Settings
+            </a>
           )}
         </div>
-        <h1
-          className="font-[family-name:var(--font-heading)] text-2xl leading-tight text-balance"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {caseData.title}
-        </h1>
-      </header>
+      </div>
 
       {/* ── Content area ── */}
       <div>
@@ -297,151 +310,86 @@ function OverviewPanel({
   evidenceTotal: number;
   onViewEvidence: () => void;
 }) {
-  const recentEvidence = evidence.slice(0, 5);
-
   return (
-    <div className="stagger-in space-y-[var(--space-lg)]">
-      {/* Metadata strip */}
-      <div className="card-inset grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-md)] p-[var(--space-md)]">
-        <MetaField label="Jurisdiction" value={caseData.jurisdiction || '\u2014'} />
-        <MetaField
-          label="Created"
-          value={formatDate(caseData.created_at)}
-        />
-        <MetaField
-          label="Updated"
-          value={formatDate(caseData.updated_at)}
-        />
-        <MetaField
-          label="Created by"
-          value={caseData.created_by_name || caseData.created_by.slice(0, 8) + '\u2026'}
-        />
+    <div>
+      {/* Case metadata + chain */}
+      <div className="panel" style={{ marginBottom: 22 }}>
+        <div className="panel-body">
+          <div className="g2-wide" style={{ gap: 32, alignItems: 'start' }}>
+            <dl className="kvs">
+              <dt>Reference</dt>
+              <dd><strong>{caseData.reference_code}</strong></dd>
+              <dt>Jurisdiction</dt>
+              <dd>{caseData.jurisdiction || '\u2014'}</dd>
+              <dt>Classification</dt>
+              <dd>{caseData.legal_hold ? 'Legal hold active' : 'Standard lifecycle'}</dd>
+              <dt>Custodian</dt>
+              <dd>{caseData.created_by_name || caseData.created_by.slice(0, 8)}</dd>
+              <dt>Created</dt>
+              <dd>{formatDate(caseData.created_at)}</dd>
+              <dt>Last updated</dt>
+              <dd>{formatDate(caseData.updated_at)}</dd>
+            </dl>
+            <div style={{ background: 'var(--bg-2)', border: '1px solid var(--line)', borderRadius: 12, padding: 18 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10.5px', letterSpacing: '.08em', color: 'var(--muted)', textTransform: 'uppercase' as const, marginBottom: 12 }}>
+                Chain of custody
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: '11.5px' }}>
+                <div style={{ display: 'flex', gap: 10, padding: '8px 10px', background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 6 }}>
+                  <span style={{ color: 'var(--accent)' }}>head</span>
+                  <span style={{ color: 'var(--muted)', marginLeft: 'auto' }}>{'\u25CF'} {evidenceTotal} exhibits</span>
+                </div>
+              </div>
+              <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: 'var(--muted)', fontFamily: "'JetBrains Mono', monospace" }}>
+                <span>Status: {caseData.status}</span>
+                <button type="button" onClick={onViewEvidence} className="linkarrow" style={{ fontSize: 12 }}>
+                  View all evidence {'\u2192'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Description */}
-      {caseData.description && (
-        <div>
-          <h2 className="field-label">Description</h2>
-          <p
-            className="text-sm leading-relaxed whitespace-pre-wrap max-w-2xl mt-[var(--space-xs)]"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            {caseData.description}
-          </p>
-        </div>
-      )}
-
-      {/* Recent evidence preview */}
-      <div>
-        <div className="flex items-baseline justify-between mb-[var(--space-sm)]">
-          <h2 className="field-label" style={{ marginBottom: 0 }}>
-            Recent evidence
-          </h2>
-          {evidenceTotal > 0 && (
-            <button
-              type="button"
-              onClick={onViewEvidence}
-              className="link-accent text-xs font-medium"
-              style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              View all {evidenceTotal} &rarr;
-            </button>
-          )}
-        </div>
-
-        {recentEvidence.length === 0 ? (
-          <div
-            className="card-inset p-[var(--space-lg)] text-center"
-          >
-            <p
-              className="text-sm"
-              style={{ color: 'var(--text-tertiary)' }}
-            >
-              No evidence uploaded yet.
-            </p>
+      {/* Recent evidence table */}
+      {evidence.length > 0 && (
+        <div className="panel" style={{ marginBottom: 22 }}>
+          <div className="panel-h">
+            <h3>Recent <em>evidence</em></h3>
+            <span className="meta">{evidenceTotal} exhibits</span>
           </div>
-        ) : (
-          <div
-            className="card-inset overflow-hidden"
-            style={{ padding: 0 }}
-          >
-            <table className="w-full text-sm" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: '35%' }} />
-                <col style={{ width: '25%' }} />
-                <col style={{ width: '20%' }} />
-                <col style={{ width: '20%' }} />
-              </colgroup>
+          <div className="panel-body flush">
+            <table className="tbl">
               <thead>
-                <tr
-                  style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                >
-                  <th
-                    className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs font-semibold uppercase tracking-[0.06em]"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    File
-                  </th>
-                  <th
-                    className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs font-semibold uppercase tracking-[0.06em]"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    Reference
-                  </th>
-                  <th
-                    className="text-left px-[var(--space-md)] py-[var(--space-sm)] text-xs font-semibold uppercase tracking-[0.06em]"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    Classification
-                  </th>
-                  <th
-                    className="text-right px-[var(--space-md)] py-[var(--space-sm)] text-xs font-semibold uppercase tracking-[0.06em]"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    Date
-                  </th>
+                <tr>
+                  <th>File</th>
+                  <th>Reference</th>
+                  <th>Classification</th>
+                  <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {recentEvidence.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="table-row"
-                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                    onClick={() => window.location.href = `/en/evidence/${item.id}`}
-                  >
-                    <td
-                      className="px-[var(--space-md)] py-[var(--space-sm)]"
-                      style={{ color: 'var(--text-primary)' }}
-                    >
-                      <span className="block truncate max-w-[280px]">
-                        {item.title || item.original_name}
-                      </span>
+                {evidence.slice(0, 5).map((item) => (
+                  <tr key={item.id} onClick={() => window.location.href = `/en/evidence/${item.id}`} style={{ cursor: 'pointer' }}>
+                    <td>
+                      <span className="ref">{item.title || item.original_name}<small>{item.evidence_number}</small></span>
                     </td>
-                    <td
-                      className="px-[var(--space-md)] py-[var(--space-sm)] font-[family-name:var(--font-mono)] text-xs"
-                      style={{ color: 'var(--text-tertiary)' }}
-                    >
-                      <span className="block truncate max-w-[200px]">
-                        {item.evidence_number}
-                      </span>
-                    </td>
-                    <td className="px-[var(--space-md)] py-[var(--space-sm)]">
-                      <ClassificationBadge classification={item.classification} />
-                    </td>
-                    <td
-                      className="px-[var(--space-md)] py-[var(--space-sm)] text-xs text-right"
-                      style={{ color: 'var(--text-tertiary)' }}
-                    >
-                      {formatDate(item.created_at)}
-                    </td>
+                    <td><code>{item.evidence_number}</code></td>
+                    <td><span className={`pl ${item.classification === 'public' ? 'sealed' : item.classification === 'restricted' ? 'hold' : 'draft'}`}>{item.classification}</span></td>
+                    <td>{formatDate(item.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {evidence.length === 0 && (
+        <div className="ph" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          No evidence uploaded yet. Upload your first exhibit to begin the chain of custody.
+        </div>
+      )}
     </div>
   );
 }
@@ -560,234 +508,114 @@ function SettingsPanel({
   const isArchived = caseStatus === 'archived';
 
   return (
-    <div className="stagger-in">
-      {error && <div className="banner-error mb-[var(--space-md)]">{error}</div>}
-      {success && <div className="banner-success mb-[var(--space-md)]">{success}</div>}
+    <div>
+      {error && <div className="pl hold" style={{ padding: '12px 18px', borderRadius: 10, marginBottom: 16 }}>{error}</div>}
+      {success && <div className="pl sealed" style={{ padding: '12px 18px', borderRadius: 10, marginBottom: 16 }}>{success}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_20rem] gap-[var(--space-lg)]">
+      <div className="g2-wide" style={{ alignItems: 'start' }}>
         {/* Left: edit form (hidden when archived) */}
         {isArchived ? (
-          <div
-            className="card-inset p-[var(--space-lg)] flex items-center justify-center"
-            style={{ minHeight: '12rem' }}
-          >
-            <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-              This case is archived. No changes can be made.
-            </p>
+          <div className="ph" style={{ textAlign: 'center', padding: '48px 24px' }}>
+            This case is archived. No changes can be made.
           </div>
         ) : (
-        <form onSubmit={handleUpdate} className="space-y-[var(--space-md)]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[var(--space-md)]">
-            <div>
-              <label className="field-label" htmlFor="settings-title">Title</label>
-              <input
-                id="settings-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={500}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="field-label" htmlFor="settings-jurisdiction">Jurisdiction</label>
-              <input
-                id="settings-jurisdiction"
-                value={jurisdiction}
-                onChange={(e) => setJurisdiction(e.target.value)}
-                maxLength={200}
-                className="input-field"
-              />
-            </div>
+        <div className="panel">
+          <div className="panel-h"><h3>Case <em>details</em></h3></div>
+          <div className="panel-body">
+            <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                <div>
+                  <label htmlFor="settings-title" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10.5px', letterSpacing: '.08em', color: 'var(--muted)', textTransform: 'uppercase' as const, display: 'block', marginBottom: 6 }}>Title</label>
+                  <input id="settings-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={500} style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--line-2)', borderRadius: 10, background: 'var(--paper)', font: 'inherit', fontSize: '14px', color: 'var(--ink)' }} />
+                </div>
+                <div>
+                  <label htmlFor="settings-jurisdiction" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10.5px', letterSpacing: '.08em', color: 'var(--muted)', textTransform: 'uppercase' as const, display: 'block', marginBottom: 6 }}>Jurisdiction</label>
+                  <input id="settings-jurisdiction" value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)} maxLength={200} style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--line-2)', borderRadius: 10, background: 'var(--paper)', font: 'inherit', fontSize: '14px', color: 'var(--ink)' }} />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="settings-description" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10.5px', letterSpacing: '.08em', color: 'var(--muted)', textTransform: 'uppercase' as const, display: 'block', marginBottom: 6 }}>Description</label>
+                <textarea id="settings-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={10000} style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--line-2)', borderRadius: 10, background: 'var(--paper)', font: 'inherit', fontSize: '14px', color: 'var(--ink)', resize: 'vertical' }} />
+              </div>
+              <button type="submit" disabled={loading} className="btn" style={{ alignSelf: 'flex-start' }}>
+                {loading ? 'Saving\u2026' : 'Save changes'}
+              </button>
+            </form>
           </div>
-          <div>
-            <label className="field-label" htmlFor="settings-description">Description</label>
-            <textarea
-              id="settings-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              maxLength={10000}
-              className="input-field resize-y"
-            />
-          </div>
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? 'Saving\u2026' : 'Save changes'}
-          </button>
-        </form>
+        </div>
         )}
 
         {/* Right: case actions */}
-        <aside className="space-y-[var(--space-md)]">
-          {caseStatus === 'active' && (
-            <div className="card-inset p-[var(--space-md)]">
-              <div className="flex items-center justify-between mb-[var(--space-sm)]">
-                <h3 className="field-label" style={{ marginBottom: 0 }}>Status</h3>
-                <span
-                  className="badge"
-                  style={{
-                    backgroundColor: 'var(--status-active-bg)',
-                    color: 'var(--status-active)',
-                  }}
-                >
-                  Active
-                </span>
-              </div>
-              <p
-                className="text-xs mb-[var(--space-sm)]"
-                style={{ color: 'var(--text-tertiary)', lineHeight: '1.5' }}
-              >
-                Close the case when investigation is complete.
-              </p>
-              <button
-                onClick={handleCloseCase}
-                className="btn-secondary w-full"
-                type="button"
-              >
-                Close case
-              </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="panel">
+            <div className="panel-h">
+              <h3>Status</h3>
+              <span className={`pl ${caseStatus === 'active' ? 'sealed' : caseStatus === 'closed' ? 'disc' : 'draft'}`}>{caseStatus}</span>
             </div>
-          )}
-
-          {caseStatus === 'closed' && (
-            <div className="card-inset p-[var(--space-md)]">
-              <div className="flex items-center justify-between mb-[var(--space-sm)]">
-                <h3 className="field-label" style={{ marginBottom: 0 }}>Status</h3>
-                <span
-                  className="badge"
-                  style={{
-                    backgroundColor: 'var(--status-closed-bg)',
-                    color: 'var(--status-closed)',
-                  }}
-                >
-                  Closed
-                </span>
-              </div>
-              <p
-                className="text-xs"
-                style={{ color: 'var(--text-tertiary)', lineHeight: '1.5' }}
-              >
-                This case is closed. It can now be archived below.
-              </p>
+            <div className="panel-body">
+              {caseStatus === 'active' && (
+                <>
+                  <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, marginBottom: 14 }}>Close the case when investigation is complete.</p>
+                  <button onClick={handleCloseCase} className="btn ghost" style={{ width: '100%', justifyContent: 'center' }} type="button">Close case</button>
+                </>
+              )}
+              {caseStatus === 'closed' && <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5 }}>This case is closed. It can now be archived below.</p>}
+              {isArchived && <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5 }}>This case is archived and read-only.</p>}
             </div>
-          )}
-
-          {isArchived && (
-            <div className="card-inset p-[var(--space-md)]">
-              <div className="flex items-center justify-between mb-[var(--space-sm)]">
-                <h3 className="field-label" style={{ marginBottom: 0 }}>Status</h3>
-                <span
-                  className="badge"
-                  style={{
-                    backgroundColor: 'var(--status-archived-bg)',
-                    color: 'var(--status-archived)',
-                  }}
-                >
-                  Archived
-                </span>
-              </div>
-              <p
-                className="text-xs"
-                style={{ color: 'var(--text-tertiary)', lineHeight: '1.5' }}
-              >
-                This case is archived and read-only. No changes can be made.
-              </p>
-            </div>
-          )}
+          </div>
 
           {!isArchived && (
-          <div className="card-inset p-[var(--space-md)]">
-            <div className="flex items-center justify-between mb-[var(--space-sm)]">
-              <h3 className="field-label" style={{ marginBottom: 0 }}>Legal hold</h3>
-              <span
-                className="badge"
-                style={{
-                  backgroundColor: legalHold ? 'var(--status-hold-bg)' : 'var(--status-active-bg)',
-                  color: legalHold ? 'var(--status-hold)' : 'var(--status-active)',
-                }}
-              >
-                {legalHold ? 'Active' : 'Off'}
-              </span>
+          <div className="panel">
+            <div className="panel-h">
+              <h3>Legal hold</h3>
+              <span className={`pl ${legalHold ? 'hold' : 'sealed'}`}>{legalHold ? 'Active' : 'Off'}</span>
             </div>
-            <p
-              className="text-xs mb-[var(--space-sm)]"
-              style={{ color: 'var(--text-tertiary)', lineHeight: '1.5' }}
-            >
-              {legalHold
-                ? 'Evidence cannot be deleted and the case cannot be archived.'
-                : 'Standard lifecycle rules apply.'}
-            </p>
-            <button
-              onClick={handleLegalHold}
-              className="btn-secondary w-full"
-              style={{
-                borderColor: legalHold ? 'var(--status-active)' : 'var(--status-hold)',
-                color: legalHold ? 'var(--status-active)' : 'var(--status-hold)',
-              }}
-              type="button"
-            >
-              {legalHold ? 'Release hold' : 'Set legal hold'}
-            </button>
+            <div className="panel-body">
+              <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, marginBottom: 14 }}>
+                {legalHold ? 'Evidence cannot be deleted and the case cannot be archived.' : 'Standard lifecycle rules apply.'}
+              </p>
+              <button onClick={handleLegalHold} className={`btn ${legalHold ? '' : 'ghost'}`} style={{ width: '100%', justifyContent: 'center' }} type="button">
+                {legalHold ? 'Release hold' : 'Set legal hold'}
+              </button>
+            </div>
           </div>
           )}
 
           {!isArchived && (
-            <div
-              className="card-inset p-[var(--space-md)]"
-              style={{ borderColor: 'var(--status-hold-bg)' }}
-            >
-              <h3
-                className="field-label"
-                style={{ color: 'var(--status-hold)', marginBottom: 'var(--space-xs)' }}
-              >
-                Danger zone
-              </h3>
-              <p
-                className="text-xs mb-[var(--space-sm)]"
-                style={{ color: 'var(--text-tertiary)', lineHeight: '1.5' }}
-              >
-                Archiving is permanent. Case must be closed first.
-              </p>
-              <button
-                onClick={handleArchive}
-                disabled={legalHold || caseStatus !== 'closed'}
-                className="btn-danger w-full"
-                type="button"
-              >
+          <div className="panel" style={{ borderColor: 'rgba(184,66,28,.3)' }}>
+            <div className="panel-h" style={{ borderBottomColor: 'rgba(184,66,28,.15)' }}>
+              <h3 style={{ color: 'var(--accent)' }}>Danger zone</h3>
+            </div>
+            <div className="panel-body">
+              <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, marginBottom: 14 }}>Archiving is permanent. Case must be closed first.</p>
+              <button onClick={handleArchive} disabled={legalHold || caseStatus !== 'closed'} className="btn" style={{ width: '100%', justifyContent: 'center', background: 'var(--accent)', borderColor: 'var(--accent)', opacity: (legalHold || caseStatus !== 'closed') ? 0.4 : 1 }} type="button">
                 Archive case
               </button>
-              {legalHold && (
-                <p className="mt-[var(--space-xs)] text-xs" style={{ color: 'var(--status-hold)' }}>
-                  Release legal hold first.
-                </p>
-              )}
+              {legalHold && <p style={{ marginTop: 8, fontSize: '12px', color: 'var(--accent)' }}>Release legal hold first.</p>}
             </div>
+          </div>
           )}
-        </aside>
+        </div>
       </div>
 
       {!isArchived && (
-        <div className="mt-[var(--space-xl)]">
-          <div className="card-inset p-[var(--space-lg)]">
-            <h3 className="field-label mb-[var(--space-xs)]">Data import</h3>
-            <p
-              className="text-xs mb-[var(--space-md)]"
-              style={{ color: 'var(--text-tertiary)', lineHeight: '1.5' }}
-            >
-              Bulk-import evidence from another system (e.g. RelativityOne).
-              If your archive contains a{' '}
-              <code className="font-[family-name:var(--font-mono)]">
-                manifest.csv
-              </code>{' '}
-              at the root, every file&apos;s source hash is verified on
-              ingestion, the batch is stamped with a trusted RFC 3161
-              timestamp, and you receive a signed attestation certificate
-              for court submission.
-            </p>
-            <ImportArchive
-              caseId={caseData.id}
-              accessToken={accessToken}
-              onImportComplete={() => window.location.reload()}
-            />
+        <div style={{ marginTop: 22 }}>
+          <div className="panel">
+            <div className="panel-h"><h3>Data <em>import</em></h3></div>
+            <div className="panel-body">
+              <p style={{ fontSize: '13.5px', color: 'var(--muted)', lineHeight: 1.55, marginBottom: 18 }}>
+                Bulk-import evidence from another system (e.g. RelativityOne).
+                If your archive contains a <code>manifest.csv</code> at the root,
+                every file{"'"}s source hash is verified on ingestion, the batch is
+                stamped with a trusted RFC 3161 timestamp, and you receive a signed
+                attestation certificate for court submission.
+              </p>
+              <ImportArchive
+                caseId={caseData.id}
+                accessToken={accessToken}
+                onImportComplete={() => window.location.reload()}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -798,47 +626,6 @@ function SettingsPanel({
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Shared helpers
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-const CLASSIFICATION_STYLES: Record<string, { color: string; bg: string }> = {
-  public: { color: 'var(--status-active)', bg: 'var(--status-active-bg)' },
-  restricted: { color: 'var(--status-closed)', bg: 'var(--status-closed-bg)' },
-  confidential: { color: 'var(--status-hold)', bg: 'var(--status-hold-bg)' },
-  ex_parte: { color: 'var(--status-hold)', bg: 'var(--status-hold-bg)' },
-};
-
-function ClassificationBadge({ classification }: { classification: string }) {
-  const style = CLASSIFICATION_STYLES[classification] || CLASSIFICATION_STYLES.public;
-  return (
-    <span
-      className="badge shrink-0"
-      style={{ backgroundColor: style.bg, color: style.color }}
-    >
-      {classification.replace('_', ' ')}
-    </span>
-  );
-}
-
-function MetaField({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div>
-      <dt className="field-label">{label}</dt>
-      <dd
-        className={`mt-[var(--space-xs)] text-sm ${mono ? 'font-[family-name:var(--font-mono)]' : ''}`}
-        style={{ color: 'var(--text-primary)' }}
-      >
-        {value}
-      </dd>
-    </div>
-  );
-}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-GB', {
