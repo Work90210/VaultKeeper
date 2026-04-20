@@ -273,9 +273,9 @@ export default function LoginPage() {
           </div>
 
           <div className="legal-line">
-            <Link href="/en/about">Privacy</Link> &middot;{' '}
-            <Link href="/en/about">Terms</Link> &middot;{' '}
-            <Link href="/en/about">Security</Link>
+            <Link href="/privacy">Privacy</Link> &middot;{' '}
+            <Link href="/legal">Terms</Link> &middot;{' '}
+            <Link href="/security">Security</Link>
           </div>
         </div>
       </div>
