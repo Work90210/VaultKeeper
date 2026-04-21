@@ -95,6 +95,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/", h.GetInquiryLog)
 		r.Put("/", h.UpdateInquiryLog)
 		r.Delete("/", h.DeleteInquiryLog)
+		r.Post("/lock", h.LockInquiryLog)
+		r.Post("/seal", h.SealInquiryLog)
 	})
 
 	// Phase 2: Assessments
@@ -272,6 +274,72 @@ func (h *Handler) UpdateInquiryLog(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteInquiryLog(w http.ResponseWriter, r *http.Request) {
 	httputil.RespondError(w, http.StatusNotImplemented, "not implemented")
+}
+
+func (h *Handler) LockInquiryLog(w http.ResponseWriter, r *http.Request) {
+	ac := requireAuth(w, r)
+	if ac == nil {
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+	existing, err := h.service.GetInquiryLog(r.Context(), id, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, existing.CaseID) {
+		return
+	}
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	updated, err := h.service.LockInquiryLog(r.Context(), id, body.Reason, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	httputil.RespondJSON(w, http.StatusOK, updated)
+}
+
+func (h *Handler) SealInquiryLog(w http.ResponseWriter, r *http.Request) {
+	ac := requireAuth(w, r)
+	if ac == nil {
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+	existing, err := h.service.GetInquiryLog(r.Context(), id, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !h.requireOrgMembership(w, r, ac, existing.CaseID) {
+		return
+	}
+	var body struct {
+		Note string `json:"note"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		httputil.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	updated, err := h.service.SealInquiryLog(r.Context(), id, body.Note, ac.UserID)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	httputil.RespondJSON(w, http.StatusOK, updated)
 }
 
 // --- Assessments ---

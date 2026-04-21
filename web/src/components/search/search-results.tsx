@@ -19,8 +19,8 @@ function HighlightedText({ html }: { html: string }) {
 
 export function SearchResults({
   hits,
-  totalHits,
-  processingTimeMs,
+  totalHits: _totalHits,
+  processingTimeMs: _processingTimeMs,
   query,
   isLoading,
   facets,

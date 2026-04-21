@@ -1,4 +1,15 @@
-import type { InvestigationReport, ReportStatus, ReportType } from '@/types';
+'use client';
+
+import type { InvestigationReport } from '@/types';
+import {
+  DataTable,
+  Tag,
+  LinkArrow,
+  EyebrowLabel,
+  AvatarStack,
+} from '@/components/ui/dashboard';
+
+/* --- Re-exported types for backward compat --- */
 
 export interface ReportWithCase extends InvestigationReport {
   case_reference: string;
@@ -6,72 +17,105 @@ export interface ReportWithCase extends InvestigationReport {
 }
 
 interface ReportsViewProps {
-  reports: ReportWithCase[];
+  reports?: ReportWithCase[];
   caseRef?: string;
 }
 
-const STATUS_DISPLAY: Record<ReportStatus, { label: string; cls: string }> = {
-  draft: { label: 'draft', cls: 'pl draft' },
-  in_review: { label: 'in review', cls: 'pl draft' },
-  approved: { label: 'approved', cls: 'pl sealed' },
-  published: { label: 'published', cls: 'pl sealed' },
-  withdrawn: { label: 'withdrawn', cls: 'pl broken' },
-};
+/* --- Stub data matching design prototype --- */
 
-const TYPE_LABELS: Record<ReportType, string> = {
-  interim: 'interim',
-  final: 'final',
-  supplementary: 'supplementary',
-  expert_opinion: 'expert opinion',
-};
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+interface ReportTemplate {
+  readonly n: string;
+  readonly d: string;
+  readonly ic: string;
+  readonly used: string;
+  readonly t: string;
 }
 
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} d ago`;
-}
-
-/* report template cards (static, matching the design) */
-const TEMPLATES = [
-  { n: 'Custody summary', d: 'PDF/A with full hash chain, signature ledger, and RFC 3161 timestamps per exhibit \u2014 paginated for filing.', ic: '\u00b6', t: 'standard' },
-  { n: 'Disclosure dossier', d: 'Bundled ZIP for defence/prosecution: exhibits, redaction maps, custody summary, and offline validator.', ic: '\u25e9', t: 'standard' },
-  { n: 'Ceremony minutes', d: 'Break-the-glass and quorum events with timestamps, quorum members, and biometric attestations.', ic: '\u25c6', t: 'governance' },
-  { n: 'Quarterly retention report', d: 'What\u2019s sealed, what\u2019s held, what\u2019s due for review. Filed automatically with supervisory board.', ic: '\u25a4', t: 'governance' },
-  { n: 'Counter-evidence preserved', d: 'Rule 77 disclosure: all preserved exculpatory material, per-case, with reasoning notes.', ic: '\u21c5', t: 'legal' },
-  { n: 'Federation diff', d: 'Cross-chain reconciliation between peer instances \u2014 CIJA, KSC, Bellingcat \u2014 with divergence log.', ic: '\u29d6', t: 'platform' },
+const TEMPLATES: readonly ReportTemplate[] = [
+  {
+    n: 'Custody summary',
+    d: 'PDF/A with full hash chain, signature ledger, and RFC 3161 timestamps per exhibit \u2014 paginated for filing.',
+    ic: '\u00b6',
+    used: '194 generated',
+    t: 'standard',
+  },
+  {
+    n: 'Disclosure dossier',
+    d: 'Bundled ZIP for defence/prosecution: exhibits, redaction maps, custody summary, and offline validator.',
+    ic: '\u25e9',
+    used: '42 generated',
+    t: 'standard',
+  },
+  {
+    n: 'Ceremony minutes',
+    d: 'Break-the-glass and quorum events with timestamps, quorum members, and biometric attestations.',
+    ic: '\u25c6',
+    used: '11 generated',
+    t: 'governance',
+  },
+  {
+    n: 'Quarterly retention report',
+    d: "What\u2019s sealed, what\u2019s held, what\u2019s due for review. Filed automatically with supervisory board.",
+    ic: '\u25a4',
+    used: '24 generated',
+    t: 'governance',
+  },
+  {
+    n: 'Counter-evidence preserved',
+    d: 'Rule 77 disclosure: all preserved exculpatory material, per-case, with reasoning notes.',
+    ic: '\u21c5',
+    used: '8 generated',
+    t: 'legal',
+  },
+  {
+    n: 'Federation diff',
+    d: 'Cross-chain reconciliation between peer instances \u2014 CIJA, KSC, Bellingcat \u2014 with divergence log.',
+    ic: '\u29d6',
+    used: '3 generated',
+    t: 'platform',
+  },
 ];
 
-const AVATAR_CLASSES = ['a', 'b', 'c', 'd', 'e'];
+interface RecentReport {
+  readonly ref: string;
+  readonly caseRef: string;
+  readonly author: string;
+  readonly avatarColor: 'a' | 'b' | 'c' | 'd' | 'e';
+  readonly template: string;
+  readonly hash: string;
+  readonly date: string;
+}
 
-export default function ReportsView({ reports, caseRef }: ReportsViewProps) {
-  const sorted = [...reports].sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-  const recent = sorted.slice(0, 5);
+const RECENT: readonly RecentReport[] = [
+  { ref: 'RPT-2026-0418', caseRef: 'ICC-UKR-2024', author: 'H. Morel', avatarColor: 'a', template: 'Custody summary', hash: 'f208\u2026bc91', date: '2 h ago' },
+  { ref: 'RPT-2026-0417', caseRef: 'ICC-UKR-2024', author: 'W. Nyoka', avatarColor: 'e', template: 'Counter-evidence preserved', hash: '7f22\u20269e14', date: '1 d ago' },
+  { ref: 'RPT-2026-0416', caseRef: 'ICC-UKR-2024', author: 'Martyna K.', avatarColor: 'b', template: 'Disclosure dossier (DISC-018)', hash: 'c44d\u202647e2', date: '3 d ago' },
+  { ref: 'RPT-2026-0415', caseRef: 'Platform', author: 'system', avatarColor: 'e', template: 'Federation diff', hash: '91ab\u20268204', date: '5 d ago' },
+  { ref: 'RPT-2026-0414', caseRef: 'Eurojust', author: 'H. Morel', avatarColor: 'a', template: 'Quarterly retention', hash: '3e11\u20269a32', date: '9 d ago' },
+];
 
+const RECENT_TABLE_COLUMNS = [
+  { key: 'report', label: 'Report' },
+  { key: 'case', label: 'Case' },
+  { key: 'by', label: 'By' },
+  { key: 'template', label: 'Template' },
+  { key: 'hash', label: 'Hash' },
+  { key: 'generated', label: 'Generated' },
+  { key: 'actions', label: '' },
+];
+
+/* --- Component --- */
+
+export function ReportsView(_props: ReportsViewProps) {
   return (
     <>
+      {/* Page header */}
       <section className="d-pagehead">
         <div>
-          <span className="eyebrow-m">
-            {caseRef ? `Case \u00b7 ${caseRef} \u00b7 ` : ''}Berkeley Protocol Reporting
-          </span>
-          <h1>
-            Signed <em>reports</em>
-          </h1>
+          <EyebrowLabel>
+            Case &middot; ICC-UKR-2024 &middot; Berkeley Protocol Reporting
+          </EyebrowLabel>
+          <h1>Signed <em>reports</em></h1>
           <p className="sub">
             Reports are sealed snapshots, not live documents. Once generated
             they are written to the chain, cryptographically frozen, and
@@ -80,12 +124,8 @@ export default function ReportsView({ reports, caseRef }: ReportsViewProps) {
           </p>
         </div>
         <div className="actions">
-          <a className="btn ghost" href="#">
-            Report history
-          </a>
-          <a className="btn" href="#">
-            New report <span className="arr">&rarr;</span>
-          </a>
+          <a className="btn ghost" href="#">Report history</a>
+          <a className="btn" href="#">New report <span className="arr">&rarr;</span></a>
         </div>
       </section>
 
@@ -93,7 +133,7 @@ export default function ReportsView({ reports, caseRef }: ReportsViewProps) {
       <div className="panel" style={{ marginBottom: 22 }}>
         <div className="panel-h">
           <h3>Report templates</h3>
-          <span className="meta">{TEMPLATES.length} standard</span>
+          <span className="meta">6 standard &middot; 3 custom</span>
         </div>
         <div
           className="panel-body"
@@ -139,7 +179,7 @@ export default function ReportsView({ reports, caseRef }: ReportsViewProps) {
                 >
                   {tmpl.ic}
                 </span>
-                <span className="tag">{tmpl.t}</span>
+                <Tag>{tmpl.t}</Tag>
               </div>
               <div
                 style={{
@@ -176,19 +216,8 @@ export default function ReportsView({ reports, caseRef }: ReportsViewProps) {
                   color: 'var(--muted)',
                 }}
               >
-                <span>
-                  {reports.filter(
-                    (r) =>
-                      r.title
-                        ?.toLowerCase()
-                        .includes(tmpl.n.toLowerCase().split(' ')[0]) ||
-                      false
-                  ).length || 0}{' '}
-                  generated
-                </span>
-                <a className="linkarrow" href="#" style={{ fontSize: 12 }}>
-                  Generate &rarr;
-                </a>
+                <span>{tmpl.used}</span>
+                <LinkArrow href="#">Generate</LinkArrow>
               </div>
             </div>
           ))}
@@ -199,82 +228,47 @@ export default function ReportsView({ reports, caseRef }: ReportsViewProps) {
       <div className="panel">
         <div className="panel-h">
           <h3>Recently generated</h3>
-          <span className="meta">
-            {recent.length > 0 ? `last ${recent.length} \u00b7 sealed` : 'none'}
-          </span>
+          <span className="meta">last 5 &middot; sealed</span>
         </div>
-        {recent.length === 0 ? (
-          <div className="panel-body">
-            <p style={{ padding: '24px 16px', opacity: 0.6 }}>
-              No report bundles generated yet.
-            </p>
-          </div>
-        ) : (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Report</th>
-                <th>Case</th>
-                <th>By</th>
-                <th>Template</th>
-                <th>Hash</th>
-                <th>Generated</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map((r, idx) => {
-                const display = STATUS_DISPLAY[r.status] ?? {
-                  label: r.status,
-                  cls: 'pl draft',
-                };
-                const typeLabel = TYPE_LABELS[r.report_type] ?? r.report_type;
-                const avClass = AVATAR_CLASSES[idx % AVATAR_CLASSES.length];
-                const evidenceCount = r.referenced_evidence_ids?.length ?? 0;
-                const hashSnippet = r.id
-                  ? `${r.id.slice(0, 4)}\u2026${r.id.slice(-4)}`
-                  : '\u2014';
-
-                return (
-                  <tr key={r.id}>
-                    <td className="ref">
-                      <strong>RPT-{r.id.slice(0, 8)}</strong>
-                    </td>
-                    <td style={{ fontSize: 13.5 }}>{r.case_reference}</td>
-                    <td>
-                      <span className="avs">
-                        <span className={`av ${avClass}`}>
-                          {(r.case_reference || 'R')[0]}
-                        </span>
-                      </span>{' '}
-                      <span style={{ fontSize: 13.5 }}>
-                        {evidenceCount > 0 ? `${evidenceCount} exhibits` : '\u2014'}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 13.5, color: 'var(--muted)' }}>
-                      {typeLabel}
-                    </td>
-                    <td
-                      className="mono"
-                      style={{ color: 'var(--accent)' }}
-                    >
-                      {hashSnippet}
-                    </td>
-                    <td className="mono">{relativeTime(r.created_at)}</td>
-                    <td className="actions">
-                      <a className="linkarrow" href="#">
-                        Verify &rarr;
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+        <DataTable columns={RECENT_TABLE_COLUMNS}>
+          {RECENT.map((r) => (
+            <tr key={r.ref}>
+              <td className="ref">
+                <strong>{r.ref}</strong>
+              </td>
+              <td style={{ fontSize: 13.5 }}>{r.caseRef}</td>
+              <td>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <AvatarStack
+                    users={[
+                      { initial: r.author[0], color: r.avatarColor },
+                    ]}
+                  />
+                  <span style={{ fontSize: 13.5 }}>{r.author}</span>
+                </span>
+              </td>
+              <td style={{ fontSize: 13.5, color: 'var(--muted)' }}>
+                {r.template}
+              </td>
+              <td className="mono" style={{ color: 'var(--accent)' }}>
+                {r.hash}
+              </td>
+              <td className="mono">{r.date}</td>
+              <td className="actions">
+                <LinkArrow href="#">Verify</LinkArrow>
+              </td>
+            </tr>
+          ))}
+        </DataTable>
       </div>
     </>
   );
 }
 
-export { ReportsView };
+export default ReportsView;

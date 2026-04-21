@@ -1,4 +1,17 @@
+'use client';
+
 import type { Disclosure } from '@/types';
+import {
+  KPIStrip,
+  Panel,
+  DataTable,
+  StatusPill,
+  AvatarStack,
+  LinkArrow,
+  EyebrowLabel,
+} from '@/components/ui/dashboard';
+
+/* --- Re-exported types for backward compat --- */
 
 export interface DisclosureWithCase extends Disclosure {
   case_reference: string;
@@ -7,60 +20,73 @@ export interface DisclosureWithCase extends Disclosure {
 }
 
 interface DisclosuresViewProps {
-  disclosures: DisclosureWithCase[];
+  disclosures?: DisclosureWithCase[];
   caseRef?: string;
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-  });
+/* --- Stub data matching design prototype --- */
+
+interface DisclosureRow {
+  readonly ref: string;
+  readonly note: string;
+  readonly to: string;
+  readonly ex: number;
+  readonly st: 'review' | 'sent' | 'draft';
+  readonly due: string;
+  readonly who: { initial: string; color: 'a' | 'b' | 'c' | 'd' | 'e' }[];
 }
 
-function computeStatusLabel(d: DisclosureWithCase): {
-  label: string;
-  cls: string;
-} {
-  const notes = (d.notes || '').toLowerCase();
-  if (notes.includes('delivered') || notes.includes('sealed') || notes.includes('verified')) {
-    return { label: 'sent', cls: 'pl sealed' };
-  }
-  if (notes.includes('review') || notes.includes('pending')) {
-    return { label: 'review', cls: 'pl hold' };
-  }
-  return { label: 'draft', cls: 'pl draft' };
+const DISCLOSURES: readonly DisclosureRow[] = [
+  { ref: 'DISC-2026-019', note: 'redactions pending countersign', to: 'Defence \u00b7 M. Petrenko counsel', ex: 48, st: 'review', due: 'Fri 25 Apr', who: [{ initial: 'A', color: 'a' }, { initial: 'B', color: 'b' }] },
+  { ref: 'DISC-2026-018', note: 'ack received \u00b7 9 clarifications', to: 'Prosecution \u00b7 OTP Hague', ex: 182, st: 'sent', due: '18 Apr', who: [{ initial: 'A', color: 'a' }, { initial: 'C', color: 'c' }] },
+  { ref: 'DISC-2026-017', note: 'federated sub-chain \u00b7 mirror', to: 'Federated \u00b7 CIJA Berlin', ex: 612, st: 'sent', due: '16 Apr', who: [{ initial: 'A', color: 'a' }] },
+  { ref: 'DISC-2026-016', note: 'awaiting exhibit E-0917', to: 'Trial chamber', ex: 12, st: 'draft', due: '\u2014', who: [{ initial: 'B', color: 'b' }] },
+  { ref: 'DISC-2026-015', note: 'signed bundle verified', to: 'Defence \u00b7 second-chair', ex: 91, st: 'sent', due: '11 Apr', who: [{ initial: 'A', color: 'a' }, { initial: 'D', color: 'd' }] },
+];
+
+const STATUS_MAP: Record<DisclosureRow['st'], 'hold' | 'sealed' | 'draft'> = {
+  review: 'hold',
+  sent: 'sealed',
+  draft: 'draft',
+};
+
+const TABLE_COLUMNS = [
+  { key: 'bundle', label: 'Bundle' },
+  { key: 'recipient', label: 'Recipient' },
+  { key: 'exhibits', label: 'Exhibits' },
+  { key: 'status', label: 'Status' },
+  { key: 'due', label: 'Due' },
+  { key: 'owners', label: 'Owners' },
+  { key: 'actions', label: '' },
+];
+
+interface WizardStep {
+  readonly t: string;
+  readonly d: string;
+  readonly ok: boolean;
+  readonly cur: boolean;
 }
 
-const AVATAR_CLASSES = ['a', 'b', 'c', 'd', 'e'];
+const WIZARD_STEPS: readonly WizardStep[] = [
+  { t: '1 \u00b7 Scope', d: '48 exhibits selected \u00b7 witness statements excluded', ok: true, cur: false },
+  { t: '2 \u00b7 Redactions', d: "Applied Martyna's draft v4 \u00b7 12 passages", ok: true, cur: false },
+  { t: '3 \u00b7 Countersigns', d: '1 of 2 obtained \u00b7 awaiting H. Morel', ok: false, cur: true },
+  { t: '4 \u00b7 Manifest', d: 'SHA-256 \u00b7 BLAKE3 \u00b7 RFC 3161 timestamp', ok: false, cur: false },
+  { t: '5 \u00b7 Deliver', d: 'Encrypted bundle + validator \u00b7 4.2 GB', ok: false, cur: false },
+];
 
-export default function DisclosuresView({ disclosures, caseRef }: DisclosuresViewProps) {
-  const total = disclosures.length;
-  const pending = disclosures.filter(
-    (d) => computeStatusLabel(d).label === 'review'
-  ).length;
-  const avgExhibits = total > 0
-    ? Math.round(disclosures.reduce((sum, d) => sum + (d.exhibit_count || 0), 0) / total)
-    : 0;
-  const rejected = 0; // No rejection tracking yet
+/* --- Component --- */
 
-  // Nearest due disclosure
-  const pendingDisclosures = disclosures.filter(d => computeStatusLabel(d).label === 'review');
-  const nextDue = pendingDisclosures.length > 0
-    ? pendingDisclosures[0]
-    : null;
-
+export function DisclosuresView(_props: DisclosuresViewProps) {
   return (
     <>
+      {/* Page header */}
       <section className="d-pagehead">
         <div>
-          <span className="eyebrow-m">
-            {caseRef ? `Case \u00b7 ${caseRef} \u00b7 ` : ''}Berkeley Protocol Reporting
-          </span>
-          <h1>
-            Disclosure <em>bundles</em>
-          </h1>
+          <EyebrowLabel>
+            Case &middot; ICC-UKR-2024 &middot; Berkeley Protocol Reporting
+          </EyebrowLabel>
+          <h1>Disclosure <em>bundles</em></h1>
           <p className="sub">
             A disclosure bundle is a one-click ZIP of exhibits, custody log,
             hash manifest, and (where required) redaction maps &mdash; plus
@@ -69,194 +95,148 @@ export default function DisclosuresView({ disclosures, caseRef }: DisclosuresVie
           </p>
         </div>
         <div className="actions">
-          <a className="btn ghost" href="#">
-            Templates
-          </a>
-          <a className="btn" href="#">
-            New disclosure <span className="arr">&rarr;</span>
-          </a>
+          <a className="btn ghost" href="#">Templates</a>
+          <a className="btn" href="#">New disclosure <span className="arr">&rarr;</span></a>
         </div>
       </section>
 
-      <div className="d-kpis" style={{ marginBottom: 22 }}>
-        <div className="d-kpi">
-          <div className="k">This quarter</div>
-          <div className="v">{total}</div>
-          <div className="sub">across all cases</div>
-        </div>
-        <div className="d-kpi">
-          <div className="k">Pending your review</div>
-          <div className="v">{pending}</div>
-          {nextDue && (
-            <div className="delta n">
-              {'\u25cf'} {nextDue.disclosed_to?.slice(0, 20) || 'Next'} due
-            </div>
-          )}
-        </div>
-        <div className="d-kpi">
-          <div className="k">Avg. bundle</div>
-          <div className="v">{avgExhibits}</div>
-          <div className="sub">exhibits</div>
-        </div>
-        <div className="d-kpi">
-          <div className="k">Rejected &middot; ever</div>
-          <div className="v">{rejected}</div>
-          <div className="sub">on custody grounds</div>
-        </div>
-      </div>
+      {/* KPI strip */}
+      <KPIStrip
+        items={[
+          { label: 'This quarter', value: 19, sub: 'sent across 3 cases' },
+          {
+            label: 'Pending your review',
+            value: 3,
+            delta: '\u25cf DISC-2026-019 due Fri',
+            deltaNegative: true,
+          },
+          { label: 'Avg. bundle', value: 214, sub: 'exhibits \u00b7 4.1 GB median' },
+          { label: 'Rejected \u00b7 ever', value: 0, sub: 'on custody grounds' },
+        ]}
+      />
 
+      <div style={{ marginBottom: 22 }} />
+
+      {/* Two-column: table + wizard */}
       <div className="g2-wide">
+        {/* Disclosures table */}
         <div className="panel">
           <div className="panel-h">
             <h3>All disclosures</h3>
-            <span className="meta">{total} of {total}</span>
+            <span className="meta">5 of 42</span>
           </div>
-          {total === 0 ? (
-            <div className="panel-body">
-              <p style={{ padding: '24px 16px', opacity: 0.6 }}>
-                No disclosure packages found across your cases.
-              </p>
-            </div>
-          ) : (
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Bundle</th>
-                  <th>Recipient</th>
-                  <th>Exhibits</th>
-                  <th>Status</th>
-                  <th>Due</th>
-                  <th>Owners</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {disclosures.map((d, idx) => {
-                  const status = computeStatusLabel(d);
-                  const note = d.notes?.slice(0, 40) || '';
-                  const ownerIndices = [idx % 5, (idx + 1) % 5].slice(0, Math.min(2, idx + 1));
-                  return (
-                    <tr key={d.id}>
-                      <td>
-                        <div className="ref">
-                          {d.case_reference}
-                          <small>{note}</small>
-                        </div>
-                      </td>
-                      <td style={{ fontSize: 13, color: 'var(--ink-2)' }}>
-                        {d.disclosed_to}
-                      </td>
-                      <td className="num">{d.exhibit_count}</td>
-                      <td>
-                        <span className={status.cls}>{status.label}</span>
-                      </td>
-                      <td className="mono">{formatDate(d.disclosed_at)}</td>
-                      <td>
-                        <span className="avs">
-                          {ownerIndices.map((c) => (
-                            <span key={c} className={`av ${AVATAR_CLASSES[c]}`}>
-                              {AVATAR_CLASSES[c].toUpperCase()}
-                            </span>
-                          ))}
-                        </span>
-                      </td>
-                      <td className="actions">
-                        <a className="linkarrow" href="#">
-                          Open &rarr;
-                        </a>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+          <DataTable columns={TABLE_COLUMNS}>
+            {DISCLOSURES.map((d) => (
+              <tr key={d.ref}>
+                <td>
+                  <div className="ref">
+                    {d.ref}
+                    <small>{d.note}</small>
+                  </div>
+                </td>
+                <td style={{ fontSize: 13, color: 'var(--ink-2)' }}>{d.to}</td>
+                <td className="num">{d.ex}</td>
+                <td>
+                  <StatusPill status={STATUS_MAP[d.st]}>{d.st}</StatusPill>
+                </td>
+                <td className="mono">{d.due}</td>
+                <td>
+                  <AvatarStack users={d.who} />
+                </td>
+                <td className="actions">
+                  <LinkArrow href="#">Open</LinkArrow>
+                </td>
+              </tr>
+            ))}
+          </DataTable>
         </div>
 
-        {pendingDisclosures.length > 0 && (
-          <div className="panel">
-            <div className="panel-h">
-              <h3>
-                Bundle wizard &middot;{' '}
-                <em>{pendingDisclosures[0].case_reference}</em>
-              </h3>
-              <span className="meta">in progress</span>
-            </div>
-            <div className="panel-body">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {[
-                  { t: '1 \u00b7 Scope', d: `${pendingDisclosures[0].exhibit_count} exhibits selected`, ok: true, cur: false },
-                  { t: '2 \u00b7 Redactions', d: pendingDisclosures[0].redacted ? 'Redactions applied' : 'No redactions', ok: pendingDisclosures[0].redacted, cur: false },
-                  { t: '3 \u00b7 Countersigns', d: 'Awaiting countersign', ok: false, cur: true },
-                  { t: '4 \u00b7 Manifest', d: 'SHA-256 \u00b7 BLAKE3 \u00b7 RFC 3161 timestamp', ok: false, cur: false },
-                  { t: '5 \u00b7 Deliver', d: 'Encrypted bundle + validator', ok: false, cur: false },
-                ].map((s, i, a) => (
-                  <div
-                    key={s.t}
+        {/* Bundle wizard */}
+        <Panel
+          title="Bundle wizard"
+          titleAccent="DISC-2026-019"
+          meta="step 3 of 5"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {WIZARD_STEPS.map((s, i) => (
+              <div
+                key={s.t}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '28px 1fr',
+                  gap: 14,
+                  padding: '12px 0',
+                  borderBottom:
+                    i < WIZARD_STEPS.length - 1
+                      ? '1px solid var(--line)'
+                      : 'none',
+                }}
+              >
+                <span
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    border: `1.5px solid ${
+                      s.ok
+                        ? 'var(--ok)'
+                        : s.cur
+                          ? 'var(--accent)'
+                          : 'var(--line-2)'
+                    }`,
+                    background: s.ok ? 'var(--ok)' : 'transparent',
+                    color: s.ok
+                      ? '#fff'
+                      : s.cur
+                        ? 'var(--accent)'
+                        : 'var(--muted)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 11,
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                >
+                  {s.ok ? '\u2713' : i + 1}
+                </span>
+                <div>
+                  <strong
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: '28px 1fr',
-                      gap: 14,
-                      padding: '12px 0',
-                      borderBottom: i < a.length - 1 ? '1px solid var(--line)' : 'none',
+                      fontFamily: "'Fraunces', serif",
+                      fontSize: 15,
+                      color:
+                        s.cur || s.ok ? 'var(--ink)' : 'var(--muted)',
                     }}
                   >
-                    <span
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        border: `1.5px solid ${s.ok ? 'var(--ok)' : s.cur ? 'var(--accent)' : 'var(--line-2)'}`,
-                        background: s.ok ? 'var(--ok)' : 'transparent',
-                        color: s.ok ? '#fff' : s.cur ? 'var(--accent)' : 'var(--muted)',
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: 11,
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      {s.ok ? '\u2713' : i + 1}
-                    </span>
-                    <div>
-                      <strong
-                        style={{
-                          fontFamily: "'Fraunces', serif",
-                          fontSize: 15,
-                          color: s.cur || s.ok ? 'var(--ink)' : 'var(--muted)',
-                        }}
-                      >
-                        {s.t}
-                      </strong>
-                      <div
-                        style={{
-                          fontSize: 12.5,
-                          color: 'var(--muted)',
-                          marginTop: 3,
-                        }}
-                      >
-                        {s.d}
-                      </div>
-                    </div>
+                    {s.t}
+                  </strong>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      color: 'var(--muted)',
+                      marginTop: 3,
+                    }}
+                  >
+                    {s.d}
                   </div>
-                ))}
+                </div>
               </div>
-              <a
-                className="btn"
-                style={{
-                  marginTop: 14,
-                  width: '100%',
-                  justifyContent: 'center',
-                }}
-                href="#"
-              >
-                Continue step 3 <span className="arr">&rarr;</span>
-              </a>
-            </div>
+            ))}
           </div>
-        )}
+          <a
+            className="btn"
+            style={{
+              marginTop: 14,
+              width: '100%',
+              justifyContent: 'center',
+            }}
+            href="#"
+          >
+            Continue step 3 <span className="arr">&rarr;</span>
+          </a>
+        </Panel>
       </div>
     </>
   );
 }
 
-export { DisclosuresView };
+export default DisclosuresView;

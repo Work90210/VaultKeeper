@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
@@ -112,6 +112,25 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
+/* ─── BP badge inline element ─── */
+const _BPBadge = () => (
+  <span
+    style={{
+      fontSize: '8px',
+      padding: '1.5px 5px',
+      borderRadius: '3px',
+      background: 'rgba(184,66,28,.06)',
+      border: '1px solid rgba(184,66,28,.12)',
+      letterSpacing: '.05em',
+      color: 'var(--accent)',
+      verticalAlign: '1px',
+      marginLeft: '2px',
+    }}
+  >
+    BP
+  </span>
+);
+
 /* ─── Nav item types ─── */
 interface NavItem {
   key: string;
@@ -124,10 +143,11 @@ interface NavItem {
 
 interface NavGroup {
   label: string;
+  hasBP?: boolean;
   items: NavItem[];
 }
 
-/* ─── App nav groups (cross-case "all cases" view) ─── */
+/* ─── App nav groups — matches design prototype (Investigation/Reporting/Platform) ─── */
 const APP_NAV_GROUPS: NavGroup[] = [
   {
     label: 'Workspace',
@@ -166,10 +186,10 @@ const APP_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-/* ─── Case sidebar groups ─── */
-const CASE_SIDEBAR_GROUPS: NavGroup[] = [
+/* ─── Case-scoped nav groups — matches design prototype ─── */
+const CASE_NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Case',
+    label: '',
     items: [
       { key: 'overview', href: '', label: 'Overview', iconKey: 'overview' },
     ],
@@ -255,7 +275,7 @@ const SETTINGS_SIDEBAR_GROUPS: SettingsGroup[] = [
   },
 ];
 
-/* ─── Nav Link (design: grid 18px/1fr/auto with .ico span + .badge span) ─── */
+/* ─── Nav Link ─── */
 function NavLink({
   iconKey,
   label,
@@ -302,12 +322,27 @@ function NavLink({
 }
 
 /* ─── Case Picker Dropdown ─── */
-function CasePicker({ cases }: { cases: { id: string; reference_code: string; title: string; status: string }[] }) {
+function CasePicker({
+  cases,
+}: {
+  cases: { id: string; reference_code: string; title: string; status: string }[];
+}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams?.() ?? null;
   const selectedCaseId = searchParams?.get('caseId') ?? null;
   const selectedCase = cases.find((c) => c.id === selectedCaseId);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   if (cases.length === 0) return null;
 
@@ -319,8 +354,10 @@ function CasePicker({ cases }: { cases: { id: string; reference_code: string; ti
   };
 
   const currentLabel = selectedCase ? selectedCase.reference_code : 'All cases';
-  const currentSub = selectedCase ? selectedCase.title : undefined;
-  const currentDot = selectedCase ? (statusDot[selectedCase.status] || 'var(--muted)') : 'var(--ok)';
+  const currentSub = selectedCase ? selectedCase.title : 'Cross-case overview';
+  const currentDot = selectedCase
+    ? (statusDot[selectedCase.status] || 'var(--muted)')
+    : 'var(--ink)';
 
   function selectCase(caseId: string | null) {
     const params = new URLSearchParams(searchParams?.toString() || '');
@@ -329,8 +366,6 @@ function CasePicker({ cases }: { cases: { id: string; reference_code: string; ti
     } else {
       params.delete('caseId');
     }
-    // Keep current view if set
-    const _view = params.get('view');
     const base = '/en/cases';
     const qs = params.toString();
     router.push(qs ? `${base}?${qs}` : base);
@@ -338,7 +373,7 @@ function CasePicker({ cases }: { cases: { id: string; reference_code: string; ti
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={ref} className="case-pick" style={{ position: 'relative' }}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -348,36 +383,43 @@ function CasePicker({ cases }: { cases: { id: string; reference_code: string; ti
           gap: '10px',
           alignItems: 'center',
           width: '100%',
-          padding: '10px 12px',
+          padding: '9px 12px',
           borderRadius: '10px',
           border: '1px solid var(--line)',
-          background: 'var(--paper)',
+          background: 'var(--bg)',
           cursor: 'pointer',
           fontSize: '13px',
           color: 'var(--ink)',
-          fontFamily: '"Fraunces", serif',
+          fontFamily: 'inherit',
           transition: 'border-color 0.15s',
           textAlign: 'left' as const,
         }}
       >
-        <span className="cd" style={{ width: '6px', height: '6px', borderRadius: '50%', background: currentDot }} />
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+        <span className="cd" style={{ width: 6, height: 6, borderRadius: '50%', background: currentDot }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, lineHeight: 1.2 }}>
           {currentLabel}
-          {currentSub && <small style={{ display: 'block', fontSize: '10px', color: 'var(--muted)', fontWeight: 400, marginTop: 1 }}>{currentSub}</small>}
+          <small style={{ display: 'block', fontWeight: 400, fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>
+            {currentSub}
+          </small>
         </span>
-        <span className="chev" style={{ color: 'var(--muted)', fontSize: '11px' }}>{'\u25BE'}</span>
+        <span style={{ color: 'var(--muted)', fontSize: 11 }}>{'\u25BE'}</span>
       </button>
       {open && (
-        <div className={`ctx-dd${open ? ' open' : ''}`} style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, width: 'auto' }}>
+        <div className="ctx-dd open" style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, width: 'auto' }}>
           <div className="dd-label">Cases</div>
           <button
             type="button"
             onClick={() => selectCase(null)}
             className={`dd-case${!selectedCaseId ? ' active' : ''}`}
-            style={{ width: '100%', border: 'none', fontFamily: 'inherit', textAlign: 'left' as const }}
+            style={{ width: '100%', border: 'none', fontFamily: 'inherit', textAlign: 'left' }}
           >
-            <span className="cd" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--ok)' }} />
-            <span>All cases</span>
+            <span className="cd" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink)' }} />
+            <span>
+              All cases
+              <small style={{ display: 'block', fontSize: 10, color: 'var(--muted)', fontWeight: 400, marginTop: 1 }}>
+                Cross-case overview
+              </small>
+            </span>
           </button>
           <div className="dd-sep" />
           {cases.map((c) => (
@@ -386,15 +428,143 @@ function CasePicker({ cases }: { cases: { id: string; reference_code: string; ti
               type="button"
               onClick={() => selectCase(c.id)}
               className={`dd-case${selectedCaseId === c.id ? ' active' : ''}`}
-              style={{ width: '100%', border: 'none', fontFamily: 'inherit', textAlign: 'left' as const }}
+              style={{ width: '100%', border: 'none', fontFamily: 'inherit', textAlign: 'left' }}
             >
-              <span className="cd" style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusDot[c.status] || 'var(--muted)' }} />
+              <span className="cd" style={{ width: 6, height: 6, borderRadius: '50%', background: statusDot[c.status] || 'var(--muted)' }} />
               <span>
                 {c.reference_code}
-                <small style={{ display: 'block', fontSize: '10px', color: 'var(--muted)', fontWeight: 400, marginTop: 1 }}>{c.title}</small>
+                <small style={{ display: 'block', fontSize: 10, color: 'var(--muted)', fontWeight: 400, marginTop: 1 }}>
+                  {c.title}
+                </small>
               </span>
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Profile Dropdown ─── */
+function ProfileDropdown({
+  userName,
+  userEmail,
+  userRole,
+}: {
+  userName: string;
+  userEmail: string;
+  userRole: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        className="who"
+        onClick={() => setOpen(!open)}
+        style={{ cursor: 'pointer', border: 'none', background: 'none', width: '100%', textAlign: 'left' }}
+      >
+        <span className="av">{userName.charAt(0).toUpperCase()}</span>
+        <span className="n">
+          {userName}
+          <small>{userRole} &middot; &#128273; Ed25519</small>
+        </span>
+        <span className="dot" title="Signed in" />
+      </button>
+      {open && (
+        <div
+          className="ctx-dd open"
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: 0,
+            right: 0,
+            marginBottom: 4,
+            width: 'auto',
+          }}
+        >
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line)' }}>
+            <div style={{ fontWeight: 500, fontSize: 14 }}>{userName}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{userEmail}</div>
+            <div style={{
+              fontSize: 11,
+              color: 'var(--muted)',
+              marginTop: 4,
+              fontFamily: 'JetBrains Mono, monospace',
+              letterSpacing: '.02em',
+            }}>
+              {userRole} &middot; Admin
+            </div>
+          </div>
+          <Link
+            href="/en/profile"
+            onClick={() => setOpen(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 16px',
+              fontSize: 13,
+              color: 'var(--ink-2)',
+              textDecoration: 'none',
+            }}
+          >
+            <svg width={15} height={15} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.4}>
+              <circle cx="8" cy="6" r="2.5" />
+              <path d="M3 13.5c.8-2.5 2.7-4 5-4s4.2 1.5 5 4" />
+            </svg>
+            Edit profile
+          </Link>
+          <Link
+            href="/en/settings"
+            onClick={() => setOpen(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 16px',
+              fontSize: 13,
+              color: 'var(--ink-2)',
+              textDecoration: 'none',
+            }}
+          >
+            <svg width={15} height={15} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.4}>
+              <circle cx="8" cy="8" r="2" />
+              <path d="M8 2v2M8 12v2M2 8h2M12 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" />
+            </svg>
+            Settings
+          </Link>
+          <div style={{ height: 1, background: 'var(--line)', margin: '4px 0' }} />
+          <Link
+            href="/en/login"
+            onClick={() => setOpen(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 16px',
+              fontSize: 13,
+              color: '#b35c5c',
+              textDecoration: 'none',
+            }}
+          >
+            <svg width={15} height={15} viewBox="0 0 16 16" fill="none" stroke="#b35c5c" strokeWidth={1.4}>
+              <path d="M6 2H3v12h3M11 5l3 3-3 3M14 8H7" />
+            </svg>
+            Sign out
+          </Link>
         </div>
       )}
     </div>
@@ -406,7 +576,10 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { caseData, activeTab, setActiveTab, sidebarCounts } = useCaseContext();
-  const [sidebarData, setSidebarData] = useState<{ counts: Record<string, string>; cases: { id: string; reference_code: string; title: string; status: string }[] }>({ counts: {}, cases: [] });
+  const [sidebarData, setSidebarData] = useState<{
+    counts: Record<string, string>;
+    cases: { id: string; reference_code: string; title: string; status: string }[];
+  }>({ counts: {}, cases: [] });
 
   useEffect(() => {
     async function load() {
@@ -424,15 +597,17 @@ export function Sidebar() {
           }
         }
         setSidebarData({ counts: c, cases: Array.isArray(data.cases) ? data.cases : [] });
-      } catch {}
+      } catch {
+        // Silently fail — badges just won't show
+      }
     }
     load();
   }, []);
 
   const isCaseView = caseData !== null;
-
   const userName = user?.name || 'User';
-  const userInitial = userName.charAt(0).toUpperCase();
+  const userEmail = user?.email || '';
+  const userRole = 'Senior analyst';
 
   return (
     <aside className="d-side">
@@ -445,8 +620,8 @@ export function Sidebar() {
       {/* Org picker */}
       <OrgSwitcher />
 
-      {/* Case picker — only in app mode */}
-      {!isCaseView && <CasePicker cases={sidebarData.cases} />}
+      {/* Case picker */}
+      <CasePicker cases={sidebarData.cases} />
 
       {/* Navigation */}
       {isCaseView ? (
@@ -460,30 +635,33 @@ export function Sidebar() {
         <AppSidebarContent pathname={pathname} counts={sidebarData.counts} cases={sidebarData.cases} />
       )}
 
-      {/* Who: .who > .av + .n (with small) + .dot */}
-      <Link href="/en/profile" className="who">
-        <span className="av">{userInitial}</span>
-        <span className="n">
-          {userName}
-          <small>Signed in</small>
-        </span>
-        <span className="dot" title="Signed in" />
-      </Link>
+      {/* Profile card with dropdown */}
+      <ProfileDropdown userName={userName} userEmail={userEmail} userRole={userRole} />
     </aside>
   );
 }
 
-/* ─── App mode navigation (grouped with .nav-label) ─── */
-function AppSidebarContent({ pathname, counts, cases }: { pathname: string; counts: Record<string, string>; cases: { id: string; reference_code: string; title: string; status: string }[] }) {
+/* ─── App mode navigation — BP phase groups ─── */
+function AppSidebarContent({
+  pathname,
+  counts,
+  cases,
+}: {
+  pathname: string;
+  counts: Record<string, string>;
+  cases: { id: string; reference_code: string; title: string; status: string }[];
+}) {
   const searchParams = useSearchParams?.() ?? null;
   const view = searchParams?.get('view') ?? null;
   const selectedCaseId = searchParams?.get('caseId') ?? null;
   const selectedCase = cases.find((c) => c.id === selectedCaseId);
 
-  // Fetch case-specific counts via the server-side sidebar-counts route
   const [caseCounts, setCaseCounts] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!selectedCaseId) { setCaseCounts({}); return; }
+    if (!selectedCaseId) {
+      setCaseCounts({});
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -498,27 +676,29 @@ function AppSidebarContent({ pathname, counts, cases }: { pathname: string; coun
         }
         setCaseCounts(c);
       } catch {
-        // Silently fail — badges just won't update
+        // Silently fail
       }
     })();
     return () => { cancelled = true; };
   }, [selectedCaseId]);
 
   const PATH_TO_NAV: Record<string, string> = {
-    search: 'search', settings: 'settings', evidence: 'evidence',
-    witnesses: 'witnesses', disclosures: 'disclosures', corroborations: 'corroborations',
-    'analysis-notes': 'analysis', 'inquiry-logs': 'inquiry', assessments: 'assessments',
-    verifications: 'corroborations', reports: 'reports',
+    search: 'search',
+    settings: 'settings',
+    evidence: 'evidence',
+    witnesses: 'witnesses',
+    disclosures: 'disclosures',
+    corroborations: 'corroborations',
+    'analysis-notes': 'analysis',
+    'inquiry-logs': 'inquiry',
+    assessments: 'assessments',
+    verifications: 'corroborations',
+    reports: 'reports',
   };
   const segment = pathname.split('/')[2] || '';
-  const activeKey = PATH_TO_NAV[segment]
-    || (segment === 'cases' ? (view || 'cases') : 'overview');
+  const activeKey = PATH_TO_NAV[segment] || (segment === 'cases' ? (view || 'cases') : 'overview');
 
-  // Use case-specific counts when a case is selected, otherwise global counts
   const displayCounts = selectedCaseId ? caseCounts : counts;
-
-  // When a case is selected, show case-scoped nav (no Cases/Overview top-level)
-  const navGroups = selectedCaseId ? APP_NAV_GROUPS : APP_NAV_GROUPS;
   const hiddenKeys = selectedCaseId ? new Set(['cases']) : new Set<string>();
 
   return (
@@ -526,33 +706,40 @@ function AppSidebarContent({ pathname, counts, cases }: { pathname: string; coun
       {selectedCase && (
         <div className="nav-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{selectedCase.reference_code}</span>
-          <span style={{
-            fontSize: '9px', letterSpacing: '.06em', padding: '2px 6px', borderRadius: '4px',
-            background: selectedCase.status === 'hold' ? 'rgba(184,66,28,.1)' : 'rgba(74,107,58,.1)',
-            color: selectedCase.status === 'hold' ? 'var(--accent)' : 'var(--ok)',
-          }}>
+          <span
+            style={{
+              fontSize: 9,
+              letterSpacing: '.06em',
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: selectedCase.status === 'hold' ? 'rgba(184,66,28,.1)' : 'rgba(74,107,58,.1)',
+              color: selectedCase.status === 'hold' ? 'var(--accent)' : 'var(--ok)',
+            }}
+          >
             {selectedCase.status}
           </span>
         </div>
       )}
-      {navGroups.map((group) => {
+      {APP_NAV_GROUPS.map((group) => {
         const visibleItems = group.items.filter((item) => !hiddenKeys.has(item.key));
         if (visibleItems.length === 0) return null;
         return (
-        <div key={group.label}>
-          <div className="nav-label">{group.label}</div>
-          {visibleItems.map((item) => (
-            <NavLink
-              key={item.key}
-              iconKey={item.iconKey}
-              label={item.label}
-              active={activeKey === item.key}
-              badge={selectedCaseId ? displayCounts[item.key] : (counts[item.key] || item.badge)}
-              badgeAccent={item.badgeAccent}
-              href={item.href}
-            />
-          ))}
-        </div>
+          <div key={group.label}>
+            <div className="nav-label">
+              {group.label}
+            </div>
+            {visibleItems.map((item) => (
+              <NavLink
+                key={item.key}
+                iconKey={item.iconKey}
+                label={item.label}
+                active={activeKey === item.key}
+                badge={displayCounts[item.key] || item.badge}
+                badgeAccent={item.badgeAccent}
+                href={item.href}
+              />
+            ))}
+          </div>
         );
       })}
     </nav>
@@ -574,42 +761,40 @@ function CaseSidebarContent({
   return (
     <>
       {/* Back link + case info */}
-      <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ paddingBottom: 12, borderBottom: '1px solid var(--line)' }}>
         <Link
           href="/en/cases"
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
+            gap: 4,
+            fontSize: 11,
             fontFamily: '"JetBrains Mono", monospace',
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: 'var(--muted)',
             textDecoration: 'none',
-            marginBottom: '8px',
+            marginBottom: 8,
           }}
         >
-          <svg style={{ width: '10px', height: '10px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg style={{ width: 10, height: 10 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           Cases
         </Link>
-        <div
-          style={{
-            fontFamily: '"JetBrains Mono", monospace',
-            fontSize: '11px',
-            letterSpacing: '0.04em',
-            color: 'var(--muted)',
-            marginBottom: '2px',
-          }}
-        >
+        <div style={{
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: 11,
+          letterSpacing: '0.04em',
+          color: 'var(--muted)',
+          marginBottom: 2,
+        }}>
           {caseData.reference_code}
         </div>
         <div
           style={{
             fontFamily: '"Fraunces", serif',
-            fontSize: '15px',
+            fontSize: 15,
             fontWeight: 500,
             lineHeight: 1.3,
             color: 'var(--ink)',
@@ -623,16 +808,20 @@ function CaseSidebarContent({
         </div>
       </div>
 
-      {/* Case nav groups */}
+      {/* Case nav groups — BP phase structure */}
       <nav className="d-nav" style={{ flex: 1, overflowY: 'auto' }}>
-        {CASE_SIDEBAR_GROUPS.map((group) => {
+        {CASE_NAV_GROUPS.map((group, gi) => {
           const visibleItems = group.items.filter(
             (item) => item.key !== 'settings' || caseData.canEdit,
           );
           if (visibleItems.length === 0) return null;
           return (
-            <div key={group.label}>
-              <div className="nav-label">{group.label}</div>
+            <div key={gi}>
+              {group.label && (
+                <div className="nav-label">
+                  {group.label}
+                    </div>
+              )}
               {visibleItems.map((item) => {
                 const count = sidebarCounts[item.key];
                 return (
@@ -642,6 +831,7 @@ function CaseSidebarContent({
                     label={item.label}
                     active={activeTab === item.key}
                     badge={count != null && count > 0 ? String(count) : undefined}
+                    badgeAccent={item.badgeAccent}
                     onClick={() => setActiveTab(item.key)}
                   />
                 );
@@ -655,49 +845,39 @@ function CaseSidebarContent({
 }
 
 /* ─── Settings mode navigation ─── */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function SettingsSidebarContent() {
+export function SettingsSidebarContent() {
   const searchParams = useSearchParams?.() ?? null;
   const activeTab = searchParams?.get('tab') || 'team';
   const { isOrgAdmin } = useOrg();
 
   return (
     <>
-      {/* Back to app */}
-      <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ paddingBottom: 12, borderBottom: '1px solid var(--line)' }}>
         <Link
           href="/en/cases"
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
+            gap: 4,
+            fontSize: 11,
             fontFamily: '"JetBrains Mono", monospace',
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: 'var(--muted)',
             textDecoration: 'none',
-            marginBottom: '6px',
+            marginBottom: 6,
           }}
         >
-          <svg style={{ width: '10px', height: '10px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg style={{ width: 10, height: 10 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           Back
         </Link>
-        <div
-          style={{
-            fontFamily: '"Fraunces", serif',
-            fontSize: '18px',
-            fontWeight: 400,
-            color: 'var(--ink)',
-          }}
-        >
+        <div style={{ fontFamily: '"Fraunces", serif', fontSize: 18, fontWeight: 400, color: 'var(--ink)' }}>
           Settings
         </div>
       </div>
 
-      {/* Settings nav groups — uses s-nav class matching design prototype */}
       <nav className="s-nav" style={{ flex: 1, overflowY: 'auto' }}>
         {SETTINGS_SIDEBAR_GROUPS.map((group) => {
           const visibleItems = group.items.filter(

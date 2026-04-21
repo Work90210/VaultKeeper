@@ -1989,6 +1989,29 @@
   .stagger-in > *:nth-child(n+9) { animation-delay: 320ms; }
 }
 
+/* VK Modal */
+.vk-modal{position:fixed;inset:0;z-index:9999;background:rgba(20,17,12,.5);display:flex;align-items:center;justify-content:center}
+.vk-modal-box{background:var(--paper);border-radius:var(--radius);max-width:600px;width:100%;padding:32px;box-shadow:var(--shadow-lg);margin:20px;max-height:85vh;overflow-y:auto}
+.vk-modal-box h3{font-family:Fraunces,serif;font-size:22px;margin-bottom:6px}
+.vk-modal-box h3 em{color:var(--accent);font-style:italic}
+.vk-modal-box .msub{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.6}
+.vk-modal-box .mfield{margin-bottom:14px}
+.vk-modal-box .mfield label{display:block;font-size:13px;font-weight:500;margin-bottom:5px}
+.vk-modal-box .mfield label small{font-weight:400;color:var(--muted);margin-left:4px}
+.vk-modal-box .mfield input,.vk-modal-box .mfield textarea,.vk-modal-box .mfield select{width:100%;padding:9px 12px;border:1px solid var(--line-2);border-radius:var(--radius-sm);font:inherit;font-size:13px;outline:none;background:var(--paper);box-sizing:border-box}
+.vk-modal-box .mfield textarea{resize:vertical;min-height:72px}
+.vk-modal-box .mgrid{display:grid;gap:14px}
+.vk-modal-box .mgrid-2{grid-template-columns:1fr 1fr}
+.vk-modal-box .mactions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.vk-modal-box .mphase{font-family:JetBrains Mono,monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:2px 7px;border-radius:4px;background:rgba(184,66,28,.06);border:1px solid rgba(184,66,28,.12);margin-left:8px}
+
+/* Inquiry detail — item rows */
+.item-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--paper);transition:all .15s;cursor:pointer;text-decoration:none;color:inherit}
+.item-row:hover{border-color:var(--accent-soft);box-shadow:var(--shadow-sm)}
+.item-row .ir-ref{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--accent);letter-spacing:.02em}
+.item-row .ir-name{font-size:13px;font-weight:500;color:var(--ink);margin-top:2px}
+.item-row .ir-meta{font-size:11px;color:var(--muted);margin-top:2px}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Search & discovery — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .search-demo{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-lg);padding:28px;margin-top:40px}
+  .search-bar{display:flex;align-items:center;gap:14px;padding:16px 20px;border:1px solid var(--line);border-radius:12px;background:var(--bg);font-family:"Fraunces",serif;font-size:18px;color:var(--ink);font-style:italic}
+  .search-bar::before{content:"/";color:var(--accent);font-family:"JetBrains Mono",monospace;font-style:normal;font-size:15px}
+  .search-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .schip{font-family:"JetBrains Mono",monospace;font-size:11px;padding:5px 11px;border-radius:999px;background:var(--bg-2);color:var(--muted);letter-spacing:.04em;border:1px solid var(--line)}
+  .schip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .search-res{margin-top:22px;border-top:1px solid var(--line)}
+  .res{display:grid;grid-template-columns:60px 1fr auto;gap:18px;padding:18px 0;border-bottom:1px solid var(--line);align-items:start}
+  .res .score{font-family:"Fraunces",serif;font-style:italic;font-size:20px;color:var(--accent)}
+  .res .meta{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;text-transform:uppercase}
+  .res h5{font-family:"Fraunces",serif;font-weight:400;font-size:17px;letter-spacing:-.01em}
+  .res p{color:var(--muted);font-size:13.5px;line-height:1.55;margin-top:4px}
+  .res p mark{background:rgba(200,126,94,.2);padding:0 2px;color:var(--ink);font-weight:500}
+  .res .tag{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);padding:3px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>Platform · 05 of 05</span>
+    <h1>Ask the archive <em>in your own words.</em> Get an answer it can prove.</h1>
+    <p class="lead">Cross-exhibit semantic search, powered by on-box embedding models. No cloud API. No telemetry. Every result carries the custody hash of the source exhibit, so what you find is ready for a pleading, not just a browser tab.</p>
+    <div class="sp-hero-meta">
+      <div><span class="k">Models</span><span class="v">on-prem · open</span></div>
+      <div><span class="k">Index</span><span class="v">pgvector · HNSW</span></div>
+      <div><span class="k">Languages</span><span class="v">47 · full-text</span></div>
+      <div><span class="k">Telemetry</span><span class="v"><em>zero</em></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">In the app<small>A real query</small></div>
+    <div class="sp-body">
+      <h2>"Every mention of the Andriivka checkpoint, <em>in any language.</em>"</h2>
+      <p class="sp-lead">A single query returns matches across Ukrainian radio intercepts, English investigator notes, Russian Telegram exports, and a French corroboration memo. Each result is ranked by semantic relevance and annotated with its sealed custody status.</p>
+
+      <div class="search-demo">
+        <div class="search-bar">Andriivka checkpoint · 17:30–18:30 local · any language</div>
+        <div class="search-chips">
+          <span class="schip on">All exhibits</span>
+          <span class="schip">Sealed only</span>
+          <span class="schip">Corroborated ≥ 2</span>
+          <span class="schip">Date 17–20 Apr 2022</span>
+          <span class="schip">Langs: uk · ru · en · fr</span>
+          <span class="schip">Exclude redacted</span>
+        </div>
+        <div class="search-res">
+          <div class="res">
+            <span class="score">0.91</span>
+            <div>
+              <div class="meta">E-0412 · radio intercept · uk · 17 Apr 17:41</div>
+              <h5>Patrol call-in, Andriivka junction</h5>
+              <p>"…прибули до <mark>блокпоста</mark> біля <mark>Андріївки</mark>, друга колона пройшла хвилин п'ятнадцять тому…" <em style="color:var(--muted-2)">(translated inline)</em></p>
+            </div>
+            <span class="tag">sealed ▣</span>
+          </div>
+          <div class="res">
+            <span class="score">0.87</span>
+            <div>
+              <div class="meta">E-0287 · witness statement · en · W-0144</div>
+              <h5>Witness account — arrival at checkpoint</h5>
+              <p>"The <mark>Andriivka</mark> <mark>checkpoint</mark> was unusually quiet at 17:52. The soldier who waved us through was the same officer I had seen on 14 April…"</p>
+            </div>
+            <span class="tag">sealed ▣</span>
+          </div>
+          <div class="res">
+            <span class="score">0.82</span>
+            <div>
+              <div class="meta">E-0551 · telegram export · ru · 17 Apr 18:02</div>
+              <h5>Channel "news_donetsk_live" · post #8422</h5>
+              <p>"<mark>Блокпост</mark> у Андріївки снова закрыт. Уже третий раз за сутки. Соседи боятся выходить…"</p>
+            </div>
+            <span class="tag">sealed ▣</span>
+          </div>
+          <div class="res">
+            <span class="score">0.74</span>
+            <div>
+              <div class="meta">E-0198 · corroboration memo · fr · analyst M. Vasylenko</div>
+              <h5>Recoupement — trois sources distinctes</h5>
+              <p>"Le <mark>point de contrôle</mark> d'<mark>Andriivka</mark> apparaît dans E-0287, E-0412, et E-0551 avec un écart temporel de moins de 25 minutes…"</p>
+            </div>
+            <span class="tag">sealed ▣</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">The pipeline<small>What runs on your box</small></div>
+    <div class="sp-body">
+      <h2>Every model runs <em>inside</em> your jurisdiction.</h2>
+      <p class="sp-lead">Embedding, transcription, OCR, translation, named-entity extraction — all ship as containerised models that run on CPU or your own GPU. Nothing crosses your perimeter. The witnesses in your database are not product data for somebody else's frontier lab.</p>
+
+      <div class="sp-rows">
+        <div class="sp-row"><span class="idx">01 · STT</span><h4>Whisper-large-v3 <em>on-prem</em></h4><p>Transcription for audio and video. <strong>47 languages</strong>, speaker diarisation, timestamp-anchored captions sealed with the parent exhibit.</p></div>
+        <div class="sp-row"><span class="idx">02 · OCR</span><h4>docTR + <em>handwriting</em> adapter</h4><p>Document and handwritten page OCR. Per-character confidence scores preserved; low-confidence ranges are flagged to the analyst rather than silently corrected.</p></div>
+        <div class="sp-row"><span class="idx">03 · EMB</span><h4>BGE-M3 <em>multilingual</em></h4><p>Cross-lingual dense embeddings for semantic search. A Ukrainian query matches Russian, English, and French content at the same ranking call.</p></div>
+        <div class="sp-row"><span class="idx">04 · NER</span><h4>GLiNER — <em>custom labels</em></h4><p>Names, places, call-signs, vehicle IDs, weapon types. Operators train per-case label sets without shipping data anywhere — fine-tunes stay on the box.</p></div>
+        <div class="sp-row"><span class="idx">05 · TRANS</span><h4>NLLB-200 · <em>pivot</em> for rare pairs</h4><p>Neural translation, 200 languages. Translations are rendered as annotations — never silently replace source text in the sealed exhibit.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section dark">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Provenance<small>Every answer, cited</small></div>
+    <div class="sp-body">
+      <h2>An answer <em>you can file.</em></h2>
+      <p class="sp-lead">Every result carries the sealed exhibit ID, the hash, the chain index, and the custody state. An investigator can export a cross-exhibit finding as a PDF that defence counsel's clerk validator can verify — without ever touching VaultKeeper's servers.</p>
+
+      <div class="sp-cols3">
+        <div class="c"><span class="n">Hash-bound</span><h4>Every hit <em>cites</em> a sealed row</h4><p>Search results are not a separate index. They reference the custody chain's own row IDs. If the chain is broken, the search result is marked broken, too.</p></div>
+        <div class="c"><span class="n">Offline</span><h4>Exports verify <em>without</em> us</h4><p>A finding exported from search becomes a ZIP with the cited exhibit slices and a 240-line validator. Defence counsel runs it on their laptop. They don't need VaultKeeper to check your work.</p></div>
+        <div class="c"><span class="n">Zero telemetry</span><h4>Queries <em>never</em> leave the perimeter</h4><p>Search logs live in the same sealed ledger as ingest. They are not pushed to VaultKeeper — we cannot see them, and neither can anyone who gains access to our infrastructure.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-quote">
+  <div class="wrap">
+    <blockquote>"A query that took three analysts <em>four days</em> in our old system — cross-referencing Telegram exports with witness statements in three languages — took one analyst thirty-one minutes. And the result was sealed, cited, and exportable."</blockquote>
+    <p class="who"><strong>Bellingcat</strong> — Open-source investigations team, Ukraine project</p>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>Bring your <em>hardest</em> query.</h2>
+      <p>Send us a redacted version of a query that took your team days in your old tool. We'll run it live on a sample corpus in a 45-minute call.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="platform.html">Platform overview</a>
+      <a class="btn" href="contact.html">Book a demo <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="collaboration.html"><span class="k">Prev · 04/05</span><h5>Live collaboration</h5><p>Forty analysts on one exhibit, every keystroke sealed.</p></a>
+    <a href="platform.html"><span class="k">Platform overview</span><h5>All five pillars</h5><p>Back to the index of the VaultKeeper platform.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

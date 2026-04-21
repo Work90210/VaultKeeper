@@ -39,17 +39,25 @@ func (r *PGRepository) CreateInquiryLog(ctx context.Context, log InquiryLog) (In
 	now := time.Now().UTC()
 	log.CreatedAt = now
 	log.UpdatedAt = now
+	if log.Priority == "" {
+		log.Priority = "normal"
+	}
+	if log.SealedStatus == "" {
+		log.SealedStatus = "active"
+	}
 
 	_, err := r.pool.Exec(ctx, `INSERT INTO investigation_inquiry_logs
 		(id, case_id, evidence_id, search_strategy, search_keywords, search_operators,
 		 search_tool, search_tool_version, search_url, search_started_at, search_ended_at,
-		 results_count, results_relevant, results_collected, objective, notes, performed_by,
+		 results_count, results_relevant, results_collected, objective, notes,
+		 assigned_to, priority, sealed_status, sealed_at, performed_by,
 		 created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
 		log.ID, log.CaseID, log.EvidenceID, log.SearchStrategy, log.SearchKeywords,
 		log.SearchOperators, log.SearchTool, log.SearchToolVersion, log.SearchURL,
 		log.SearchStartedAt, log.SearchEndedAt, log.ResultsCount, log.ResultsRelevant,
-		log.ResultsCollected, log.Objective, log.Notes, log.PerformedBy,
+		log.ResultsCollected, log.Objective, log.Notes,
+		log.AssignedTo, log.Priority, log.SealedStatus, log.SealedAt, log.PerformedBy,
 		log.CreatedAt, log.UpdatedAt)
 	if err != nil {
 		return InquiryLog{}, fmt.Errorf("create inquiry log: %w", err)
@@ -67,7 +75,7 @@ func (r *PGRepository) ListInquiryLogs(ctx context.Context, caseID uuid.UUID, li
 	rows, err := r.pool.Query(ctx, `SELECT id, case_id, evidence_id, search_strategy, search_keywords,
 		search_operators, search_tool, search_tool_version, search_url, search_started_at,
 		search_ended_at, results_count, results_relevant, results_collected, objective, notes,
-		performed_by, created_at, updated_at
+		assigned_to, priority, sealed_status, sealed_at, performed_by, created_at, updated_at
 		FROM investigation_inquiry_logs WHERE case_id = $1
 		ORDER BY search_started_at DESC LIMIT $2 OFFSET $3`, caseID, limit, offset)
 	if err != nil {
@@ -81,7 +89,8 @@ func (r *PGRepository) ListInquiryLogs(ctx context.Context, caseID uuid.UUID, li
 		if err := rows.Scan(&l.ID, &l.CaseID, &l.EvidenceID, &l.SearchStrategy, &l.SearchKeywords,
 			&l.SearchOperators, &l.SearchTool, &l.SearchToolVersion, &l.SearchURL,
 			&l.SearchStartedAt, &l.SearchEndedAt, &l.ResultsCount, &l.ResultsRelevant,
-			&l.ResultsCollected, &l.Objective, &l.Notes, &l.PerformedBy,
+			&l.ResultsCollected, &l.Objective, &l.Notes,
+			&l.AssignedTo, &l.Priority, &l.SealedStatus, &l.SealedAt, &l.PerformedBy,
 			&l.CreatedAt, &l.UpdatedAt); err != nil {
 			return nil, 0, fmt.Errorf("scan inquiry log: %w", err)
 		}
@@ -95,12 +104,13 @@ func (r *PGRepository) GetInquiryLog(ctx context.Context, id uuid.UUID) (Inquiry
 	err := r.pool.QueryRow(ctx, `SELECT id, case_id, evidence_id, search_strategy, search_keywords,
 		search_operators, search_tool, search_tool_version, search_url, search_started_at,
 		search_ended_at, results_count, results_relevant, results_collected, objective, notes,
-		performed_by, created_at, updated_at
+		assigned_to, priority, sealed_status, sealed_at, performed_by, created_at, updated_at
 		FROM investigation_inquiry_logs WHERE id = $1`, id).
 		Scan(&l.ID, &l.CaseID, &l.EvidenceID, &l.SearchStrategy, &l.SearchKeywords,
 			&l.SearchOperators, &l.SearchTool, &l.SearchToolVersion, &l.SearchURL,
 			&l.SearchStartedAt, &l.SearchEndedAt, &l.ResultsCount, &l.ResultsRelevant,
-			&l.ResultsCollected, &l.Objective, &l.Notes, &l.PerformedBy,
+			&l.ResultsCollected, &l.Objective, &l.Notes,
+			&l.AssignedTo, &l.Priority, &l.SealedStatus, &l.SealedAt, &l.PerformedBy,
 			&l.CreatedAt, &l.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return InquiryLog{}, ErrNotFound
@@ -118,12 +128,12 @@ func (r *PGRepository) UpdateInquiryLog(ctx context.Context, id, caseID uuid.UUI
 		search_tool=$5, search_tool_version=$6, search_url=$7,
 		search_started_at=$8, search_ended_at=$9, results_count=$10,
 		results_relevant=$11, results_collected=$12, objective=$13, notes=$14,
-		updated_at=$15 WHERE id=$1 AND case_id=$16`,
+		assigned_to=$15, priority=$16, updated_at=$17 WHERE id=$1 AND case_id=$18`,
 		id, log.SearchStrategy, log.SearchKeywords, log.SearchOperators,
 		log.SearchTool, log.SearchToolVersion, log.SearchURL,
 		log.SearchStartedAt, log.SearchEndedAt, log.ResultsCount,
 		log.ResultsRelevant, log.ResultsCollected, log.Objective, log.Notes,
-		log.UpdatedAt, caseID)
+		log.AssignedTo, log.Priority, log.UpdatedAt, caseID)
 	if err != nil {
 		return InquiryLog{}, fmt.Errorf("update inquiry log: %w", err)
 	}
@@ -142,6 +152,29 @@ func (r *PGRepository) DeleteInquiryLog(ctx context.Context, id, caseID uuid.UUI
 		return ErrNotFound
 	}
 	return nil
+}
+
+// SetInquiryLogSealedStatus updates sealed_status, sealed_at, and appends to notes atomically.
+// This is the only method that writes sealed_status and sealed_at; UpdateInquiryLog deliberately
+// does not touch these columns to prevent accidental overwrites.
+func (r *PGRepository) SetInquiryLogSealedStatus(ctx context.Context, id uuid.UUID, status string, sealedAt *time.Time, notes *string) (InquiryLog, error) {
+	updatedAt := time.Now().UTC()
+	tag, err := r.pool.Exec(ctx, `UPDATE investigation_inquiry_logs SET
+		sealed_status = $2,
+		sealed_at = $3,
+		notes = CASE WHEN $4::text IS NOT NULL
+		             THEN COALESCE(notes || E'\n', '') || $4::text
+		             ELSE notes END,
+		updated_at = $5
+		WHERE id = $1`,
+		id, status, sealedAt, notes, updatedAt)
+	if err != nil {
+		return InquiryLog{}, fmt.Errorf("set inquiry log sealed status: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return InquiryLog{}, ErrNotFound
+	}
+	return r.GetInquiryLog(ctx, id)
 }
 
 // --- Assessments ---

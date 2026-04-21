@@ -11,43 +11,49 @@ import (
 
 // InquiryLog represents a documented search session (Berkeley Protocol Phase 1).
 type InquiryLog struct {
-	ID               uuid.UUID  `json:"id"`
-	CaseID           uuid.UUID  `json:"case_id"`
-	EvidenceID       *uuid.UUID `json:"evidence_id,omitempty"`
-	SearchStrategy   string     `json:"search_strategy"`
-	SearchKeywords   []string   `json:"search_keywords"`
-	SearchOperators  string     `json:"search_operators,omitempty"`
-	SearchTool       string     `json:"search_tool"`
-	SearchToolVersion *string   `json:"search_tool_version,omitempty"`
-	SearchURL        *string    `json:"search_url,omitempty"`
-	SearchStartedAt  time.Time  `json:"search_started_at"`
-	SearchEndedAt    *time.Time `json:"search_ended_at,omitempty"`
-	ResultsCount     *int       `json:"results_count,omitempty"`
-	ResultsRelevant  *int       `json:"results_relevant,omitempty"`
-	ResultsCollected *int       `json:"results_collected,omitempty"`
-	Objective        string     `json:"objective"`
-	Notes            *string    `json:"notes,omitempty"`
-	PerformedBy      uuid.UUID  `json:"performed_by"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	ID                uuid.UUID  `json:"id"`
+	CaseID            uuid.UUID  `json:"case_id"`
+	EvidenceID        *uuid.UUID `json:"evidence_id,omitempty"`
+	SearchStrategy    string     `json:"search_strategy"`
+	SearchKeywords    []string   `json:"search_keywords"`
+	SearchOperators   string     `json:"search_operators,omitempty"`
+	SearchTool        string     `json:"search_tool"`
+	SearchToolVersion *string    `json:"search_tool_version,omitempty"`
+	SearchURL         *string    `json:"search_url,omitempty"`
+	SearchStartedAt   time.Time  `json:"search_started_at"`
+	SearchEndedAt     *time.Time `json:"search_ended_at,omitempty"`
+	ResultsCount      *int       `json:"results_count,omitempty"`
+	ResultsRelevant   *int       `json:"results_relevant,omitempty"`
+	ResultsCollected  *int       `json:"results_collected,omitempty"`
+	Objective         string     `json:"objective"`
+	Notes             *string    `json:"notes,omitempty"`
+	AssignedTo        *uuid.UUID `json:"assigned_to,omitempty"`
+	Priority          string     `json:"priority"`
+	SealedStatus      string     `json:"sealed_status"`
+	SealedAt          *time.Time `json:"sealed_at,omitempty"`
+	PerformedBy       uuid.UUID  `json:"performed_by"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 // InquiryLogInput is the validated input for creating/updating an inquiry log.
 type InquiryLogInput struct {
-	EvidenceID       *string  `json:"evidence_id"`
-	SearchStrategy   string   `json:"search_strategy"`
-	SearchKeywords   []string `json:"search_keywords"`
-	SearchOperators  *string  `json:"search_operators"`
-	SearchTool       string   `json:"search_tool"`
-	SearchToolVersion *string `json:"search_tool_version"`
-	SearchURL        *string  `json:"search_url"`
-	SearchStartedAt  string   `json:"search_started_at"`
-	SearchEndedAt    *string  `json:"search_ended_at"`
-	ResultsCount     *int     `json:"results_count"`
-	ResultsRelevant  *int     `json:"results_relevant"`
-	ResultsCollected *int     `json:"results_collected"`
-	Objective        string   `json:"objective"`
-	Notes            *string  `json:"notes"`
+	EvidenceID        *string  `json:"evidence_id"`
+	SearchStrategy    string   `json:"search_strategy"`
+	SearchKeywords    []string `json:"search_keywords"`
+	SearchOperators   *string  `json:"search_operators"`
+	SearchTool        string   `json:"search_tool"`
+	SearchToolVersion *string  `json:"search_tool_version"`
+	SearchURL         *string  `json:"search_url"`
+	SearchStartedAt   string   `json:"search_started_at"`
+	SearchEndedAt     *string  `json:"search_ended_at"`
+	ResultsCount      *int     `json:"results_count"`
+	ResultsRelevant   *int     `json:"results_relevant"`
+	ResultsCollected  *int     `json:"results_collected"`
+	Objective         string   `json:"objective"`
+	Notes             *string  `json:"notes"`
+	AssignedTo        *string  `json:"assigned_to"`
+	Priority          *string  `json:"priority"`
 }
 
 func ValidateInquiryLogInput(input InquiryLogInput) error {
@@ -92,6 +98,15 @@ func ValidateInquiryLogInput(input InquiryLogInput) error {
 	}
 	if len(input.Objective) > 5000 {
 		return &ValidationError{Field: "objective", Message: "objective exceeds maximum length"}
+	}
+	if input.AssignedTo != nil && *input.AssignedTo != "" {
+		if _, err := uuid.Parse(*input.AssignedTo); err != nil {
+			return &ValidationError{Field: "assigned_to", Message: "must be a valid UUID"}
+		}
+	}
+	validPriorities := map[string]bool{"low": true, "normal": true, "high": true, "urgent": true}
+	if input.Priority != nil && *input.Priority != "" && !validPriorities[*input.Priority] {
+		return &ValidationError{Field: "priority", Message: "must be one of: low, normal, high, urgent"}
 	}
 	return nil
 }

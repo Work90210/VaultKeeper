@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>INQ-0184 — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+.phase-col{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 12px;border-right:1px solid var(--line);position:relative;min-height:120px}
+.phase-col:last-child{border-right:none}
+.phase-col .ph-num{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.phase-col .ph-name{font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.01em;margin-bottom:4px}
+.phase-col .ph-dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;margin-bottom:6px}
+.phase-col.done .ph-dot{background:var(--ok);color:#fff}
+.phase-col.active .ph-dot{background:var(--accent);color:#fff}
+.phase-col.pending .ph-dot{background:var(--bg-2);color:var(--muted);border:1.5px solid var(--line-2)}
+.phase-col .ph-items{display:flex;flex-direction:column;gap:4px;width:100%}
+
+.item-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--paper);transition:all .15s;cursor:pointer}
+.item-row:hover{border-color:var(--accent-soft);box-shadow:var(--shadow-sm)}
+.item-row .ir-ref{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--accent);letter-spacing:.02em}
+.item-row .ir-name{font-size:13px;font-weight:500;color:var(--ink);margin-top:2px}
+.item-row .ir-meta{font-size:11px;color:var(--muted);margin-top:2px}
+
+.conn-line{position:absolute;right:-1px;top:50%;width:100%;height:1px;background:var(--line-2);z-index:0}
+
+.vk-modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(20,17,12,.5);align-items:center;justify-content:center}
+.vk-modal.open{display:flex}
+.vk-modal-box{background:var(--paper);border-radius:var(--radius);max-width:600px;width:100%;padding:32px;box-shadow:var(--shadow-lg);margin:20px;max-height:85vh;overflow-y:auto}
+.vk-modal-box h3{font-family:Fraunces,serif;font-size:22px;margin-bottom:6px}
+.vk-modal-box h3 em{color:var(--accent);font-style:italic}
+.vk-modal-box .msub{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.6}
+.vk-modal-box .mfield{margin-bottom:14px}
+.vk-modal-box .mfield label{display:block;font-size:13px;font-weight:500;margin-bottom:5px}
+.vk-modal-box .mfield label small{font-weight:400;color:var(--muted);margin-left:4px}
+.vk-modal-box .mfield input,.vk-modal-box .mfield textarea,.vk-modal-box .mfield select{width:100%;padding:9px 12px;border:1px solid var(--line-2);border-radius:var(--radius-sm);font:inherit;font-size:13px;outline:none;background:var(--paper);box-sizing:border-box}
+.vk-modal-box .mfield textarea{resize:vertical;min-height:72px}
+.vk-modal-box .mgrid{display:grid;gap:14px}
+.vk-modal-box .mgrid-2{grid-template-columns:1fr 1fr}
+.vk-modal-box .mactions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.vk-modal-box .mphase{font-family:JetBrains Mono,monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:2px 7px;border-radius:4px;background:rgba(184,66,28,.06);border:1px solid rgba(184,66,28,.12);margin-left:8px}
+</style>
+</head><body>
+<script>function openModal(id){document.getElementById(id).classList.add("open")}function closeModal(id){document.getElementById(id).classList.remove("open")}</script>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js?v=8"></script>
+<script>
+renderDashShell('inquiry', '<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><a href="dash-inquiry.html">Inquiry log</a><span class="sep">/</span><span class="here">INQ-0184</span>');
+
+// Inquiry data
+var INQ = {
+  id: 'INQ-0184',
+  date: '19 Apr 2026, 14:22',
+  author: 'H. Morel',
+  role: 'Senior analyst',
+  type: 'Decision',
+  priority: 'Normal',
+  assigned: 'W. Nyoka',
+  sig: 'ed25519:7f22\u2026bc91',
+  block: 'f209\u2026bc91',
+  content: 'Recommend inclusion of E-0918 in DISC-2026-019 bundle. Countersign required from W. Nyoka before seal. Drone footage corroborated by Sentinel-2 satellite pass and two independent witness statements (W-0144, W-0099). Assessment score 9/10 relevance, 8/10 reliability.',
+  strategy: 'Drone footage and satellite imagery of Butcha residential district, 18\u201319 April 2024, showing damage to civilian infrastructure and military vehicle movements at the northeastern checkpoint on Vokzalna Street.',
+  keywords: 'Butcha drone footage 2024, \u0412\u043e\u043a\u0437\u0430\u043b\u044c\u043d\u0430 \u0432\u0443\u043b\u0438\u0446\u044f checkpoint, DJI aerial Bucha',
+  tool: 'Telegram search, Copernicus Open Access Hub',
+  period: '18 Apr 2026, 10:00\u201310:30',
+  results: {found: 14, relevant: 3, collected: 3}
+};
+
+// Items discovered by this inquiry, tracked through all 6 phases
+var ITEMS = [
+  {
+    ref:'E-0918', name:'Butcha_drone_04.mp4', kind:'VIDEO', size:'218 MB',
+    phase1: {done:true, date:'18 Apr', note:'Found via Telegram @ua_evidence'},
+    phase2: {done:true, date:'19 Apr', rel:9, rlb:8, rec:'Collect', by:'Amir Haddad'},
+    phase3: {done:true, date:'18 Apr', method:'Manual download', collector:'H. Morel', geo:'Butcha, Kyiv Oblast'},
+    phase4: {done:true, date:'18 Apr', hash:'a7f2e4c9\u2026', tsa:'ts-eu-west', events:10},
+    phase5: {done:true, date:'18 Apr', type:'Geolocation', finding:'Authentic', confidence:'High'},
+    phase6: {done:false, partial:true, note:'Corroboration C-0412 linked, analysis note pending'}
+  },
+  {
+    ref:'E-0911', name:'Satellite \u2014 18 Apr 09:12Z', kind:'IMG', size:'81 MB',
+    phase1: {done:true, date:'18 Apr', note:'Copernicus Sentinel-2 pass'},
+    phase2: {done:true, date:'18 Apr', rel:8, rlb:9, rec:'Collect', by:'H. Morel'},
+    phase3: {done:true, date:'18 Apr', method:'API capture', collector:'H. Morel', geo:'Butcha region'},
+    phase4: {done:true, date:'18 Apr', hash:'91ab\u2026f208', tsa:'ts-eu-west', events:4},
+    phase5: {done:true, date:'19 Apr', type:'Cross-reference', finding:'Corroborates E-0918', confidence:'High'},
+    phase6: {done:true, date:'19 Apr', note:'NOTE-183: Timeline reconciliation'}
+  },
+  {
+    ref:'E-0916', name:'Intercept 14:03 EET', kind:'AUDIO', size:'17 MB',
+    phase1: {done:true, date:'18 Apr', note:'Intercepted radio communication'},
+    phase2: {done:true, date:'18 Apr', rel:7, rlb:6, rec:'Collect', by:'Amir Haddad'},
+    phase3: {done:true, date:'18 Apr', method:'Forensic tool', collector:'Amir Haddad', geo:'Classified'},
+    phase4: {done:true, date:'18 Apr', hash:'b3e1f7\u2026', tsa:'ts-eu-west', events:6},
+    phase5: {done:false, partial:true, note:'Speaker ID pending voice analysis'},
+    phase6: {done:false}
+  },
+  {
+    ref:'E-0928', name:'W-0146_intake_draft.pdf', kind:'DOC', size:'1.2 MB',
+    phase1: {done:true, date:'18 Apr', note:'Field interview lead from W-0144'},
+    phase2: {done:true, date:'19 Apr', rel:6, rlb:7, rec:'Monitor', by:'Juliane Wirth'},
+    phase3: {done:false, note:'Monitoring \u2014 awaiting second interview'},
+    phase4: {done:false},
+    phase5: {done:false},
+    phase6: {done:false}
+  },
+  {
+    ref:'E-0929', name:'Checkpoint_CCTV_seg4.mp4', kind:'VIDEO', size:'312 MB',
+    phase1: {done:true, date:'18 Apr', note:'CCTV footage from police handover'},
+    phase2: {done:true, date:'19 Apr', rel:9, rlb:8, rec:'Collect', by:'H. Morel'},
+    phase3: {done:true, date:'19 Apr', method:'Physical transfer', collector:'H. Morel', geo:'Butcha police station'},
+    phase4: {done:true, date:'19 Apr', hash:'d4a2c8\u2026', tsa:'ts-eu-west', events:3},
+    phase5: {done:false, note:'Awaiting geolocation verification'},
+    phase6: {done:false}
+  },
+  {
+    ref:'E-0930', name:'Fake_news_article.html', kind:'DOC', size:'340 KB',
+    phase1: {done:true, date:'18 Apr', note:'Disinformation site, flagged for review'},
+    phase2: {done:true, date:'18 Apr', rel:2, rlb:1, rec:'Discard', by:'Amir Haddad'},
+    phase3: {done:false, note:'Discarded \u2014 disinformation, reasoning preserved'},
+    phase4: {done:false},
+    phase5: {done:false},
+    phase6: {done:false}
+  },
+  {
+    ref:'E-0927', name:'Unverified_clip_TikTok.mp4', kind:'VIDEO', size:'4 MB',
+    phase1: {done:true, date:'18 Apr', note:'TikTok repost, unknown origin'},
+    phase2: {done:true, date:'18 Apr', rel:3, rlb:2, rec:'Deprioritize', by:'Amir Haddad'},
+    phase3: {done:false, note:'Deprioritized \u2014 not collected'},
+    phase4: {done:false},
+    phase5: {done:false},
+    phase6: {done:false}
+  },
+  {
+    ref:'E-0931', name:'Raiffeisen_batch3.csv', kind:'DOC', size:'42 KB',
+    phase1: {done:true, date:'18 Apr', note:'Financial records from OLAF referral'},
+    phase2: {done:false, note:'Awaiting assessment'},
+    phase3: {done:false},
+    phase4: {done:false},
+    phase5: {done:false},
+    phase6: {done:false}
+  }
+];
+
+function phaseStatus(item, n) {
+  var p = item['phase' + n];
+  if (!p) return 'pending';
+  if (p.done) return 'done';
+  if (p.partial) return 'active';
+  return 'pending';
+}
+
+function renderItemPhaseDetail(item, n) {
+  var p = item['phase' + n];
+  if (!p || !p.done) {
+    if (p && p.partial) return '<div style="font-size:11px;color:var(--accent);line-height:1.4">' + (p.note || 'In progress') + '</div>';
+    if (p && p.note) return '<div style="font-size:11px;color:var(--muted);line-height:1.4">' + p.note + '</div>';
+    return '<div style="font-size:11px;color:var(--muted)">Not started</div>';
+  }
+  var html = '<div style="font-size:11px;color:var(--ink-2);line-height:1.5">';
+  if (n === 1) html += p.note;
+  if (n === 2) html += 'Rel: ' + p.rel + '/10 \xb7 Rlb: ' + p.rlb + '/10<br>' + p.rec + ' \xb7 ' + p.by;
+  if (n === 3) html += p.method + '<br>' + p.collector + ' \xb7 ' + p.geo;
+  if (n === 4) html += '<span style="font-family:JetBrains Mono,monospace;font-size:10px">' + p.hash + '</span><br>' + p.events + ' custody events';
+  if (n === 5) html += p.type + ': ' + p.finding + '<br>Confidence: ' + p.confidence;
+  if (n === 6) html += p.note;
+  html += '</div>';
+  return html;
+}
+
+// Inquiry state
+var inquiryStatus = 'active'; // active, locked, complete
+
+function statusPill() {
+  if (inquiryStatus === 'complete') return '<span class="pl sealed">Complete</span>';
+  if (inquiryStatus === 'locked') return '<span class="pl hold">Locked</span>';
+  return '<span class="pl live">Active</span>';
+}
+
+function renderPage() {
+  var isEditable = inquiryStatus === 'active';
+
+  document.getElementById('d-content').innerHTML =
+  // Header
+  '<section class="d-pagehead"><div>' +
+  '<span class="eyebrow-m">Case \xb7 ICC-UKR-2024 \xb7 Berkeley Protocol Phase 1</span>' +
+  '<h1><em>' + INQ.id + '</em> ' + statusPill() + '</h1>' +
+  '<p class="sub">' + INQ.content + '</p>' +
+  '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">' +
+  '<a class="btn ghost sm" href="dash-inquiry.html">\u2190 Back to inquiry log</a>' +
+  '<a class="btn ghost sm" href="#">Export PDF</a>' +
+  (isEditable ? '<a class="btn ghost sm" onclick="openModal(\'modal-add-item\')">Link new item</a>' : '') +
+  (isEditable ? '<a class="btn ghost sm" style="color:var(--accent);border-color:rgba(184,66,28,.3)" onclick="openModal(\'modal-lock\')">Lock inquiry</a>' : '') +
+  (inquiryStatus === 'locked' ? '<a class="btn sm" onclick="openModal(\'modal-complete\')">Mark complete <span class="arr">\u2192</span></a>' : '') +
+  (inquiryStatus === 'complete' ? '<span style="font-size:13px;color:var(--ok);font-family:Fraunces,serif;font-style:italic">\u2713 Sealed &amp; complete</span>' : '') +
+  '</div></div></section>' +
+
+  (inquiryStatus !== 'active' ?
+    '<div style="padding:14px 20px;border:1px solid ' + (inquiryStatus === 'complete' ? 'rgba(74,107,58,.3)' : 'rgba(184,66,28,.2)') + ';border-radius:12px;background:' + (inquiryStatus === 'complete' ? 'rgba(74,107,58,.03)' : 'rgba(184,66,28,.03)') + ';margin-bottom:22px;display:flex;align-items:center;gap:12px">' +
+    '<span style="font-size:18px">' + (inquiryStatus === 'complete' ? '\u2713' : '\ud83d\udd12') + '</span>' +
+    '<div>' +
+    '<div style="font-size:14px;font-weight:500;color:var(--ink)">' + (inquiryStatus === 'complete' ? 'This inquiry is complete and sealed' : 'This inquiry is locked for review') + '</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-top:2px">' + (inquiryStatus === 'complete' ? 'No further edits. All linked items continue through their phases independently.' : 'No new items can be linked. Existing items continue through their phases. Lock can be lifted by the lead investigator.') + '</div>' +
+    '</div>' +
+    (inquiryStatus === 'locked' ? '<a onclick="inquiryStatus=\'active\';renderPage()" style="margin-left:auto;font-size:12px;color:var(--accent);cursor:pointer;font-family:Fraunces,serif;font-style:italic;flex-shrink:0">Unlock \u2192</a>' : '') +
+    '</div>' : '') +
+
+  // Metadata
+  '<div class="g2-wide" style="margin-bottom:22px">' +
+  '<div class="panel"><div class="panel-h"><h3>Inquiry <em>record</em></h3><span class="pl sealed">Sealed</span></div>' +
+  '<div class="panel-body">' +
+  '<div style="display:grid;grid-template-columns:100px 1fr;gap:6px 16px;font-size:13px">' +
+  '<span style="color:var(--muted)">Author</span><span><strong>' + INQ.author + '</strong> \xb7 ' + INQ.role + '</span>' +
+  '<span style="color:var(--muted)">Date</span><span>' + INQ.date + '</span>' +
+  '<span style="color:var(--muted)">Type</span><span class="pl sealed" style="width:fit-content">' + INQ.type + '</span>' +
+  '<span style="color:var(--muted)">Assigned</span><span>' + INQ.assigned + '</span>' +
+  '<span style="color:var(--muted)">Signature</span><span style="font-family:JetBrains Mono,monospace;font-size:11px">' + INQ.sig + '</span>' +
+  '<span style="color:var(--muted)">Block</span><span style="font-family:JetBrains Mono,monospace;font-size:11px">' + INQ.block + '</span>' +
+  '</div></div></div>' +
+
+  '<div class="panel"><div class="panel-h"><h3>Search <em>parameters</em></h3><span class="meta">Phase 1</span></div>' +
+  '<div class="panel-body">' +
+  '<div style="display:grid;grid-template-columns:90px 1fr;gap:6px 16px;font-size:13px">' +
+  '<span style="color:var(--muted)">Strategy</span><span>' + INQ.strategy + '</span>' +
+  '<span style="color:var(--muted)">Keywords</span><span style="font-family:JetBrains Mono,monospace;font-size:12px">' + INQ.keywords + '</span>' +
+  '<span style="color:var(--muted)">Tool</span><span>' + INQ.tool + '</span>' +
+  '<span style="color:var(--muted)">Period</span><span>' + INQ.period + '</span>' +
+  '<span style="color:var(--muted)">Results</span><span><strong>' + INQ.results.found + '</strong> found \xb7 <strong>' + INQ.results.relevant + '</strong> relevant \xb7 <strong>' + INQ.results.collected + '</strong> collected</span>' +
+  '</div></div></div></div>' +
+
+  // Phase tracking — THE MAIN EVENT
+  '<div class="panel" style="margin-bottom:22px">' +
+  '<div class="panel-h"><h3>Berkeley Protocol <em>lifecycle</em></h3><span class="meta">' + ITEMS.length + ' items tracked across 6 phases</span></div>' +
+  '<div class="panel-body" style="padding:0;overflow-x:auto">' +
+
+  // Per-item phase grid
+  ITEMS.map(function(item, idx) {
+    var phases = [1,2,3,4,5,6];
+    var maxPhase = 0;
+    phases.forEach(function(n){ if (phaseStatus(item,n) === 'done') maxPhase = n; });
+    var isStopped = item.phase2 && item.phase2.done && (item.phase2.rec === 'Deprioritize' || item.phase2.rec === 'Discard' || item.phase2.rec === 'Monitor') && !item.phase3.done;
+    var isComplete = maxPhase === 6;
+    var recClass = item.phase2 && item.phase2.done ? ({Collect:'sealed',Monitor:'disc',Deprioritize:'hold',Discard:'broken'}[item.phase2.rec]||'draft') : 'draft';
+
+    return '<div style="padding:18px 22px;border-bottom:1px solid var(--line)" id="item-'+idx+'">' +
+      // Item header
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">' +
+      '<span style="font-family:JetBrains Mono,monospace;font-size:12px;color:var(--accent);letter-spacing:.02em">' + item.ref + '</span>' +
+      '<span class="tag">' + item.kind + '</span>' +
+      '<span style="font-size:15px;font-weight:500;color:var(--ink)">' + item.name + '</span>' +
+      (item.phase2 && item.phase2.done ? '<span class="pl '+recClass+'" style="font-size:10px">' + item.phase2.rec + '</span>' : '') +
+      '<span style="font-size:12px;color:var(--muted);margin-left:auto">' + item.size + '</span>' +
+      '<a href="dash-evidence-detail.html" class="linkarrow" style="font-size:12px">Open \u2192</a>' +
+      '</div>' +
+
+      // Phase columns
+      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0">' +
+      phases.map(function(n) {
+        var st = phaseStatus(item, n);
+        var names = ['','Inquiry','Assess','Collect','Preserve','Verify','Analyse'];
+        var dotBg = st === 'done' ? 'var(--ok)' : st === 'active' ? 'var(--accent)' : 'var(--bg-2)';
+        var dotClr = st === 'done' ? '#fff' : st === 'active' ? '#fff' : 'var(--muted)';
+        var dotBdr = st === 'pending' ? '1.5px solid var(--line-2)' : 'none';
+        var icon = st === 'done' ? '\u2713' : n;
+
+        return '<div style="padding:10px 12px;border-right:' + (n < 6 ? '1px solid var(--line)' : 'none') + '">' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">' +
+          '<span style="width:22px;height:22px;border-radius:50%;background:' + dotBg + ';color:' + dotClr + ';border:' + dotBdr + ';display:grid;place-items:center;font-family:JetBrains Mono,monospace;font-size:10px;flex-shrink:0">' + icon + '</span>' +
+          '<span style="font-family:JetBrains Mono,monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">' + names[n] + '</span>' +
+          '</div>' +
+          renderItemPhaseDetail(item, n) +
+          '</div>';
+      }).join('') +
+      '</div>' +
+
+      // Action bar
+      '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+
+      // Status-dependent actions
+      (isComplete ?
+        '<span style="font-size:12px;color:var(--ok);font-family:Fraunces,serif;font-style:italic">\u2713 All 6 phases complete</span>' :
+
+       isStopped ?
+        '<span style="font-size:12px;color:var(--muted)">' + item.phase2.rec + ' at Phase 2</span>' +
+        '<a onclick="openModal(\'modal-reactivate\')" style="padding:4px 12px;border-radius:6px;background:rgba(184,66,28,.08);font-size:12px;color:var(--accent);cursor:pointer">Reactivate \u2192</a>' +
+        '<a onclick="openModal(\'modal-update-note\')" style="padding:4px 12px;border-radius:6px;background:var(--bg-2);font-size:12px;color:var(--ink-2);cursor:pointer">Add note</a>' :
+
+        // Active item — show next step + quick actions
+        '<span style="font-size:12px;color:var(--muted)">Next:</span>' +
+        '<a onclick="openModal(\'modal-advance-' + (maxPhase+1) + '\')" style="padding:4px 12px;border-radius:6px;background:rgba(184,66,28,.08);font-size:12px;color:var(--accent);cursor:pointer;font-family:Fraunces,serif;font-style:italic">' +
+        ['','Inquiry','Assess','Collect','Preserve','Verify','Analyse'][maxPhase+1] + ' \u2192</a>'
+      ) +
+
+      // Common actions for all items
+      '<div style="margin-left:auto;display:flex;gap:6px">' +
+      '<a onclick="openModal(\'modal-update-note\')" style="padding:4px 10px;border-radius:6px;border:1px solid var(--line-2);font-size:11px;color:var(--muted);cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--ink)\'" onmouseout="this.style.borderColor=\'var(--line-2)\'">Add note</a>' +
+      '<a href="dash-evidence-detail.html" style="padding:4px 10px;border-radius:6px;border:1px solid var(--line-2);font-size:11px;color:var(--muted);cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--ink)\'" onmouseout="this.style.borderColor=\'var(--line-2)\'">View detail</a>' +
+      '<a onclick="openModal(\'modal-reassign\')" style="padding:4px 10px;border-radius:6px;border:1px solid var(--line-2);font-size:11px;color:var(--muted);cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--ink)\'" onmouseout="this.style.borderColor=\'var(--line-2)\'">Reassign</a>' +
+      '</div>' +
+      '</div>' +
+
+      '</div>';
+  }).join('') +
+
+  '</div></div>' +
+
+  // Linked items summary
+  '<div class="g2">' +
+  '<div class="panel"><div class="panel-h"><h3>Witnesses</h3><span class="meta">2 linked</span></div>' +
+  '<div class="panel-body" style="display:flex;flex-direction:column;gap:8px">' +
+  '<a href="dash-witnesses.html" class="item-row"><div><span class="ir-ref">W-0144</span><div class="ir-name">Pseudonymised witness</div><div class="ir-meta">High risk \xb7 voice-masked \xb7 field intake</div></div><span class="linkarrow" style="font-size:12px">View \u2192</span></a>' +
+  '<a href="dash-witnesses.html" class="item-row"><div><span class="ir-ref">W-0099</span><div class="ir-name">Pseudonymised witness</div><div class="ir-meta">Medium risk \xb7 sworn deposition</div></div><span class="linkarrow" style="font-size:12px">View \u2192</span></a>' +
+  '</div></div>' +
+
+  '<div class="panel"><div class="panel-h"><h3>Disclosures & reports</h3><span class="meta">1 pending</span></div>' +
+  '<div class="panel-body" style="display:flex;flex-direction:column;gap:8px">' +
+  '<a href="dash-disclosures.html" class="item-row"><div><span class="ir-ref">DISC-2026-019</span><div class="ir-name">Defence disclosure bundle</div><div class="ir-meta">48 exhibits \xb7 pending countersign \xb7 due Fri 25 Apr</div></div><span class="pl hold" style="font-size:10px">Review</span></a>' +
+  '<a href="dash-corroborations.html" class="item-row"><div><span class="ir-ref">C-0412</span><div class="ir-name">S-038 gave checkpoint order at 17:52</div><div class="ir-meta">Score 0.91 \xb7 corroborated \xb7 4 sources</div></div><span class="pl sealed" style="font-size:10px">Corroborated</span></a>' +
+  '</div></div></div>';
+
+} // end renderPage
+
+renderPage();
+</script>
+
+<!-- Modal: Lock inquiry -->
+<div class="vk-modal" id="modal-lock" onclick="if(event.target===this)closeModal('modal-lock')">
+<div class="vk-modal-box">
+  <h3>Lock <em>inquiry</em></h3>
+  <p class="msub">Locking prevents new items from being linked to this inquiry. Existing items continue through their Berkeley Protocol phases independently. The lock can be lifted by the lead investigator.</p>
+  <div class="mfield"><label>Reason <small>required</small></label><textarea placeholder="e.g. All relevant items identified and assessed. Ready for review before sealing."></textarea></div>
+  <div class="mfield"><label>Notify</label>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <span class="chip active" style="cursor:pointer">Case team</span>
+    <span class="chip" style="cursor:pointer">Lead only</span>
+  </div></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-lock')">Cancel</button>
+    <button class="btn sm" style="color:var(--accent);background:rgba(184,66,28,.08);border-color:rgba(184,66,28,.2)" onclick="inquiryStatus='locked';renderPage();closeModal('modal-lock')">Lock inquiry</button>
+  </div>
+</div></div>
+
+<!-- Modal: Mark complete -->
+<div class="vk-modal" id="modal-complete" onclick="if(event.target===this)closeModal('modal-complete')">
+<div class="vk-modal-box">
+  <h3>Mark <em>complete</em></h3>
+  <p class="msub">Completing an inquiry seals it permanently. The record, all search parameters, and linked items become immutable. This action is signed and cannot be reversed.</p>
+  
+  <div style="padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--bg-2);margin-bottom:16px">
+    <div style="font-family:JetBrains Mono,monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Summary</div>
+    <div style="display:grid;grid-template-columns:120px 1fr;gap:4px 12px;font-size:13px">
+      <span style="color:var(--muted)">Items tracked</span><span id="summary-items"></span>
+      <span style="color:var(--muted)">Fully complete</span><span id="summary-complete"></span>
+      <span style="color:var(--muted)">In progress</span><span id="summary-progress"></span>
+      <span style="color:var(--muted)">Stopped</span><span id="summary-stopped"></span>
+    </div>
+  </div>
+
+  <div style="padding:14px;border:2px solid rgba(74,107,58,.3);border-radius:10px;background:rgba(74,107,58,.03);margin-bottom:16px">
+    <div style="font-size:13px;color:var(--ink-2);line-height:1.55">Once sealed, this inquiry and its search parameters become part of the permanent investigative record. Linked items continue through their phases independently.</div>
+  </div>
+
+  <div class="mfield"><label>Final note <small>optional — sealed with the inquiry</small></label><textarea placeholder="Any final observations about this inquiry..."></textarea></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-complete')">Cancel</button>
+    <button class="btn sm" onclick="inquiryStatus='complete';renderPage();closeModal('modal-complete')">Sign & seal as complete</button>
+  </div>
+</div></div>
+
+<!-- Modal: Link new item -->
+<div class="vk-modal" id="modal-add-item" onclick="if(event.target===this)closeModal('modal-add-item')">
+<div class="vk-modal-box">
+  <h3>Link <em>item</em> to inquiry</h3>
+  <p class="msub">Add an existing exhibit, witness, or claim to this inquiry's tracking. The item will appear in the phase lifecycle above.</p>
+  <div class="mfield"><label>Item type</label>
+  <div style="display:flex;gap:6px">
+    <span class="chip active" style="cursor:pointer">Evidence</span>
+    <span class="chip" style="cursor:pointer">Witness</span>
+    <span class="chip" style="cursor:pointer">Corroboration</span>
+    <span class="chip" style="cursor:pointer">Disclosure</span>
+  </div></div>
+  <div class="mfield"><label>Search</label><input type="text" placeholder="Search by ID, filename, hash, or name..." /></div>
+  <div class="mfield"><label>Role in inquiry</label>
+  <select><option>Primary evidence</option><option>Supporting</option><option>Contextual</option><option>Contradicting</option></select></div>
+  <div class="mfield"><label>Note</label><textarea placeholder="Why is this item linked to this inquiry?"></textarea></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-add-item')">Cancel</button>
+    <button class="btn sm" onclick="alert('Item linked (demo)');closeModal('modal-add-item')">Link item</button>
+  </div>
+</div></div>
+
+
+<!-- Modal: Reactivate stopped item -->
+<div class="vk-modal" id="modal-reactivate" onclick="if(event.target===this)closeModal('modal-reactivate')">
+<div class="vk-modal-box">
+  <h3>Reactivate <em>item</em></h3>
+  <p class="msub">This item was previously deprioritized, discarded, or set to monitor. Reactivating moves it back into the active pipeline for collection.</p>
+  <div class="mfield"><label>New recommendation</label>
+  <select><option>Collect — proceed to Phase 3</option><option>Monitor — keep watching</option></select></div>
+  <div class="mfield"><label>Reason for reactivation <small>required</small></label><textarea placeholder="e.g. New corroborating evidence found, second interview completed..."></textarea></div>
+  <div class="mfield"><label>Assigned to</label>
+  <select><option value="">Select team member...</option><option>H. Morel</option><option>Amir Haddad</option><option>Martyna Kovacs</option><option>Juliane Wirth</option><option>W. Nyoka</option></select></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-reactivate')">Cancel</button>
+    <button class="btn sm" onclick="alert('Item reactivated (demo)');closeModal('modal-reactivate')">Reactivate & advance</button>
+  </div>
+</div></div>
+
+<!-- Modal: Add note to item -->
+<div class="vk-modal" id="modal-update-note" onclick="if(event.target===this)closeModal('modal-update-note')">
+<div class="vk-modal-box">
+  <h3>Add <em>note</em></h3>
+  <p class="msub">Add a timestamped note to this item's record. Notes are sealed to the chain and visible to all case team members.</p>
+  <div class="mfield"><label>Note <small>required</small></label><textarea placeholder="e.g. Second interview completed with W-0146. Transcript ready for upload. Recommend advancing to collection."></textarea></div>
+  <div class="mfield"><label>Update status?</label>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <span class="chip active" style="cursor:pointer" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')">No change</span>
+    <span class="chip" style="cursor:pointer" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')">Ready for next phase</span>
+    <span class="chip" style="cursor:pointer" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')">Blocked</span>
+    <span class="chip" style="cursor:pointer" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')">Needs review</span>
+  </div></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-update-note')">Cancel</button>
+    <button class="btn sm" onclick="alert('Note added (demo)');closeModal('modal-update-note')">Add note</button>
+  </div>
+</div></div>
+
+<!-- Modal: Reassign item -->
+<div class="vk-modal" id="modal-reassign" onclick="if(event.target===this)closeModal('modal-reassign')">
+<div class="vk-modal-box">
+  <h3>Reassign <em>item</em></h3>
+  <p class="msub">Transfer responsibility for the next phase action to another team member.</p>
+  <div class="mfield"><label>Assign to</label>
+  <select><option value="">Select team member...</option><option>H. Morel — Lead Investigator</option><option>Amir Haddad — Evidence Technician</option><option>Martyna Kovacs — Redaction Analyst</option><option>Juliane Wirth — Witness Liaison</option><option>W. Nyoka — External Liaison</option></select></div>
+  <div class="mfield"><label>Note <small>optional</small></label><textarea placeholder="Any context for the handoff..."></textarea></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-reassign')">Cancel</button>
+    <button class="btn sm" onclick="alert('Reassigned (demo)');closeModal('modal-reassign')">Reassign</button>
+  </div>
+</div></div>
+
+<!-- Modal: Advance to Phase 2 (Assess) -->
+<div class="vk-modal" id="modal-advance-2" onclick="if(event.target===this)closeModal('modal-advance-2')">
+<div class="vk-modal-box">
+  <h3>Assess <em>exhibit</em> <span class="mphase">Phase 2</span></h3>
+  <p class="msub">Score this item's relevance and reliability to advance it to Phase 2.</p>
+  <div class="mgrid mgrid-2">
+    <div class="mfield"><label>Relevance <small>1–10</small></label><input type="number" min="1" max="10" placeholder="Score" /></div>
+    <div class="mfield"><label>Reliability <small>1–10</small></label><input type="number" min="1" max="10" placeholder="Score" /></div>
+  </div>
+  <div class="mgrid mgrid-2">
+    <div class="mfield"><label>Source credibility</label><select><option>Established</option><option>Probable</option><option>Unconfirmed</option><option>Doubtful</option></select></div>
+    <div class="mfield"><label>Recommendation</label><select><option>Collect</option><option>Monitor</option><option>Deprioritize</option><option>Discard</option></select></div>
+  </div>
+  <div class="mfield"><label>Rationale <small>required</small></label><textarea placeholder="Explain your scoring..."></textarea></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-advance-2')">Cancel</button>
+    <button class="btn sm" onclick="alert('Assessment complete — Phase 2 done (demo)');closeModal('modal-advance-2')">Complete Phase 2</button>
+  </div>
+</div></div>
+
+<!-- Modal: Advance to Phase 3 (Collect) -->
+<div class="vk-modal" id="modal-advance-3" onclick="if(event.target===this)closeModal('modal-advance-3')">
+<div class="vk-modal-box">
+  <h3>Collect <em>exhibit</em> <span class="mphase">Phase 3</span></h3>
+  <p class="msub">Upload the exhibit with Berkeley Protocol capture metadata.</p>
+  <div style="border:2px dashed var(--line-2);border-radius:12px;padding:32px 20px;text-align:center;margin-bottom:14px"><div style="font-size:24px;color:var(--accent);margin-bottom:6px">↑</div><div style="font-size:14px;font-weight:500">Drop file or click to browse</div><div style="font-size:12px;color:var(--muted)">SHA-256 + BLAKE3 hashed client-side</div></div>
+  <div class="mgrid mgrid-2">
+    <div class="mfield"><label>Source platform</label><select><option>Telegram</option><option>Twitter/X</option><option>Website</option><option>Physical transfer</option><option>Other</option></select></div>
+    <div class="mfield"><label>Capture method</label><select><option>Manual download</option><option>Screenshot</option><option>Web archive</option><option>Forensic tool</option><option>Physical transfer</option></select></div>
+  </div>
+  <div class="mgrid mgrid-2">
+    <div class="mfield"><label>Geolocation</label><input type="text" placeholder="Place name" /></div>
+    <div class="mfield"><label>Content language</label><input type="text" placeholder="BCP 47, e.g. uk, ru" /></div>
+  </div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-advance-3')">Cancel</button>
+    <button class="btn sm" onclick="alert('Collected — Phase 3 done, auto-preserving (demo)');closeModal('modal-advance-3')">Upload & seal</button>
+  </div>
+</div></div>
+
+<!-- Modal: Advance to Phase 5 (Verify) -->
+<div class="vk-modal" id="modal-advance-5" onclick="if(event.target===this)closeModal('modal-advance-5')">
+<div class="vk-modal-box">
+  <h3>Verify <em>exhibit</em> <span class="mphase">Phase 5</span></h3>
+  <p class="msub">Create a verification record for this exhibit.</p>
+  <div class="mgrid mgrid-2">
+    <div class="mfield"><label>Verification type</label><select><option>Geolocation</option><option>Chronolocation</option><option>Source authentication</option><option>Content authenticity</option><option>Reverse image search</option><option>Forensic audio</option></select></div>
+    <div class="mfield"><label>Finding</label><select><option>Authentic</option><option>Likely authentic</option><option>Inconclusive</option><option>Likely inauthentic</option></select></div>
+  </div>
+  <div class="mgrid mgrid-2">
+    <div class="mfield"><label>Confidence</label><select><option>High</option><option>Medium</option><option>Low</option></select></div>
+    <div class="mfield"><label>Tools used</label><input type="text" placeholder="e.g. Google Earth, SunCalc" /></div>
+  </div>
+  <div class="mfield"><label>Methodology & rationale</label><textarea placeholder="Describe verification approach and findings..."></textarea></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-advance-5')">Cancel</button>
+    <button class="btn sm" onclick="alert('Verified — Phase 5 done (demo)');closeModal('modal-advance-5')">Complete verification</button>
+  </div>
+</div></div>
+
+<!-- Modal: Advance to Phase 6 (Analyse) -->
+<div class="vk-modal" id="modal-advance-6" onclick="if(event.target===this)closeModal('modal-advance-6')">
+<div class="vk-modal-box">
+  <h3>Analyse <em>exhibit</em> <span class="mphase">Phase 6</span></h3>
+  <p class="msub">Create an analysis note linking this exhibit to the investigative reasoning.</p>
+  <div class="mfield"><label>Analysis title</label><input type="text" placeholder="e.g. Timeline reconciliation — checkpoint events" /></div>
+  <div class="mfield"><label>Analysis type</label>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <span class="chip" style="cursor:pointer" onclick="this.classList.toggle('active')">Hypothesis</span>
+    <span class="chip" style="cursor:pointer" onclick="this.classList.toggle('active')">Timeline</span>
+    <span class="chip" style="cursor:pointer" onclick="this.classList.toggle('active')">Command structure</span>
+    <span class="chip" style="cursor:pointer" onclick="this.classList.toggle('active')">Counter-evidence</span>
+    <span class="chip" style="cursor:pointer" onclick="this.classList.toggle('active')">OSINT</span>
+  </div></div>
+  <div class="mfield"><label>Content <small>required</small></label><textarea style="min-height:100px" placeholder="Document your analytical reasoning..."></textarea></div>
+  <div class="mfield"><label>Limitations</label><textarea placeholder="Caveats, assumptions, gaps..."></textarea></div>
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-advance-6')">Cancel</button>
+    <button class="btn ghost sm" onclick="alert('Saved as draft (demo)')">Save draft</button>
+    <button class="btn sm" onclick="alert('Analysis note sealed — Phase 6 done (demo)');closeModal('modal-advance-6')">Sign & seal note</button>
+  </div>
+</div></div>
+</body></html>

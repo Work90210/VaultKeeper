@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { authenticatedFetch, type ApiResponse } from '@/lib/api';
-import { CaseList } from '@/components/cases/case-list';
+import CasesView from '@/components/dashboard-views/cases-view';
 import { listDisclosures } from '@/lib/disclosure-api';
 import type {
   AnalysisNote,
@@ -270,10 +270,7 @@ export default async function CasesPage({
     let allNotes: AnalysisNote[] = [];
 
     try {
-      const casesRes: ApiResponse<CaseData[]> = await authenticatedFetch(
-        '/api/cases?limit=100'
-      );
-      const cases = casesRes.data ?? [];
+      const cases = await getCasesToQuery();
 
       const noteResults = await Promise.all(
         cases.map((c) =>
@@ -311,10 +308,7 @@ export default async function CasesPage({
     let allClaims: CorroborationClaim[] = [];
 
     try {
-      const casesRes: ApiResponse<CaseData[]> = await authenticatedFetch(
-        '/api/cases?limit=100'
-      );
-      const cases = casesRes.data ?? [];
+      const cases = await getCasesToQuery();
 
       const claimResults = await Promise.all(
         cases.map((c) =>
@@ -413,10 +407,7 @@ export default async function CasesPage({
     let allLogs: InquiryLog[] = [];
 
     try {
-      const casesRes: ApiResponse<CaseData[]> = await authenticatedFetch(
-        '/api/cases?limit=100'
-      );
-      const cases = casesRes.data ?? [];
+      const cases = await getCasesToQuery();
 
       const logResults = await Promise.all(
         cases.map((c) =>
@@ -494,69 +485,16 @@ export default async function CasesPage({
     session.user.systemRole === 'system_admin' ||
     session.user.systemRole === 'case_admin';
 
-  const activeCases = cases.filter((c) => c.status === 'active').length;
-  const holdCases = cases.filter((c) => c.legal_hold).length;
-  const closedCases = cases.filter((c) => c.status === 'closed').length;
-
   return (
-    <>
-      <section className="d-pagehead">
-        <div>
-          <span className="eyebrow-m">Workspace</span>
-          <h1>
-            All <em>cases</em>
-          </h1>
-          <p className="sub">
-            Each case is an independent append-only chain. Roles and evidence isolation are enforced at the DB row level. Archived cases keep verifying.
-          </p>
-        </div>
-        <div className="actions">
-          <a className="btn ghost" href="#">Import archive</a>
-          {canCreate && (
-            <a href="/en/cases/new" className="btn">
-              New case <span className="arr">&rarr;</span>
-            </a>
-          )}
-        </div>
-      </section>
-
-      <div className="d-kpis" style={{ marginBottom: 22 }}>
-        <div className="d-kpi">
-          <div className="k">Total cases</div>
-          <div className="v">{total}</div>
-          <div className="sub">
-            {activeCases} active &middot; {holdCases} hold &middot;{' '}
-            {closedCases} sealed
-          </div>
-        </div>
-        <div className="d-kpi">
-          <div className="k">You are lead on</div>
-          <div className="v">{activeCases}</div>
-        </div>
-        <div className="d-kpi">
-          <div className="k">New this month</div>
-          <div className="v">+{total > 0 ? Math.min(total, 3) : 0}</div>
-        </div>
-        <div className="d-kpi">
-          <div className="k">Disk &middot; all cases</div>
-          <div className="v">&mdash;</div>
-          <div className="sub">MinIO eu-west-2</div>
-        </div>
-      </div>
-
-      {error && (
-        <div className="banner-error" style={{ marginBottom: '16px' }}>
-          {error}
-        </div>
-      )}
-
-      <CaseList
-        cases={cases}
-        nextCursor={nextCursor}
-        hasMore={hasMore}
-        currentQuery={searchParams.q || ''}
-        currentStatus={validStatus || ''}
-      />
-    </>
+    <CasesView
+      cases={cases}
+      total={total}
+      nextCursor={nextCursor}
+      hasMore={hasMore}
+      currentQuery={searchParams.q || ''}
+      currentStatus={validStatus || ''}
+      canCreate={canCreate}
+      error={error}
+    />
   );
 }

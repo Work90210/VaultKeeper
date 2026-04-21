@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Federation spec (VKE1) — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .rfc-head{border:1px solid var(--line);border-radius:var(--radius);padding:28px;margin-top:40px;background:var(--paper);font-family:"JetBrains Mono",monospace;font-size:13px;line-height:1.8;color:var(--muted)}
+  .rfc-head strong{color:var(--ink);font-weight:500}
+  .rfc-head em{color:var(--accent);font-style:italic;font-family:"Fraunces",serif;font-size:15px}
+  .toc{margin-top:36px;display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--line)}
+  @media (max-width:720px){.toc{grid-template-columns:1fr}}
+  .toc a{display:grid;grid-template-columns:40px 1fr;gap:14px;padding:16px 18px 16px 0;border-bottom:1px solid var(--line);text-decoration:none;color:inherit;align-items:baseline}
+  .toc a:nth-child(odd){border-right:1px solid var(--line);padding-right:18px}
+  @media (max-width:720px){.toc a:nth-child(odd){border-right:none;padding-right:0}}
+  .toc a:hover{background:var(--paper)}
+  .toc .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--accent)}
+  .toc .t{font-family:"Fraunces",serif;font-style:italic;font-size:17px;color:var(--ink);letter-spacing:-.01em}
+  .toc small{display:block;color:var(--muted);font-size:13px;margin-top:2px;font-family:"Inter",sans-serif;font-style:normal;line-height:1.45}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>Open source · VKE1</span>
+    <h1>An RFC for <em>evidence moving between</em> institutions.</h1>
+    <p class="lead">VKE1 — VaultKeeper Evidence Exchange, version 1 — is the specification for cross-institutional custody. It is not a file format. It is the protocol by which an NGO in Gaziantep can hand a sealed sub-chain to the ICC in The Hague, have the ICC verify and extend it, and return a sealed handoff receipt that is itself admissible. Published under CC-BY-4.0. Implementations are welcome from anyone.</p>
+    <div class="rfc-head">
+      <strong>Doc ID:</strong> <em>vke1-2025-02</em> &nbsp;·&nbsp; <strong>Status:</strong> Ratified &nbsp;·&nbsp; <strong>Version:</strong> 1.2<br>
+      <strong>Authors:</strong> J. Arvidsson (VaultKeeper) · I. Velasco (VaultKeeper) · M. Hasanović (KSC) · L. Okonkwo (ICC, observer)<br>
+      <strong>Supersedes:</strong> vke0-2024-01 &nbsp;·&nbsp; <strong>License:</strong> CC-BY-4.0
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Table of contents<small>34 pages, 9 sections</small></div>
+    <div class="sp-body">
+      <h2>The full specification, <em>section by section.</em></h2>
+      <p class="sp-lead">Each section is independently readable. Most implementers need sections 2, 3, and 6. Registrars care most about sections 5 and 8. Security engineers should read sections 4 and 7 end-to-end.</p>
+
+      <div class="toc">
+        <a href="#"><span class="n">§ 1</span><span><span class="t">Terminology</span><small>Exhibit, sub-chain, peer, quorum, handoff receipt, sovereignty scope.</small></span></a>
+        <a href="#"><span class="n">§ 2</span><span><span class="t">The sub-chain data model</span><small>Merkle-linked custody rows as an exportable, re-importable sub-chain.</small></span></a>
+        <a href="#"><span class="n">§ 3</span><span><span class="t">Peer discovery & pairing</span><small>Out-of-band pairing via short codes; no central registry required.</small></span></a>
+        <a href="#"><span class="n">§ 4</span><span><span class="t">Cryptographic envelope</span><small>Ed25519 + X25519 hybrid; Kyber-768 draft annex for PQ readiness.</small></span></a>
+        <a href="#"><span class="n">§ 5</span><span><span class="t">Authority delegation</span><small>How one institution authorises another to extend its chain — and revoke.</small></span></a>
+        <a href="#"><span class="n">§ 6</span><span><span class="t">Transport bindings</span><small>HTTPS (primary) · Signal (field) · sealed USB (air-gap). All three normative.</small></span></a>
+        <a href="#"><span class="n">§ 7</span><span><span class="t">Disagreement resolution</span><small>When two peers hold divergent histories, which wins and why.</small></span></a>
+        <a href="#"><span class="n">§ 8</span><span><span class="t">Handoff receipts</span><small>The sealed acknowledgement a receiving institution signs back.</small></span></a>
+        <a href="#"><span class="n">§ 9</span><span><span class="t">Security considerations</span><small>Threat model · residual risks · non-goals.</small></span></a>
+        <a href="#"><span class="n">A</span><span><span class="t">Annex — PQ migration (draft)</span><small>Forward-compatible bindings for post-quantum signatures and KEMs.</small></span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section" style="background:var(--paper)">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Who's implemented<small>Known conforming peers</small></div>
+    <div class="sp-body">
+      <h2>Five independent implementations. <em>Including</em> one that isn't ours.</h2>
+      <p class="sp-lead">A specification is only meaningful when something other than its author implements it. VKE1 has now shipped in five production systems, one of which — the OPCW's internal tooling — is a from-scratch Go implementation that passed our conformance suite in November 2025.</p>
+
+      <div class="sp-rows">
+        <div class="sp-row"><span class="idx">VK / core</span><h4>vaultkeeper/core · Rust</h4><p><strong>Reference implementation.</strong> AGPL-3.0. Full VKE1 v1.2 coverage. Runs at every VaultKeeper customer.</p></div>
+        <div class="sp-row"><span class="idx">OPCW</span><h4>opcw-custody · Go</h4><p><strong>From-scratch, independent.</strong> OPCW's in-house custody system. Passed conformance in Nov 2025. Validates VKE1 is implementable without our code.</p></div>
+        <div class="sp-row"><span class="idx">KSC</span><h4>ksc-bridge · Java</h4><p><strong>Bridge layer.</strong> Kosovo Specialist Chambers' bridge between legacy Relativity archives and VKE1 peers. Conforms with waivers §6.2 (no Signal binding).</p></div>
+        <div class="sp-row"><span class="idx">community</span><h4>libvke1 · C</h4><p><strong>Community port.</strong> Small-footprint C library for embedded devices. Field recorder tablets, seized-device imagers. LGPL-2.1.</p></div>
+        <div class="sp-row"><span class="idx">VK / clerk</span><h4>vk-clerk · Python</h4><p><strong>Validator-only.</strong> Verifies incoming VKE1 bundles without implementing the producer side. 240 lines. Used by tribunal clerks.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section dark">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Governance<small>How VKE changes</small></div>
+    <div class="sp-body">
+      <h2>VaultKeeper does <em>not</em> own VKE.</h2>
+      <p class="sp-lead">VKE is stewarded by a neutral working group: two seats from VaultKeeper, two from independent implementers, two from institutional users. Changes require five of six. We deliberately cannot unilaterally alter the protocol our customers depend on.</p>
+
+      <div class="sp-cols3">
+        <div class="c"><span class="n">WG</span><h4>Six-seat working group</h4><p>Two VaultKeeper, two external implementers (currently OPCW + community libvke1), two institutional users (currently KSC + Bellingcat).</p></div>
+        <div class="c"><span class="n">RFC</span><h4>Public RFC process</h4><p>Proposed changes post as draft on the mailing list. 45-day public comment. Then working-group vote. All drafts and votes are archived publicly.</p></div>
+        <div class="c"><span class="n">EOL</span><h4>Back-compat guarantee</h4><p>Any VKE1 producer is guaranteed to be readable by any VKE1 consumer for a minimum of 10 years after the receiving version is released.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>Read the <em>PDF.</em> Write an implementation.</h2>
+      <p>If you're building evidence tooling and want it to interop with ours, the spec is 34 pages and two afternoons' work. We host a conformance suite that runs in your CI.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="source.html">Source code</a>
+      <a class="btn" href="validator.html">Clerk validator <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="source.html"><span class="k">Also open</span><h5>Source code</h5><p>Rust + TS, AGPL, 94 contributors.</p></a>
+    <a href="validator.html"><span class="k">Also open</span><h5>Clerk validator</h5><p>240 lines of Python. Offline verifier.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

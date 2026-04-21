@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>New Investigation — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+.wiz-steps{display:flex;gap:0;margin-bottom:32px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--paper)}
+.wiz-step{flex:1;padding:16px 18px;border-right:1px solid var(--line);cursor:pointer;transition:background .15s;position:relative}
+.wiz-step:last-child{border-right:none}
+.wiz-step:hover{background:var(--bg-2)}
+.wiz-step.active{background:var(--ink);color:var(--bg)}
+.wiz-step.active .ws-num{background:var(--accent);color:#fff;border-color:var(--accent)}
+.wiz-step.active .ws-label{color:var(--bg)}
+.wiz-step.active .ws-desc{color:rgba(245,241,232,.55)}
+.wiz-step.done .ws-num{background:var(--ok);color:#fff;border-color:var(--ok)}
+.wiz-step .ws-num{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line-2);display:grid;place-items:center;font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.wiz-step .ws-label{font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.01em;margin-bottom:3px}
+.wiz-step .ws-desc{font-size:11px;color:var(--muted);line-height:1.4}
+.wiz-step::after{content:"→";position:absolute;right:-8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);z-index:1}
+.wiz-step:last-child::after{display:none}
+
+.wiz-body{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:32px;min-height:400px}
+.wiz-body h2{font-family:"Fraunces",serif;font-weight:400;font-size:28px;letter-spacing:-.02em;margin-bottom:6px}
+.wiz-body h2 em{color:var(--accent);font-style:italic}
+.wiz-body .wiz-sub{font-size:14px;color:var(--muted);margin-bottom:24px;line-height:1.55;max-width:60ch}
+
+.wiz-field{margin-bottom:20px}
+.wiz-field label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:var(--ink)}
+.wiz-field label small{font-weight:400;color:var(--muted);margin-left:4px}
+.wiz-field input,.wiz-field textarea,.wiz-field select{width:100%;padding:10px 14px;border:1px solid var(--line-2);border-radius:10px;font:inherit;font-size:13.5px;outline:none;background:var(--paper);transition:border-color .15s;box-sizing:border-box}
+.wiz-field input:focus,.wiz-field textarea:focus,.wiz-field select:focus{border-color:var(--accent)}
+.wiz-field textarea{resize:vertical;min-height:80px}
+
+.wiz-checklist{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.wiz-checklist .wc-item{display:flex;align-items:start;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:all .15s}
+.wiz-checklist .wc-item:hover{border-color:var(--accent-soft);background:var(--bg-2)}
+.wiz-checklist .wc-item.checked{border-color:var(--ok);background:rgba(74,107,58,.04)}
+.wiz-checklist .wc-item .wc-box{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--line-2);flex-shrink:0;display:grid;place-items:center;font-size:12px;color:transparent;transition:all .15s}
+.wiz-checklist .wc-item.checked .wc-box{background:var(--ok);border-color:var(--ok);color:#fff}
+
+.wiz-nav{display:flex;justify-content:space-between;align-items:center;margin-top:28px;padding-top:20px;border-top:1px solid var(--line)}
+</style>
+</head><body>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js?v=8"></script>
+<script>
+renderDashShell('overview', '<a href="dash.html">Workspace</a><span class="sep">/</span><span class="here">New investigation</span>');
+
+var currentStep = 0;
+var steps = [
+  {num:'1',label:'Inquiry plan',desc:'Document search strategy',phase:'Phase 1'},
+  {num:'2',label:'Discover & assess',desc:'Find and evaluate sources',phase:'Phase 2'},
+  {num:'3',label:'Collect',desc:'Capture with metadata',phase:'Phase 3'},
+  {num:'4',label:'Preserve & verify',desc:'Seal, hash, corroborate',phase:'Phases 4–5'},
+  {num:'5',label:'Analyse & report',desc:'Document reasoning',phase:'Phase 6'}
+];
+
+function renderWizard(){
+  document.getElementById('d-content').innerHTML =
+    '<section class="d-pagehead"><div>'+
+    '<span class="eyebrow-m">Berkeley Protocol · guided investigation workflow</span>'+
+    '<h1>New <em>investigation</em></h1>'+
+    '<p class="sub">This wizard walks you through all six Berkeley Protocol phases in order. Each step creates the required records and links them together automatically.</p>'+
+    '</div><div class="actions">'+
+    '<a class="btn ghost" href="dash.html">Cancel</a>'+
+    '</div></section>'+
+
+    '<div class="wiz-steps">'+
+    steps.map(function(s,i){
+      var cls = i===currentStep?'active':(i<currentStep?'done':'');
+      return '<div class="wiz-step '+cls+'" onclick="currentStep='+i+';renderWizard()">'+
+        '<div class="ws-num">'+(i<currentStep?'✓':s.num)+'</div>'+
+        '<div class="ws-label">'+s.label+'</div>'+
+        '<div class="ws-desc">'+s.phase+' · '+s.desc+'</div>'+
+      '</div>';
+    }).join('')+'</div>'+
+
+    '<div class="wiz-body">'+renderStep()+'</div>';
+}
+
+function renderStep(){
+  if(currentStep===0) return renderStep1();
+  if(currentStep===1) return renderStep2();
+  if(currentStep===2) return renderStep3();
+  if(currentStep===3) return renderStep4();
+  if(currentStep===4) return renderStep5();
+  return '';
+}
+
+function renderStep1(){
+  return '<h2>Phase 1: <em>Online inquiry</em></h2>'+
+    '<div class="wiz-sub">Document your search strategy before you begin. The Berkeley Protocol requires a clear record of what you searched for, where, when, and with what tools — so the process is reproducible and auditable.</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Search strategy <small>what are you looking for?</small></label>'+
+      '<textarea placeholder="e.g. Drone footage and satellite imagery of Butcha residential district, 18–19 April 2024, showing damage to civilian infrastructure and military vehicle movements at the northeastern checkpoint on Vokzalna Street."></textarea></div>'+
+
+      '<div class="wiz-field"><label>Keywords & operators</label>'+
+      '<textarea placeholder="e.g. Butcha drone footage 2024, Вокзальна вулиця checkpoint, DJI aerial Bucha, &#34;northeastern perimeter&#34;"></textarea></div>'+
+    '</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Search tool(s)</label>'+
+      '<input type="text" placeholder="e.g. Telegram search, Google, Sentinel Hub" /></div>'+
+
+      '<div class="wiz-field"><label>Tool version</label>'+
+      '<input type="text" placeholder="e.g. Telegram Desktop 4.14.2" /></div>'+
+
+      '<div class="wiz-field"><label>Search URL (if applicable)</label>'+
+      '<input type="text" placeholder="e.g. https://scihub.copernicus.eu/..." /></div>'+
+    '</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Search started</label>'+
+      '<input type="datetime-local" value="2026-04-18T10:00" /></div>'+
+
+      '<div class="wiz-field"><label>Search ended</label>'+
+      '<input type="datetime-local" value="2026-04-18T10:30" /></div>'+
+
+      '<div class="wiz-field"><label>Results found</label>'+
+      '<input type="number" placeholder="e.g. 14" /></div>'+
+
+      '<div class="wiz-field"><label>Relevant / collected</label>'+
+      '<input type="number" placeholder="e.g. 3" /></div>'+
+    '</div>'+
+
+    wizNav();
+}
+
+function renderStep2(){
+  return '<h2>Phase 2: <em>Preliminary assessment</em></h2>'+
+    '<div class="wiz-sub">Before you collect, evaluate what you found. Score each item for relevance and reliability. Flag anything misleading. This assessment is the gate between discovery and the investigative record.</div>'+
+
+    '<div style="padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--bg-2);margin-bottom:20px">'+
+    '<div style="font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Items from Phase 1 inquiry</div>'+
+    '<div class="wiz-checklist">'+
+      '<div class="wc-item checked" onclick="this.classList.toggle(\'checked\')"><span class="wc-box">✓</span><div><div style="font-weight:500;font-size:14px">DJI_0487.MP4</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Drone footage · 218 MB · Telegram channel @ua_evidence</div></div></div>'+
+      '<div class="wc-item checked" onclick="this.classList.toggle(\'checked\')"><span class="wc-box">✓</span><div><div style="font-weight:500;font-size:14px">Sentinel-2 pass 18 Apr 09:12Z</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Satellite imagery · Copernicus Open Access Hub</div></div></div>'+
+      '<div class="wc-item" onclick="this.classList.toggle(\'checked\')"><span class="wc-box">✓</span><div><div style="font-weight:500;font-size:14px">Unverified_clip_03.mp4</div><div style="font-size:12px;color:var(--muted);margin-top:2px">TikTok repost · unknown original source · 11s fragment</div></div></div>'+
+    '</div></div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'+
+      '<div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'+
+        '<div class="wiz-field"><label>Relevance <small>1–10</small></label><input type="number" min="1" max="10" value="9" /></div>'+
+        '<div class="wiz-field"><label>Reliability <small>1–10</small></label><input type="number" min="1" max="10" value="8" /></div>'+
+        '</div>'+
+        '<div class="wiz-field"><label>Source credibility</label>'+
+        '<select><option>Established</option><option>Probable</option><option>Unconfirmed</option><option>Doubtful</option></select></div>'+
+        '<div class="wiz-field"><label>Recommendation</label>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+          '<span class="chip active" style="cursor:pointer">Collect</span>'+
+          '<span class="chip" style="cursor:pointer">Monitor</span>'+
+          '<span class="chip" style="cursor:pointer">Deprioritize</span>'+
+          '<span class="chip" style="cursor:pointer">Discard</span>'+
+        '</div></div>'+
+      '</div>'+
+      '<div>'+
+        '<div class="wiz-field"><label>Assessment rationale <small>required</small></label>'+
+        '<textarea style="min-height:100px" placeholder="Explain why this item is relevant and reliable, or why it should be deprioritized/discarded..."></textarea></div>'+
+        '<div class="wiz-field"><label>Misleading indicators <small>optional</small></label>'+
+        '<textarea placeholder="Flag any concerns: potential manipulation, provenance gaps, inconsistencies..."></textarea></div>'+
+      '</div>'+
+    '</div>'+
+
+    wizNav();
+}
+
+function renderStep3(){
+  return '<h2>Phase 3: <em>Collection</em></h2>'+
+    '<div class="wiz-sub">Capture the evidence forensically. Record every piece of metadata the Berkeley Protocol requires — source, method, timestamps, geolocation, collector identity, and tools used. The system hashes client-side before upload.</div>'+
+
+    '<div style="border:2px dashed var(--line-2);border-radius:14px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:24px" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--line-2)\'">'+
+      '<div style="font-family:Fraunces,serif;font-size:36px;color:var(--accent);margin-bottom:10px">↑</div>'+
+      '<div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">Drop files here or click to browse</div>'+
+      '<div style="font-size:13px;color:var(--muted)">Files are hashed client-side (SHA-256 + BLAKE3) before upload. If a single byte is off, the upload fails.</div>'+
+    '</div>'+
+
+    '<div style="font-family:Fraunces,serif;font-size:18px;margin-bottom:16px">Berkeley Protocol capture metadata</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Source platform</label>'+
+      '<select><option>Telegram</option><option>Twitter/X</option><option>Facebook</option><option>YouTube</option><option>TikTok</option><option>Instagram</option><option>VKontakte</option><option>Website</option><option>Dark web</option><option>Other</option></select></div>'+
+
+      '<div class="wiz-field"><label>Source URL</label>'+
+      '<input type="url" placeholder="https://t.me/channel/..." /></div>'+
+
+      '<div class="wiz-field"><label>Capture method</label>'+
+      '<select><option>Screenshot</option><option>Screen recording</option><option>Web archive</option><option>Manual download</option><option>Forensic tool</option><option>API capture</option><option>Physical transfer</option></select></div>'+
+    '</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Capture timestamp</label><input type="datetime-local" value="2026-04-18T10:30" /></div>'+
+      '<div class="wiz-field"><label>Publication timestamp</label><input type="datetime-local" value="2024-03-18T09:12" /></div>'+
+      '<div class="wiz-field"><label>Content language <small>BCP 47</small></label><input type="text" placeholder="e.g. uk, ru, en" /></div>'+
+      '<div class="wiz-field"><label>Availability status</label>'+
+      '<select><option>Accessible</option><option>Deleted</option><option>Geo-blocked</option><option>Restricted</option><option>Unavailable</option></select></div>'+
+    '</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Geolocation <small>place name</small></label><input type="text" placeholder="e.g. Butcha, Kyiv Oblast" /></div>'+
+      '<div class="wiz-field"><label>Coordinates <small>lat, lon</small></label><input type="text" placeholder="e.g. 50.5472, 30.2222" /></div>'+
+      '<div class="wiz-field"><label>Geo source</label>'+
+      '<select><option>EXIF</option><option>Manual</option><option>Platform metadata</option><option>Derived</option></select></div>'+
+    '</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Capture tool</label><input type="text" placeholder="e.g. Hunchly, Secure Transfer Agent" /></div>'+
+      '<div class="wiz-field"><label>Browser</label><input type="text" placeholder="e.g. Firefox 124.0" /></div>'+
+      '<div class="wiz-field"><label>Content description</label><input type="text" placeholder="Brief description of captured content" /></div>'+
+    '</div>'+
+
+    '<div class="wiz-field"><label>Content creator <small>account/profile on source platform</small></label>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">'+
+      '<input type="text" placeholder="Handle" />'+
+      '<input type="text" placeholder="Display name" />'+
+      '<input type="text" placeholder="Profile URL" />'+
+      '<input type="text" placeholder="Account ID" />'+
+    '</div></div>'+
+
+    wizNav();
+}
+
+function renderStep4(){
+  return '<h2>Phases 4–5: <em>Preserve & verify</em></h2>'+
+    '<div class="wiz-sub">Once collected, evidence is automatically sealed (Phase 4). Phase 5 asks you to verify the source and content, then link corroborating evidence from independent sources.</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">'+
+      '<div style="padding:20px;border:1px solid var(--line);border-radius:12px;background:rgba(74,107,58,.03)">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--ok)"></span><span style="font-family:Fraunces,serif;font-size:18px">Phase 4: Preservation</span><span class="pl sealed" style="font-size:11px">Automatic</span></div>'+
+        '<div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--muted)">'+
+          '<div style="display:flex;align-items:center;gap:8px"><span style="color:var(--ok)">✓</span> SHA-256 hash computed and sealed</div>'+
+          '<div style="display:flex;align-items:center;gap:8px"><span style="color:var(--ok)">✓</span> RFC 3161 timestamp from ts-eu-west</div>'+
+          '<div style="display:flex;align-items:center;gap:8px"><span style="color:var(--ok)">✓</span> Custody chain initiated</div>'+
+          '<div style="display:flex;align-items:center;gap:8px"><span style="color:var(--ok)">✓</span> Stored in MinIO EU-WEST-2</div>'+
+          '<div style="display:flex;align-items:center;gap:8px"><span style="color:var(--ok)">✓</span> EXIF extracted and preserved</div>'+
+        '</div>'+
+      '</div>'+
+
+      '<div style="padding:20px;border:1px solid var(--line);border-radius:12px">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></span><span style="font-family:Fraunces,serif;font-size:18px">Phase 5: Verification</span><span class="pl hold" style="font-size:11px">Your turn</span></div>'+
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Verify authenticity using at least one method below.</div>'+
+      '</div>'+
+    '</div>'+
+
+    '<div style="font-family:Fraunces,serif;font-size:18px;margin-bottom:16px">Verification record</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Verification type</label>'+
+      '<select><option>Geolocation verification</option><option>Chronolocation</option><option>Source authentication</option><option>Content authenticity</option><option>Metadata analysis</option><option>Reverse image search</option><option>Forensic audio analysis</option><option>Shadow analysis</option></select></div>'+
+      '<div class="wiz-field"><label>Methodology</label>'+
+      '<input type="text" placeholder="e.g. EXIF GPS cross-referenced with Sentinel-2 satellite imagery" /></div>'+
+    '</div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Finding</label>'+
+      '<select><option>Authentic</option><option>Likely authentic</option><option>Inconclusive</option><option>Likely inauthentic</option><option>Inauthentic</option></select></div>'+
+      '<div class="wiz-field"><label>Confidence</label>'+
+      '<select><option>High</option><option>Medium</option><option>Low</option></select></div>'+
+      '<div class="wiz-field"><label>Tools used</label>'+
+      '<input type="text" placeholder="e.g. Google Earth Pro, SunCalc" /></div>'+
+    '</div>'+
+
+    '<div class="wiz-field"><label>Rationale & limitations</label>'+
+    '<textarea placeholder="Document your reasoning, any limitations, and caveats..."></textarea></div>'+
+
+    '<div style="font-family:Fraunces,serif;font-size:18px;margin:24px 0 16px">Corroboration <small style="font-family:Inter,sans-serif;font-size:13px;color:var(--muted);font-weight:400">link independent sources</small></div>'+
+
+    '<div class="wiz-field"><label>Corroboration claim</label>'+
+    '<input type="text" placeholder="e.g. S-038 gave checkpoint order at 17:52, 19 Apr 2026" /></div>'+
+
+    '<div class="wiz-field"><label>Supporting evidence <small>minimum 2 independent sources</small></label>'+
+    '<div class="wiz-checklist">'+
+      '<div class="wc-item checked" onclick="this.classList.toggle(\'checked\')"><span class="wc-box">✓</span><div><div style="font-weight:500;font-size:13px">E-0918 · Butcha_drone_04.mp4 <span class="tag" style="margin-left:6px">primary</span></div></div></div>'+
+      '<div class="wc-item" onclick="this.classList.toggle(\'checked\')"><span class="wc-box">✓</span><div><div style="font-weight:500;font-size:13px">W-0144 · Sworn statement <span class="tag" style="margin-left:6px">supporting</span></div></div></div>'+
+      '<div class="wc-item" onclick="this.classList.toggle(\'checked\')"><span class="wc-box">✓</span><div><div style="font-weight:500;font-size:13px">E-0911 · Sentinel-2 satellite <span class="tag" style="margin-left:6px">contextual</span></div></div></div>'+
+    '</div></div>'+
+
+    wizNav();
+}
+
+function renderStep5(){
+  return '<h2>Phase 6: <em>Analysis & reporting</em></h2>'+
+    '<div class="wiz-sub">Document your analytical reasoning. The Berkeley Protocol requires that analysis generates not just conclusions but documentation that others can evaluate. This note will be sealed to the chain.</div>'+
+
+    '<div class="wiz-field"><label>Analysis type</label>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+      ['Hypothesis','Timeline','Command structure','Financial','Geospatial','Counter-evidence','Pattern analysis','Witness reconciliation','Legal assessment','OSINT cross-check'].map(function(t,i){
+        return '<span class="chip'+(i===1?' active':'')+'" style="cursor:pointer" onclick="this.classList.toggle(\'active\')">'+t+'</span>';
+      }).join('')+
+    '</div></div>'+
+
+    '<div class="wiz-field"><label>Analysis title</label>'+
+    '<input type="text" value="Timeline reconciliation — checkpoint events, 19 Apr 2026" /></div>'+
+
+    '<div class="wiz-field"><label>Methodology</label>'+
+    '<textarea placeholder="Describe your analytical approach...">Cross-referenced drone footage timestamps with witness statements and satellite imagery to establish precise timeline of events at the northeastern checkpoint.</textarea></div>'+
+
+    '<div class="wiz-field"><label>Content <small>your analytical note</small></label>'+
+    '<textarea style="min-height:160px" placeholder="Write your analysis here..."></textarea></div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'+
+      '<div class="wiz-field"><label>Referenced evidence</label>'+
+      '<input type="text" value="E-0918, E-0916, E-0911, E-0910" /></div>'+
+      '<div class="wiz-field"><label>Referenced witnesses</label>'+
+      '<input type="text" value="W-0144, W-0099" /></div>'+
+    '</div>'+
+
+    '<div class="wiz-field"><label>Limitations & caveats</label>'+
+    '<textarea placeholder="What are the limits of this analysis? What assumptions were made?"></textarea></div>'+
+
+    '<div style="padding:20px;border:1px solid var(--line);border-radius:12px;background:rgba(74,107,58,.03);margin-top:20px">'+
+      '<div style="font-family:Fraunces,serif;font-size:18px;margin-bottom:10px">Investigation summary</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0">'+
+        [
+          {n:'Phase 1',s:'✓ Inquiry logged'},
+          {n:'Phase 2',s:'✓ Assessment: 9/10'},
+          {n:'Phase 3',s:'✓ Collected + metadata'},
+          {n:'Phase 4',s:'✓ Sealed + timestamped'},
+          {n:'Phase 5',s:'✓ Verified + corroborated'},
+          {n:'Phase 6',s:'◔ Completing now'}
+        ].map(function(p,i){
+          var done = i<5;
+          return '<div style="padding:10px 12px;border-right:'+(i<5?'1px solid var(--line)':'none')+';text-align:center">'+
+            '<div style="font-family:JetBrains Mono,monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">'+p.n+'</div>'+
+            '<div style="font-size:11px;color:'+(done?'var(--ok)':'var(--accent)')+'">'+p.s+'</div>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+    '</div>'+
+
+    '<div class="wiz-nav">'+
+      '<button class="btn ghost" onclick="currentStep--;renderWizard()">← Back</button>'+
+      '<div style="display:flex;gap:10px">'+
+        '<button class="btn ghost" onclick="alert(\'Saved as draft (demo)\')">Save draft</button>'+
+        '<button class="btn" onclick="alert(\'Investigation sealed to chain! All 6 Berkeley Protocol phases complete. Redirecting to evidence detail... (demo)\')">Seal & complete investigation →</button>'+
+      '</div>'+
+    '</div>';
+}
+
+function wizNav(){
+  var prev = currentStep>0?'<button class="btn ghost" onclick="currentStep--;renderWizard()">← Back</button>':'<span></span>';
+  var next = '<button class="btn" onclick="currentStep++;renderWizard()">Continue to '+steps[Math.min(currentStep+1,steps.length-1)].label+' →</button>';
+  return '<div class="wiz-nav">'+prev+'<div style="display:flex;gap:10px"><button class="btn ghost" onclick="alert(\'Saved as draft (demo)\')">Save draft</button>'+next+'</div></div>';
+}
+
+renderWizard();
+</script></body></html>

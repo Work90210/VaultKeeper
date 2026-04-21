@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Evidence management — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+  .ev-ingest{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-lg);padding:28px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.75;color:var(--muted)}
+  .ev-ingest .h{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  .ev-ingest .row{display:grid;grid-template-columns:90px 1fr auto;gap:14px;padding:6px 0;align-items:baseline}
+  .ev-ingest .ok{color:var(--accent)}
+  .ev-ingest .err{color:#b0543a}
+  .ev-ingest .k{color:var(--ink)}
+  .ev-ingest .hash{font-size:11px;color:var(--muted-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .formats{display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin-top:40px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  @media (max-width:860px){.formats{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:480px){.formats{grid-template-columns:repeat(2,1fr)}}
+  .fmt{padding:20px 16px;border-right:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.04em}
+  .fmt:last-child{border-right:none}
+  .fmt strong{display:block;font-family:"Fraunces",serif;font-style:italic;font-size:22px;color:var(--ink);letter-spacing:-.01em;margin-bottom:6px;font-weight:400}
+</style>
+</head>
+<body>
+<div id="nav"></div>
+
+<section class="sp-hero">
+  <div class="blob a"></div>
+  <div class="wrap sp-hero-inner">
+    <span class="sp-eyebrow"><span class="eb-dot"></span>Platform · 01 of 05</span>
+    <h1>Every byte <em>witnessed</em> the moment it enters the room.</h1>
+    <p class="lead">Ingestion is where evidence either becomes admissible or becomes a liability. VaultKeeper treats the door of the evidence locker as a cryptographic checkpoint — every file timestamped, hashed, and countersigned before it is allowed to exist.</p>
+    <div class="sp-hero-meta">
+      <div><span class="k">Formats</span><span class="v">218 verified</span></div>
+      <div><span class="k">Hashing</span><span class="v">SHA-256 + BLAKE3</span></div>
+      <div><span class="k">Timestamp</span><span class="v">RFC 3161 <em>(TSA pool)</em></span></div>
+      <div><span class="k">Max file size</span><span class="v">tested to 4 TB</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Intake · Sealing<small>What ingest actually does</small></div>
+    <div class="sp-body">
+      <h2>The door is not a <em>web upload.</em> It's a notarised border crossing.</h2>
+      <p class="sp-lead">Files cross the boundary through a resumable chunked transfer. Each 4&nbsp;MB chunk is hashed in the browser, reconciled server-side, and countersigned by at least two of your witness nodes before the file manifest is committed. If reconciliation fails, the file is <strong>never written to disk in a usable form</strong> — we don't do partials.</p>
+
+      <div class="sp-cols3">
+        <div class="c"><span class="n">01</span><h4>Client-side hash</h4><p>SHA-256 is computed in the investigator's browser before a single byte leaves their machine. The server compares against the hash it independently derives from the reassembled stream.</p></div>
+        <div class="c"><span class="n">02</span><h4>RFC 3161 timestamp</h4><p>The combined manifest is sent to a configurable TSA pool (default: three geographically-diverse authorities). The returned token is stored alongside the hash.</p></div>
+        <div class="c"><span class="n">03</span><h4>Witness countersignature</h4><p>Quorum of witness nodes — institutional peers you've federated with — each sign the manifest. The seal is valid only once ≥ 2 of ≥ 3 have signed.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section" style="border-top:none;padding-top:0">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Transcript<small>A real ingest log</small></div>
+    <div class="sp-body">
+      <div class="ev-ingest">
+        <div class="h"><span>case · ICC-UKR-2024 · exhibit intake</span><span>19 Apr 2026 · 14:02:07 UTC</span></div>
+        <div class="row"><span>14:02:07</span><span><span class="k">OPEN</span> session · auth <span class="ok">witness-03</span></span><span>—</span></div>
+        <div class="row"><span>14:02:12</span><span>UPLOAD <span class="k">drone_footage_butcha.mp4</span> · 218 MB · 54 chunks</span><span class="ok">✓</span></div>
+        <div class="row"><span>14:02:39</span><span>&nbsp;&nbsp;chunk 54/54 · recv · client sha256 reconciled</span><span class="ok">match</span></div>
+        <div class="row"><span>14:02:41</span><span>&nbsp;&nbsp;TSA <span class="k">tsa.dfn.de</span> · RFC 3161 token requested</span><span class="ok">ok</span></div>
+        <div class="row"><span>14:02:43</span><span>&nbsp;&nbsp;TSA <span class="k">ts.eu-west</span> · secondary token</span><span class="ok">ok</span></div>
+        <div class="row"><span>14:02:45</span><span>&nbsp;&nbsp;witness-01 · eIDAS QES signature</span><span class="ok">ok</span></div>
+        <div class="row"><span>14:02:46</span><span>&nbsp;&nbsp;witness-02 · eIDAS QES signature</span><span class="ok">ok</span></div>
+        <div class="row"><span>14:02:46</span><span>&nbsp;&nbsp;<span class="k">SEAL COMMITTED</span> · chain-idx 48,217</span><span class="ok">▣</span></div>
+        <div class="row"><span>14:02:47</span><span class="hash">&nbsp;&nbsp;sha256:a7f4…d029 · sig:3045022100b8e9…</span><span>—</span></div>
+        <div class="row"><span>14:02:52</span><span>UPLOAD <span class="k">witness-0144-corrupt.mp4</span> · 12 MB</span><span class="err">✗</span></div>
+        <div class="row"><span>14:02:54</span><span>&nbsp;&nbsp;chunk 3/3 · client hash mismatch · <span class="err">409 CONFLICT</span></span><span class="err">reject</span></div>
+        <div class="row"><span>14:02:54</span><span>&nbsp;&nbsp;<span class="k">NOT WRITTEN</span> — no partial exhibit created</span><span>—</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-section">
+  <div class="wrap sp-grid-12">
+    <div class="sp-rail">Formats<small>What we understand</small></div>
+    <div class="sp-body">
+      <h2>218 formats, decoded <em>locally</em>, never in a foreign cloud.</h2>
+      <p class="sp-lead">Video, audio, chat exports, mobile forensic images, satellite imagery, proprietary drone formats, encrypted containers, hostile-captured devices — all parsed on the box you own. VaultKeeper ships the parsers; nothing leaves the perimeter.</p>
+      <div class="formats">
+        <div class="fmt"><strong>AV</strong>H.264 · H.265<br>AV1 · ProRes</div>
+        <div class="fmt"><strong>Audio</strong>WAV · FLAC<br>OGG · OPUS</div>
+        <div class="fmt"><strong>Mobile</strong>Cellebrite UFDR<br>GrayKey AFF4</div>
+        <div class="fmt"><strong>Chat</strong>WhatsApp<br>Signal · Telegram</div>
+        <div class="fmt"><strong>Imagery</strong>GeoTIFF · COG<br>NITF · KLV drone</div>
+        <div class="fmt"><strong>Docs</strong>PDF · DOCX<br>EML · MSG · MBOX</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sp-quote">
+  <div class="wrap">
+    <blockquote>"On the first day, we tried to upload a 3&nbsp;TB Nuix export that had survived three previous platforms. <em>VaultKeeper rejected 14 files</em> because the hashes didn't match what Nuix claimed. That was the moment I knew we'd bought the right tool."</blockquote>
+    <p class="who"><strong>Dr. Anna Seibel</strong> — Head of Digital Evidence, CIJA (Commission for International Justice and Accountability)</p>
+  </div>
+</section>
+
+<section class="wrap" style="padding:40px 0 32px">
+  <div class="cta-banner">
+    <div>
+      <h2>See a real ingest in <em>your</em> hardware.</h2>
+      <p>We'll run a live 30-minute ingest against a dummy case file on your own infrastructure. You keep the logs.</p>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <a class="btn ghost" href="custody.html">Chain of custody →</a>
+      <a class="btn" href="contact.html">Book a demo <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sp-nextprev">
+    <a href="platform.html"><span class="k">← Platform overview</span><h5>All five pillars</h5><p>Ingest, custody, witnesses, collaboration, discovery — one sealed system.</p></a>
+    <a href="custody.html"><span class="k">Next · 02/05</span><h5>Chain of custody</h5><p>How an append-only log survives a hostile defence expert.</p></a>
+  </div>
+</section>
+
+<div id="foot"></div>
+<script src="assets/partials.js?v=7"></script>
+</body>
+</html>

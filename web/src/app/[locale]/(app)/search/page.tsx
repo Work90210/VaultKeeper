@@ -31,7 +31,7 @@ export default function SearchPage() {
   const [facets, setFacets] = useState<Record<string, Record<string, number>> | undefined>();
   const [viewState, setViewState] = useState<ViewState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [cases, setCases] = useState<Case[]>([]);
+  const [_cases, setCases] = useState<Case[]>([]);
   const [offset, setOffset] = useState(0);
   const [filters, setFilters] = useState<SearchFilterValues>({
     caseId: searchParams.get('case_id') || undefined,

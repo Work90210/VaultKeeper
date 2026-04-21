@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Assessments — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11"><link rel="stylesheet" href="assets/dash.css?v=5">
+<style>
+.vk-modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(20,17,12,.5);align-items:center;justify-content:center}
+.vk-modal.open{display:flex}
+.vk-modal-box{background:var(--paper);border-radius:var(--radius);max-width:600px;width:100%;padding:32px;box-shadow:var(--shadow-lg);margin:20px;max-height:85vh;overflow-y:auto}
+.vk-modal-box h3{font-family:Fraunces,serif;font-size:22px;margin-bottom:6px}
+.vk-modal-box h3 em{color:var(--accent);font-style:italic}
+.vk-modal-box .msub{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.6}
+.vk-modal-box .mfield{margin-bottom:14px}
+.vk-modal-box .mfield label{display:block;font-size:13px;font-weight:500;margin-bottom:5px}
+.vk-modal-box .mfield label small{font-weight:400;color:var(--muted);margin-left:4px}
+.vk-modal-box .mfield input,.vk-modal-box .mfield textarea,.vk-modal-box .mfield select{width:100%;padding:9px 12px;border:1px solid var(--line-2);border-radius:var(--radius-sm);font:inherit;font-size:13px;outline:none;background:var(--paper);box-sizing:border-box}
+.vk-modal-box .mfield textarea{resize:vertical;min-height:72px}
+.vk-modal-box .mgrid{display:grid;gap:14px}
+.vk-modal-box .mgrid-2{grid-template-columns:1fr 1fr}
+.vk-modal-box .mgrid-3{grid-template-columns:1fr 1fr 1fr}
+.vk-modal-box .mactions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.vk-modal-box .mphase{font-family:JetBrains Mono,monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:2px 7px;border-radius:4px;background:rgba(184,66,28,.06);border:1px solid rgba(184,66,28,.12);margin-left:8px}
+</style>
+</head><body>
+<script>function openModal(id){document.getElementById(id).classList.add("open")}function closeModal(id){document.getElementById(id).classList.remove("open")}</script>
+<div class="dash" id="d-shell"></div>
+<script src="assets/vk-shell-v2.js?v=8"></script>
+<script>
+renderDashShell('assess', '<a href="dash.html">Workspace</a><span class="sep">/</span><a href="dash-case.html">ICC-UKR-2024</a><span class="sep">/</span><span class="here">Assessments</span>');
+
+var assessments = [
+  {ref:"A-0091",evidence:"E-0918",name:"Butcha_drone_04.mp4",rel:9,rlb:8,cred:"Established",rec:"collect",by:"Amir Haddad",c:"c",date:"19 Apr 2026",rationale:"Primary drone footage from verified source. GPS and timestamp corroborated by satellite and 2 witness statements.",phase:5,phaseLabel:"Verified"},
+  {ref:"A-0090",evidence:"E-0917",name:"Field intake — 19 Apr 2026",rel:8,rlb:9,cred:"Established",rec:"collect",by:"H. Morel",c:"a",date:"19 Apr 2026",rationale:"Signed field intake from trained interviewer. Chain of custody intact from interview site.",phase:6,phaseLabel:"Analysed"},
+  {ref:"A-0089",evidence:"E-0916",name:"Intercept 14:03 EET",rel:7,rlb:6,cred:"Probable",rec:"collect",by:"Amir Haddad",c:"c",date:"18 Apr 2026",rationale:"Audio intercept consistent with known call patterns. Speaker ID not yet confirmed.",phase:4,phaseLabel:"Preserved"},
+  {ref:"A-0088",evidence:"E-0915",name:"Checkpoint perimeter",rel:9,rlb:9,cred:"Established",rec:"collect",by:"H. Morel",c:"a",date:"18 Apr 2026",rationale:"C2PA-signed image from registered device. EXIF intact, GPS verified.",phase:6,phaseLabel:"Analysed"},
+  {ref:"A-0087",evidence:"E-0914",name:"Raiffeisen transfer ledger",rel:6,rlb:5,cred:"Unconfirmed",rec:"monitor",by:"W. Nyoka",c:"e",date:"17 Apr 2026",rationale:"Financial records from third-party source. Authenticity pending OLAF cross-reference.",phase:3,phaseLabel:"Collected"},
+  {ref:"A-0086",evidence:"E-0912",name:"W-0144 sworn statement v3",rel:8,rlb:7,cred:"Probable",rec:"collect",by:"Juliane Wirth",c:"d",date:"16 Apr 2026",rationale:"Third revision of sworn statement. Minor corrections consistent with memory refinement.",phase:4,phaseLabel:"Preserved"},
+  {ref:"A-0085",evidence:"E-0908",name:"Radio chatter seg-3",rel:4,rlb:3,cred:"Unconfirmed",rec:"deprioritize",by:"Amir Haddad",c:"c",date:"16 Apr 2026",rationale:"11-second fragment with custody chain break. Cannot confirm recording device.",phase:2,phaseLabel:"Deprioritized"},
+  {ref:"A-0084",evidence:"E-0907",name:"Vehicle plate BX-4281",rel:5,rlb:6,cred:"Probable",rec:"collect",by:"Amir Haddad",c:"c",date:"15 Apr 2026",rationale:"Plate image clear. Cross-reference with administrative records pending.",phase:3,phaseLabel:"Collected"}
+];
+
+var recColors = {collect:'var(--ok)',monitor:'var(--accent)',deprioritize:'#b35c5c',discard:'#6b3a4a'};
+var recBgs = {collect:'rgba(74,107,58,.1)',monitor:'rgba(184,66,28,.1)',deprioritize:'rgba(179,92,92,.1)',discard:'rgba(107,58,74,.1)'};
+
+var queue = [
+  {ref:'E-0919',name:'Checkpoint_CCTV_seg4.mp4',kind:'VIDEO',size:'312 MB',by:'H. Morel',ago:'12 min ago'},
+  {ref:'E-0920',name:'W-0146_intake_notes.pdf',kind:'DOC',size:'2.1 MB',by:'Juliane Wirth',ago:'28 min ago'},
+  {ref:'E-0921',name:'Telegram_screenshot_041.png',kind:'IMG',size:'840 KB',by:'Amir Haddad',ago:'1 h ago'},
+  {ref:'E-0922',name:'Intercept_15:41_EET.flac',kind:'AUDIO',size:'8 MB',by:'Amir Haddad',ago:'1 h ago'},
+  {ref:'E-0923',name:'Vehicle_registry_cross.csv',kind:'DOC',size:'220 KB',by:'W. Nyoka',ago:'2 h ago'},
+  {ref:'E-0924',name:'Satellite_19Apr_14:00Z.tif',kind:'IMG',size:'124 MB',by:'H. Morel',ago:'3 h ago'},
+  {ref:'E-0925',name:'Body-cam_BC-19_raw.mp4',kind:'VIDEO',size:'1.2 GB',by:'H. Morel',ago:'4 h ago'},
+  {ref:'E-0926',name:'Financial_transfer_batch2.xlsx',kind:'DOC',size:'18 KB',by:'W. Nyoka',ago:'5 h ago'}
+];
+
+document.getElementById('d-content').innerHTML =
+  '<section class="d-pagehead"><div>'+
+  '<span class="eyebrow-m">Case \xb7 ICC-UKR-2024 \xb7 Berkeley Protocol Phase 2</span>'+
+  '<h1>Preliminary <em>assessments</em></h1>'+
+  '<p class="sub">Phase 2 of the Berkeley Protocol requires evaluating relevance and reliability <em>before</em> evidence enters the investigative record. Review the queue below, then score each exhibit.</p>'+
+  '</div><div class="actions">'+
+  '<a class="btn" href="#" onclick="event.preventDefault();openModal(\'modal-assess\')">New assessment <span class="arr">\u2192</span></a>'+
+  '</div></section>'+
+
+  
+
+  '<div class="d-kpis" style="margin-bottom:22px">'+
+  '<div class="d-kpi"><div class="k">Assessed \xb7 this case</div><div class="v">412</div><div class="sub">of 12,417 exhibits</div></div>'+
+  '<div class="d-kpi"><div class="k">Awaiting assessment</div><div class="v">847</div><div class="delta n">\u25cf 23 uploaded today</div></div>'+
+  '<div class="d-kpi"><div class="k">Avg. relevance</div><div class="v">7.2</div><div class="sub">across assessed</div></div>'+
+  '<div class="d-kpi"><div class="k">Deprioritized / discarded</div><div class="v">31</div><div class="sub">transparent \xb7 preserved</div></div>'+
+  '</div>'+
+
+  '<div class="g2-wide" style="margin-bottom:22px">'+
+
+  // LEFT: Queue
+  '<div class="panel">'+
+  '<div class="panel-h"><h3>Unassessed <em>queue</em></h3><span class="meta" style="color:var(--accent)">847 awaiting</span></div>'+
+  '<div class="panel-body" style="padding:0">'+
+  '<div style="padding:14px 22px;background:rgba(184,66,28,.03);border-bottom:1px solid var(--line);font-size:13px;color:var(--ink-2);line-height:1.55">'+
+  'These exhibits were uploaded but have not yet been assessed. Select one to review its metadata and score it.</div>'+
+  queue.map(function(e){
+    return '<div style="padding:14px 22px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;cursor:pointer;transition:background .12s" onmouseover="this.style.background=\'var(--bg-2)\'" onmouseout="this.style.background=\'\'" onclick="openModal(\'modal-assess\')">'+
+      '<div><div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--accent);letter-spacing:.02em">'+e.ref+'</span>'+
+      '<span class="tag">'+e.kind+'</span>'+
+      '<span style="font-size:14px;font-weight:500;color:var(--ink)">'+e.name+'</span></div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-top:3px">'+e.size+' \xb7 uploaded by '+e.by+' \xb7 '+e.ago+'</div></div>'+
+      '<a class="linkarrow" style="font-size:12.5px;flex-shrink:0">Assess \u2192</a></div>';
+  }).join('')+
+  '<div style="padding:12px 22px;text-align:center;font-size:13px"><a href="#" style="color:var(--accent);font-family:Fraunces,serif;font-style:italic">View all 847 unassessed \u2192</a></div>'+
+  '</div></div>'+
+
+  // RIGHT: How-to
+  '<div class="panel">'+
+  '<div class="panel-h"><h3>How to <em>assess</em></h3><span class="meta">Phase 2</span></div>'+
+  '<div class="panel-body">'+
+  [{s:'1',t:'Select an exhibit',d:'Pick from the unassessed queue or search by ID. Review the file, its metadata, and source.',cur:true},
+   {s:'2',t:'Score relevance',d:'How relevant is this to the case? Score 1\u201310 with written rationale.'},
+   {s:'3',t:'Score reliability',d:'How reliable is the source and content? Consider provenance, metadata integrity, chain of custody.'},
+   {s:'4',t:'Evaluate credibility',d:'Rate the source: Established, Probable, Unconfirmed, or Doubtful.'},
+   {s:'5',t:'Flag concerns',d:'Note any misleading indicators: manipulation, provenance gaps, inconsistencies.'},
+   {s:'6',t:'Recommend',d:'Collect, Monitor, Deprioritize, or Discard. All decisions are preserved \u2014 even discards.'}
+  ].map(function(s,i,a){
+    return '<div style="display:grid;grid-template-columns:28px 1fr;gap:12px;padding:12px 0;'+(i<a.length-1?'border-bottom:1px solid var(--line)':'')+'">'+
+      '<span style="width:24px;height:24px;border-radius:50%;border:1.5px solid '+(s.cur?'var(--accent)':'var(--line-2)')+';background:transparent;color:'+(s.cur?'var(--accent)':'var(--muted)')+';display:grid;place-items:center;font-size:11px;font-family:JetBrains Mono,monospace">'+s.s+'</span>'+
+      '<div><strong style="font-family:Fraunces,serif;font-size:15px;color:'+(s.cur?'var(--ink)':'var(--muted)')+'">'+s.t+'</strong><div style="font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5">'+s.d+'</div></div></div>';
+  }).join('')+
+  '</div></div></div>'+
+
+  // Completed assessments
+  '<div class="panel">'+
+  '<div class="panel-h"><h3>Completed assessments</h3><span class="meta">412 total</span></div>'+
+  '<div class="fbar">'+
+  '<div class="fsearch"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--muted)"><circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/></svg><input placeholder="exhibit, assessor, recommendation\u2026"/></div>'+
+  '<span class="chip active">All 412</span>'+
+  '<span class="chip">Collect 318</span>'+
+  '<span class="chip">Monitor 52</span>'+
+  '<span class="chip">Deprioritize 28</span>'+
+  '<span class="chip">Discard 3</span></div>'+
+  '<div class="panel-body" style="padding:0">'+
+  assessments.map(function(a){
+    return '<div style="padding:16px 22px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:60px 1fr 160px 80px;gap:20px;align-items:center;transition:background .12s;cursor:pointer" onmouseover="this.style.background=\'var(--bg-2)\'" onmouseout="this.style.background=\'\'">'+
+      '<div style="display:flex;gap:6px;justify-content:center">'+
+      '<div style="text-align:center"><div style="font-family:Fraunces,serif;font-size:22px;color:'+(a.rel>=7?'var(--ok)':a.rel>=5?'var(--accent)':'#b35c5c')+';line-height:1">'+a.rel+'</div><div style="font-family:JetBrains Mono,monospace;font-size:8px;letter-spacing:.06em;color:var(--muted)">REL</div></div>'+
+      '<div style="text-align:center"><div style="font-family:Fraunces,serif;font-size:22px;color:'+(a.rlb>=7?'var(--ok)':a.rlb>=5?'var(--accent)':'#b35c5c')+';line-height:1">'+a.rlb+'</div><div style="font-family:JetBrains Mono,monospace;font-size:8px;letter-spacing:.06em;color:var(--muted)">RLB</div></div></div>'+
+      '<div><div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--accent)">'+a.evidence+'</span>'+
+      '<span style="font-size:13.5px;font-weight:500">'+a.name+'</span>'+
+      '<span style="padding:2px 7px;border-radius:999px;font-size:10px;font-weight:500;color:'+recColors[a.rec]+';background:'+recBgs[a.rec]+';text-transform:capitalize">'+a.rec+'</span></div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+a.by+' \xb7 '+a.date+'</div></div>'+
+      '<div style="font-size:12px;color:var(--muted);line-height:1.4">'+a.rationale.substring(0,60)+'\u2026</div>'+
+      '<div style="display:flex;align-items:center;gap:3px">'+[1,2,3,4,5,6].map(function(n){return '<span style="width:5px;height:5px;border-radius:50%;background:'+(n<=a.phase?(n<=4?'var(--ok)':n<=5?'var(--accent)':'var(--ink)'):'var(--bg-2)')+'"></span>'}).join('')+'<span style="font-family:JetBrains Mono,monospace;font-size:9px;color:'+(a.phase>=5?'var(--ok)':a.phase>=3?'var(--accent)':'var(--muted)')+';margin-left:3px">'+a.phaseLabel+'</span></div>'+
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><a class="linkarrow" href="dash-evidence-detail.html" style="font-size:12px">View \u2192</a>'+(a.rec==='collect'?'<a href="dash-evidence.html" style="font-size:11px;color:var(--ok);font-family:Fraunces,serif;font-style:italic">Collect \u2192</a>':'')+'</div></div>';
+  }).join('')+
+  '</div></div>';
+</script>
+
+<!-- Assessment modal with evidence preview -->
+<div class="vk-modal" id="modal-assess" onclick="if(event.target===this)closeModal('modal-assess')">
+<div class="vk-modal-box" style="max-width:960px">
+  <h3>Assess <em>exhibit</em> <span class="mphase">Phase 2</span></h3>
+  <p class="msub">Review the exhibit and its metadata, then score relevance, reliability, and source credibility.</p>
+  
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+    <div>
+      <div style="background:var(--ink);border-radius:10px;aspect-ratio:16/10;display:grid;place-items:center;margin-bottom:14px;position:relative;overflow:hidden">
+        <span style="position:absolute;top:10px;left:10px;padding:3px 8px;border-radius:6px;background:rgba(245,241,232,.08);color:rgba(245,241,232,.55);font-family:JetBrains Mono,monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;backdrop-filter:blur(8px);border:1px solid rgba(245,241,232,.06)">VIDEO · H.265</span>
+        <button style="width:48px;height:48px;border-radius:50%;background:rgba(245,241,232,.1);backdrop-filter:blur(12px);border:1px solid rgba(245,241,232,.12);cursor:pointer;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(245,241,232,.9)" stroke="none"><polygon points="8,5 19,12 8,19"/></svg></button>
+      </div>
+      
+      <div style="font-family:JetBrains Mono,monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Exhibit metadata</div>
+      <div style="display:grid;grid-template-columns:100px 1fr;gap:4px 12px;font-size:12.5px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg-2)">
+        <span style="color:var(--muted)">ID</span><span style="font-family:JetBrains Mono,monospace;color:var(--accent)">E-0919</span>
+        <span style="color:var(--muted)">Filename</span><span>Checkpoint_CCTV_seg4.mp4</span>
+        <span style="color:var(--muted)">Size</span><span>312 MB</span>
+        <span style="color:var(--muted)">Uploaded by</span><span>H. Morel</span>
+        <span style="color:var(--muted)">Upload date</span><span>19 Apr 2026, 14:10</span>
+        <span style="color:var(--muted)">Source</span><span>Ukrainian National Police</span>
+        <span style="color:var(--muted)">Capture method</span><span>Manual download</span>
+        <span style="color:var(--muted)">Location</span><span>Butcha, Kyiv Oblast</span>
+        <span style="color:var(--muted)">Coordinates</span><span style="font-family:JetBrains Mono,monospace;font-size:11px">50.5418, 30.2189</span>
+        <span style="color:var(--muted)">SHA-256</span><span style="font-family:JetBrains Mono,monospace;font-size:10px;word-break:break-all">c4f2e8a1…9b3d</span>
+        <span style="color:var(--muted)">Custody</span><span style="color:var(--ok)">● Sealed · 2 events</span>
+        <span style="color:var(--muted)">Tags</span><span><span class="tag" style="font-size:9px">cctv</span> <span class="tag" style="font-size:9px">checkpoint</span></span>
+      </div>
+      <a href="dash-evidence-detail.html" style="display:block;margin-top:10px;font-size:12.5px;color:var(--accent);font-family:Fraunces,serif;font-style:italic">Open full evidence detail →</a>
+    </div>
+    
+    <div>
+      <div class="mgrid mgrid-2">
+        <div class="mfield"><label>Relevance <small>1–10</small></label><input type="number" min="1" max="10" placeholder="Score" />
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">How relevant is this exhibit to the case?</div></div>
+        <div class="mfield"><label>Reliability <small>1–10</small></label><input type="number" min="1" max="10" placeholder="Score" />
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">How reliable is the source and content?</div></div>
+      </div>
+      <div class="mgrid mgrid-2">
+        <div class="mfield"><label>Source credibility</label>
+        <select><option value="">Select...</option><option>Established</option><option>Probable</option><option>Unconfirmed</option><option>Doubtful</option></select></div>
+        <div class="mfield"><label>Recommendation</label>
+        <select><option value="">Select...</option><option>Collect — proceed to Phase 3</option><option>Monitor — revisit later</option><option>Deprioritize — low value</option><option>Discard — not credible</option></select></div>
+      </div>
+      <div class="mfield"><label>Assigned to</label>
+      <select><option value="">Select team member...</option><option>H. Morel — Lead Investigator</option><option>Amir Haddad — Evidence Technician</option><option>Martyna Kovacs — Redaction Analyst</option><option>Juliane Wirth — Witness Liaison</option><option>W. Nyoka — External Liaison</option></select></div>
+      <div class="mfield"><label>Rationale <small>required</small></label><textarea placeholder="Explain your relevance and reliability scoring..."></textarea></div>
+      <div class="mfield"><label>Misleading indicators <small>optional</small></label><textarea style="min-height:56px" placeholder="Flag concerns: manipulation signs, provenance gaps..."></textarea></div>
+    </div>
+  </div>
+  
+  <div class="mactions">
+    <button class="btn ghost sm" onclick="closeModal('modal-assess')">Cancel</button>
+    <button class="btn ghost sm" onclick="alert('Saved as draft (demo)')">Save draft</button>
+    <button class="btn sm" onclick="alert('Assessment sealed (demo)');closeModal('modal-assess')">Sign & seal assessment</button>
+  </div>
+</div></div>
+
+</body></html>

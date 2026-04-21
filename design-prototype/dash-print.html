@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Chamber filing — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+body{background:var(--bg-2);color:var(--ink);font-family:"Inter",sans-serif}
+.tools{max-width:840px;margin:24px auto;display:flex;justify-content:space-between;align-items:center;padding:14px 22px;background:var(--paper);border:1px solid var(--line);border-radius:12px;font-size:13px}
+.tools .l{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.04em;color:var(--muted)}
+.tools .r{display:flex;gap:10px}
+
+/* A4 paper */
+.page{background:#fff;width:794px;min-height:1123px;margin:20px auto;padding:72px 84px;box-shadow:0 6px 24px rgba(20,17,12,.08);position:relative;font-size:11pt;line-height:1.55;color:#14110c}
+.page + .page{margin-top:32px}
+.page .ph{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding-bottom:14px;border-bottom:1px solid #14110c;font-family:"JetBrains Mono",monospace;font-size:8.5pt;letter-spacing:.08em;text-transform:uppercase;color:#6a655a}
+.page .ph .m{width:20px;height:20px;border-radius:5px;background:#14110c;position:relative}
+.page .ph .m::before{content:"";position:absolute;inset:4px;border-radius:2px;background:#fff}
+.page .ph .m::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#b8421c}
+.page .pf{position:absolute;left:84px;right:84px;bottom:54px;display:grid;grid-template-columns:auto 1fr auto;gap:16px;padding-top:12px;border-top:1px solid #e6e1d2;font-family:"JetBrains Mono",monospace;font-size:8pt;letter-spacing:.06em;text-transform:uppercase;color:#6a655a}
+
+h1.doc{font-family:"Fraunces",serif;font-weight:400;font-size:26pt;letter-spacing:-.02em;line-height:1.05;margin:24px 0 6px}
+h1.doc em{color:#b8421c;font-style:italic}
+.doc-sub{font-family:"Fraunces",serif;font-style:italic;font-size:13pt;color:#6a655a;margin-bottom:18px}
+
+table.cover{width:100%;border-collapse:collapse;margin:18px 0 24px;font-size:10pt}
+table.cover td{padding:9px 12px;border-bottom:1px solid #e6e1d2;vertical-align:top}
+table.cover td.k{width:180px;font-family:"JetBrains Mono",monospace;font-size:8.5pt;letter-spacing:.06em;color:#6a655a;text-transform:uppercase}
+table.cover strong{font-weight:500}
+
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px;padding-top:20px;border-top:1px solid #14110c}
+.sig{padding:16px 0}
+.sig .role{font-family:"JetBrains Mono",monospace;font-size:8.5pt;letter-spacing:.08em;color:#6a655a;text-transform:uppercase}
+.sig .name{font-family:"Fraunces",serif;font-size:16pt;margin:40px 0 4px;border-bottom:1px solid #14110c;padding-bottom:4px}
+.sig .meta{font-size:9pt;color:#6a655a;font-family:"JetBrains Mono",monospace;line-height:1.6}
+
+.h2{font-family:"Fraunces",serif;font-weight:400;font-size:15pt;letter-spacing:-.01em;margin:26px 0 10px;padding-bottom:6px;border-bottom:1px solid #e6e1d2}
+.h2 em{color:#b8421c;font-style:italic}
+.copy p{margin:0 0 10px}
+.copy p strong{font-weight:500}
+
+table.man{width:100%;border-collapse:collapse;font-size:9.5pt;margin:14px 0}
+table.man th{text-align:left;padding:9px 10px;border-bottom:1.5px solid #14110c;font-family:"JetBrains Mono",monospace;font-size:8pt;letter-spacing:.08em;color:#6a655a;text-transform:uppercase;font-weight:400}
+table.man td{padding:9px 10px;border-bottom:1px solid #e6e1d2;vertical-align:top}
+table.man .ref{font-family:"Fraunces",serif;font-size:11pt;letter-spacing:-.005em}
+table.man .hash{font-family:"JetBrains Mono",monospace;font-size:8.5pt;color:#b8421c;letter-spacing:.02em;white-space:nowrap}
+table.man .dt{font-family:"JetBrains Mono",monospace;font-size:8.5pt;color:#6a655a;white-space:nowrap}
+
+.chain-strip{border:1px solid #e6e1d2;padding:14px 16px;margin:14px 0;background:#fbf8ef;font-family:"JetBrains Mono",monospace;font-size:8.5pt;line-height:1.8;color:#2a2620}
+.chain-strip .g{color:#4a6b3a}
+.chain-strip .a{color:#b8421c}
+
+.seal{border:1px solid #14110c;border-radius:50%;width:118px;height:118px;display:grid;place-items:center;text-align:center;padding:14px;font-family:"JetBrains Mono",monospace;font-size:7.5pt;letter-spacing:.08em;color:#14110c;line-height:1.6;text-transform:uppercase;position:absolute;right:84px;top:96px;background:#fff}
+.seal .s-c{font-family:"Fraunces",serif;font-style:italic;font-size:16pt;color:#b8421c;text-transform:none;letter-spacing:-.01em;line-height:1;margin:4px 0}
+
+.rule77{border-left:3px solid #b8421c;padding:10px 16px;margin:14px 0;background:#fbf8ef;font-size:10pt;color:#2a2620}
+.rule77 strong{font-family:"Fraunces",serif;font-style:italic;color:#b8421c;font-weight:400}
+
+.verify-box{margin-top:20px;padding:16px 20px;border:1px solid #14110c;background:#fbf8ef;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center}
+.verify-box .t{font-family:"Fraunces",serif;font-size:13pt;letter-spacing:-.005em;margin-bottom:4px}
+.verify-box p{margin:0;font-size:9.5pt;color:#6a655a;line-height:1.5}
+.verify-box .qr{width:84px;height:84px;background:#14110c;display:grid;place-items:center;color:#fff;font-family:"JetBrains Mono",monospace;font-size:7pt;letter-spacing:.04em;text-align:center;line-height:1.4}
+
+@media print{body{background:#fff}.tools{display:none}.page{box-shadow:none;margin:0;page-break-after:always}}
+</style>
+</head><body>
+
+<div class="tools">
+  <span class="l">Print template · filing dossier · A4 · paginated</span>
+  <span class="r"><a class="btn ghost sm" href="dash-disclosures.html">Back to disclosures</a><a class="btn sm" href="javascript:print()">Print / save as PDF <span class="arr">→</span></a></span>
+</div>
+
+<!-- PAGE 1 · COVER -->
+<article class="page">
+  <header class="ph"><span class="m"></span><span>VaultKeeper · Eurojust · Hague — sealed filing</span><span>f208…bc91</span></header>
+
+  <span style="font-family:'JetBrains Mono',monospace;font-size:9pt;letter-spacing:.08em;color:#6a655a;text-transform:uppercase">Filing · DISC-2026-019 · for the Trial Chamber</span>
+  <h1 class="doc">Disclosure <em>dossier</em></h1>
+  <div class="doc-sub">Situation in Ukraine · Regional command structure · Butcha file</div>
+
+  <div class="seal"><div><div>Sealed<br>Eurojust<br>Hague</div><div class="s-c">vk</div><div>14:22:04 UTC<br>19 April 2026</div></div></div>
+
+  <table class="cover">
+    <tr><td class="k">Case reference</td><td><strong>ICC-UKR-2024</strong> · ICC situation — Ukraine</td></tr>
+    <tr><td class="k">Filing reference</td><td><strong>DISC-2026-019</strong> · bundle sealed 19 Apr 2026, 14:22:04 UTC</td></tr>
+    <tr><td class="k">Recipient</td><td>Defence counsel, M. Petrenko, second chair</td></tr>
+    <tr><td class="k">Custodian</td><td>Eurojust · Hague · primary signing authority</td></tr>
+    <tr><td class="k">Chain head (at seal)</td><td><span style="font-family:'JetBrains Mono',monospace;color:#b8421c">f208e1a94bc91…d7309f44</span></td></tr>
+    <tr><td class="k">Countersign (TSA)</td><td>ts-eu-west · RFC 3161 · <span style="font-family:'JetBrains Mono',monospace">ts:9fa1…c21d</span></td></tr>
+    <tr><td class="k">Exhibits included</td><td>48 exhibits across document, video, audio, imagery, forensic</td></tr>
+    <tr><td class="k">Redactions applied</td><td>12 passages · 4 pseudonym swaps · geo-fuzz 50 km where indicated</td></tr>
+    <tr><td class="k">Counter-evidence</td><td>3 exhibits preserved per <em>ICC RPE Rule 77</em> · see §IV</td></tr>
+    <tr><td class="k">Accompanying software</td><td><code>vk-verify</code> v1.4 offline validator · reproducible build</td></tr>
+  </table>
+
+  <div class="verify-box">
+    <div>
+      <div class="t">Verify this filing <em style="color:#b8421c;font-style:italic">offline</em>.</div>
+      <p>Open the bundle USB / ZIP. Run <code style="font-family:'JetBrains Mono',monospace;background:#ece7d8;padding:1px 5px;border-radius:3px;font-size:9pt">./vk-verify --bundle DISC-2026-019</code>. If the command exits <strong>PASS</strong>, every page in this dossier — including this cover — is intact. Further instructions on page 6.</p>
+    </div>
+    <div class="qr"><span>scan or<br>vk-verify<br>offline</span></div>
+  </div>
+
+  <div class="sig-grid">
+    <div class="sig">
+      <span class="role">Custodian · sealed by</span>
+      <div class="name">Hélène Morel</div>
+      <div class="meta">Senior analyst · Eurojust<br>Ed25519 7f22…a8c1 · HSM A<br>19 Apr 2026 · 14:21:58 UTC</div>
+    </div>
+    <div class="sig">
+      <span class="role">Countersigned · legal officer</span>
+      <div class="name">Wanjiru Nyoka</div>
+      <div class="meta">Legal officer · Eurojust<br>Ed25519 e3f0…92bd · HSM B<br>19 Apr 2026 · 14:22:04 UTC</div>
+    </div>
+  </div>
+
+  <footer class="pf"><span>DISC-2026-019</span><span style="text-align:center">VaultKeeper — sealed filing · for the chamber</span><span>01 / 06</span></footer>
+</article>
+
+<!-- PAGE 2 · MANIFEST -->
+<article class="page">
+  <header class="ph"><span class="m"></span><span>VaultKeeper · Eurojust · Hague — sealed filing</span><span>f208…bc91</span></header>
+
+  <h2 class="h2"><em>I.</em> Exhibit manifest</h2>
+  <p style="font-size:10pt;color:#6a655a;margin-bottom:14px">Each row below corresponds to a single exhibit included in this bundle. The hash column gives the first 16 hex of the exhibit's SHA-256; the full digest and BLAKE3 counterpart are written to <code>manifest.json</code> in the accompanying bundle.</p>
+
+  <table class="man">
+    <thead><tr><th>Ref</th><th>Kind</th><th>Title</th><th>Size</th><th>SHA-256 (16)</th><th>Sealed</th></tr></thead>
+    <tbody>
+      <tr><td class="ref">E-0918</td><td>video</td><td>Butcha_drone_04.mp4</td><td class="dt">218 MB</td><td class="hash">a7f4b6188d91…</td><td class="dt">19 Apr · 14:21</td></tr>
+      <tr><td class="ref">E-0917</td><td>document</td><td>Field intake — 19 Apr 2026</td><td class="dt">2.1 MB</td><td class="hash">3e119a32c44d…</td><td class="dt">19 Apr · 14:05</td></tr>
+      <tr><td class="ref">E-0916</td><td>audio</td><td>Intercept 14:03 EET · RU→EN</td><td class="dt">17 MB</td><td class="hash">91ab82044f02…</td><td class="dt">19 Apr · 13:58</td></tr>
+      <tr><td class="ref">E-0915</td><td>imagery</td><td>Checkpoint perimeter · C2PA</td><td class="dt">22 MB</td><td class="hash">c44d47e29a13…</td><td class="dt">19 Apr · 13:44</td></tr>
+      <tr><td class="ref">E-0913</td><td>forensic</td><td>SM-S911 image · full disk · E01</td><td class="dt">128 GB</td><td class="hash">f208e1a94bc9…</td><td class="dt">18 Apr · 17:02</td></tr>
+      <tr><td class="ref">E-0912</td><td>document</td><td>W-0144 sworn statement v3 · <em>redacted</em></td><td class="dt">1.8 MB</td><td class="hash">d9a72e18c021…</td><td class="dt">18 Apr · 16:12</td></tr>
+      <tr><td class="ref">E-0911</td><td>imagery</td><td>Sentinel-2 pass · 18 Apr 09:12Z</td><td class="dt">81 MB</td><td class="hash">7f22a8c1bb09…</td><td class="dt">18 Apr · 10:42</td></tr>
+      <tr><td class="ref">E-0910</td><td>video</td><td>Body-cam BC-17 excerpt</td><td class="dt">402 MB</td><td class="hash">2c14e3f0a1be…</td><td class="dt">18 Apr · 09:28</td></tr>
+      <tr><td class="ref">E-0909</td><td>document</td><td>Translation parallel · W-0099</td><td class="dt">0.4 MB</td><td class="hash">bb09d9a72e18…</td><td class="dt">17 Apr · 15:11</td></tr>
+      <tr><td class="ref">E-0907</td><td>imagery</td><td>Vehicle plate BX-4281</td><td class="dt">6 MB</td><td class="hash">e3f092bd7f22…</td><td class="dt">17 Apr · 11:04</td></tr>
+      <tr><td colspan="6" style="padding-top:14px;font-family:'JetBrains Mono',monospace;font-size:8.5pt;color:#6a655a">+ 38 further exhibits · see manifest.json in bundle · full list p. 3–4</td></tr>
+    </tbody>
+  </table>
+
+  <div class="chain-strip">
+    <span class="g">[ok]</span>  48 exhibit hashes recomputed · all match<br>
+    <span class="g">[ok]</span>  48 RFC 3161 timestamps present · all within window<br>
+    <span class="g">[ok]</span>  chain head <span class="a">f208e1a94bc91…d7309f44</span> · unbroken since 14 Feb 2024<br>
+    <span class="g">[ok]</span>  redaction maps applied · 12 passages · 4 pseudonyms
+  </div>
+
+  <footer class="pf"><span>DISC-2026-019 · §I</span><span style="text-align:center">Exhibit manifest · SHA-256 short form</span><span>02 / 06</span></footer>
+</article>
+
+<!-- PAGE 3 · STATEMENT + RULE 77 + VERIFY -->
+<article class="page">
+  <header class="ph"><span class="m"></span><span>VaultKeeper · Eurojust · Hague — sealed filing</span><span>f208…bc91</span></header>
+
+  <h2 class="h2"><em>II.</em> Statement of custody</h2>
+  <div class="copy" style="font-size:10.5pt">
+    <p>This dossier constitutes the formal disclosure of forty-eight exhibits held by Eurojust, The Hague, under the case reference <strong>ICC-UKR-2024</strong>, to the defence counsel identified on the cover page, pursuant to the disclosure obligations of the International Criminal Court Office of the Prosecutor.</p>
+    <p>Each exhibit listed in <strong>§I</strong> has been in continuous custody from the moment of intake to the moment of seal. No exhibit has been modified after sealing; amendments, where present, are themselves sealed events and appear with their predecessors in the accompanying chain log.</p>
+    <p>Redactions applied to individual exhibits are enumerated in the per-exhibit redaction map (<code>redactions/</code> directory of the bundle). Every redaction carries the Ed25519 signature of the analyst who applied it and the countersignature of the legal officer. No redaction is irreversible by the custodian; the original, unredacted bytes remain sealed and are released to the chamber on judicial order.</p>
+  </div>
+
+  <h2 class="h2"><em>III.</em> Redaction register · summary</h2>
+  <table class="man">
+    <thead><tr><th>Exhibit</th><th>Type</th><th>Passages</th><th>Applied by</th><th>Countersigned</th></tr></thead>
+    <tbody>
+      <tr><td class="ref">E-0912</td><td>text strike + pseudonym</td><td>6</td><td>W. Nyoka · Juliane S.</td><td class="dt">14:21:44</td></tr>
+      <tr><td class="ref">E-0909</td><td>text strike</td><td>2</td><td>W. Nyoka</td><td class="dt">17 Apr · 15:22</td></tr>
+      <tr><td class="ref">E-0915</td><td>image mask · geo-fuzz 50 km</td><td>3</td><td>Martyna K.</td><td class="dt">19 Apr · 13:48</td></tr>
+      <tr><td class="ref">E-0910</td><td>audio bleep · voice-mask</td><td>1</td><td>Juliane S.</td><td class="dt">18 Apr · 09:52</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="h2"><em>IV.</em> Counter-evidence preserved · Rule 77</h2>
+  <div class="rule77">
+    <p><strong>Preservation notice.</strong> Three exhibits held by Eurojust contain information potentially exculpatory of the accused. In compliance with <em>Rule 77</em> of the ICC Rules of Procedure and Evidence, these are disclosed together with our primary material and not in a separate or delayed filing.</p>
+  </div>
+  <table class="man">
+    <thead><tr><th>Exhibit</th><th>Nature of counter-evidence</th><th>Internal note</th></tr></thead>
+    <tbody>
+      <tr><td class="ref">E-0904</td><td>Alternative identification of officer at 17:40 by witness W-0141</td><td class="dt">NOTE-180</td></tr>
+      <tr><td class="ref">E-0902</td><td>Defence-supplied statement, S-038 off-duty, not yet refuted</td><td class="dt">NOTE-180</td></tr>
+      <tr><td class="ref">E-0898</td><td>Intercept fragment suggesting confusion of call-sign 28B/28D</td><td class="dt">NOTE-179</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="h2"><em>V.</em> How to verify this dossier</h2>
+  <div class="copy" style="font-size:10pt">
+    <p><strong>1.</strong> Take the accompanying bundle (USB stick or downloaded ZIP). It contains the exhibits, the redaction maps, a <code>manifest.json</code>, a <code>chain.log</code>, and the open-source validator <code>vk-verify</code>.</p>
+    <p><strong>2.</strong> On an air-gapped workstation, run <code>./vk-verify --bundle DISC-2026-019</code>. The validator will recompute every hash, verify every Ed25519 signature, reconstruct the chain back to this dossier's head, and check the RFC 3161 timestamps against the public key of <em>ts-eu-west</em> included in the bundle.</p>
+    <p><strong>3.</strong> If any byte of any exhibit, this dossier, the manifest, or the chain log has been altered since seal, the validator will exit <strong>FAIL</strong> and print the first divergence. If all is well, the validator exits <strong>PASS</strong> and writes a signed <code>verified.txt</code> receipt into the bundle directory.</p>
+    <p>The chamber, the defence, and any neutral third party are invited to run this verification independently. VaultKeeper, Eurojust, and the custodian are not required to be online; the chain speaks for itself.</p>
+  </div>
+
+  <footer class="pf"><span>DISC-2026-019 · §II–V</span><span style="text-align:center">Custody · redactions · Rule 77 · verification</span><span>03 / 06</span></footer>
+</article>
+
+</body></html>

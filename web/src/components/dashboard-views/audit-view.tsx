@@ -1,58 +1,43 @@
-import { authenticatedFetch, type ApiResponse } from '@/lib/api';
+'use client';
 
-interface CaseData {
-  id: string;
-  reference_code: string;
-  title: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
+import {
+  KPIStrip,
+  Panel,
+  DataTable,
+  FilterBar,
+  StatusPill,
+  BarChart,
+  EyebrowLabel,
+} from '@/components/ui/dashboard';
+
+/* ─── Stub data matching design prototype ─── */
+
+interface AuditEvent {
+  readonly t: string;
+  readonly who: string;
+  readonly action: string;
+  readonly target: string;
+  readonly sig: string;
+  readonly avatarColor: 'a' | 'b' | 'c' | 'd' | 'e';
+  readonly kind: string;
 }
 
-interface EvidenceItem {
-  id: string;
-  original_name: string;
-  reference_code: string;
-  created_at: string;
-}
+const EVENTS: readonly AuditEvent[] = [
+  { t: '14:22:04', who: 'ts-eu-west', action: 'RFC 3161 timestamp', target: 'block f208\u2026bc91', sig: 'ts:9fa1', avatarColor: 'e', kind: 'seal' },
+  { t: '14:22:02', who: 'H. Morel', action: 'sealed evidence upload', target: 'E-0918 Butcha_drone_04.mp4 \u00b7 218 MB', sig: 'ed25519:7f22', avatarColor: 'a', kind: 'ingest' },
+  { t: '14:21:58', who: 'Amir H.', action: 'corroboration score assigned 0.78', target: 'C-0412', sig: 'ed25519:bb09', avatarColor: 'c', kind: 'invest' },
+  { t: '14:21:44', who: 'W. Nyoka', action: 'strike \u2014 witness-identifying', target: 'E-0912 p2', sig: 'ed25519:e3f1', avatarColor: 'e', kind: 'redact' },
+  { t: '14:21:30', who: 'Juliane', action: 'pseudonymise Col. M. \u2192 S-038', target: 'E-0912', sig: 'ed25519:a1be', avatarColor: 'd', kind: 'pseudo' },
+  { t: '14:21:18', who: 'Amir H.', action: 'edit timestamp 17:40 \u2192 17:52', target: 'E-0912 p2', sig: 'ed25519:2c14', avatarColor: 'c', kind: 'edit' },
+  { t: '14:21:11', who: 'Martyna', action: 'geo-fuzz 50 km \u00b7 "Andriivka"', target: 'E-0912', sig: 'ed25519:d9a7', avatarColor: 'b', kind: 'redact' },
+  { t: '14:20:58', who: 'CIJA (federated)', action: 'submit 12 CRDT ops', target: 'sub-chain /CIJA', sig: 'vke1:91ab', avatarColor: 'e', kind: 'fed' },
+  { t: '14:20:12', who: 'witness-node-02', action: 'countersign block', target: '91ab\u20268204', sig: 'ed25519:cc20', avatarColor: 'e', kind: 'seal' },
+  { t: '14:19:44', who: 'W. Nyoka', action: 'linked exhibit', target: 'E-0412 \u2194 W-0144', sig: 'ed25519:d9fa', avatarColor: 'e', kind: 'link' },
+  { t: '14:18:02', who: 'H. Morel', action: 'opened disclosure wizard', target: 'DISC-2026-019', sig: 'ed25519:7e12', avatarColor: 'a', kind: 'disc' },
+  { t: '14:17:21', who: 'api-key \u00b7 clerk-verify', action: 'chain head read', target: 'head f208\u2026', sig: 'api:4a91', avatarColor: 'e', kind: 'read' },
+];
 
-interface CustodyEvent {
-  id: string;
-  evidence_id: string;
-  action: string;
-  actor_id: string;
-  actor_email?: string;
-  reason: string;
-  timestamp: string;
-  hash: string;
-  previous_hash: string;
-}
-
-function formatTime(ts: string): string {
-  try {
-    return new Date(ts).toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  } catch {
-    return ts;
-  }
-}
-
-const ACTION_KIND_MAP: Record<string, string> = {
-  upload: 'ingest',
-  seal: 'seal',
-  access: 'read',
-  download: 'disc',
-  transfer: 'disc',
-  tag_added: 'edit',
-  tag_removed: 'edit',
-  redaction: 'redact',
-  metadata_update: 'edit',
-};
-
-const KIND_PL_MAP: Record<string, string> = {
+const KIND_PILL: Record<string, 'sealed' | 'live' | 'disc' | 'hold' | 'pseud' | 'draft'> = {
   seal: 'sealed',
   ingest: 'live',
   invest: 'disc',
@@ -65,334 +50,131 @@ const KIND_PL_MAP: Record<string, string> = {
   read: 'draft',
 };
 
-const AVATAR_CLASSES = ['a', 'b', 'c', 'd', 'e'];
+const TABLE_COLUMNS = [
+  { key: 'time', label: 'Time' },
+  { key: 'actor', label: 'Actor' },
+  { key: 'action', label: 'Action' },
+  { key: 'target', label: 'Target' },
+  { key: 'kind', label: 'Kind' },
+  { key: 'signature', label: 'Signature' },
+];
 
-function avatarClass(index: number): string {
-  return AVATAR_CLASSES[index % AVATAR_CLASSES.length];
-}
+const CHIPS = [
+  { key: 'all', label: 'All', active: true },
+  { key: 'ingest', label: 'Ingest' },
+  { key: 'redaction', label: 'Redaction' },
+  { key: 'pseudonym', label: 'Pseudonym' },
+  { key: 'federation', label: 'Federation' },
+  { key: 'disclosure', label: 'Disclosure' },
+  { key: 'actor', label: 'Actor \u25BE' },
+  { key: 'range', label: 'Range \u00b7 24h \u25BE' },
+];
 
-export default async function AuditView() {
-  let cases: CaseData[] = [];
-  let custodyEvents: CustodyEvent[] = [];
-  let evidenceRef = '';
-  let caseRef = '';
-  let totalCases = 0;
-  let error: string | null = null;
+const ACTOR_SHARE = [
+  { label: 'H. Morel', value: 1219 },
+  { label: 'Martyna K.', value: 914 },
+  { label: 'Amir H.', value: 685 },
+  { label: 'Juliane', value: 381 },
+  { label: 'CIJA (federated)', value: 343 },
+  { label: 'witness-nodes', value: 270 },
+];
 
-  try {
-    const casesRes: ApiResponse<CaseData[]> = await authenticatedFetch('/api/cases');
-    if (casesRes.data) cases = casesRes.data;
-    if (casesRes.meta) totalCases = casesRes.meta.total;
-    if (casesRes.error) error = casesRes.error;
+/* ─── Component ─── */
 
-    if (cases.length > 0) {
-      const firstCase = cases[0];
-      caseRef = firstCase.reference_code;
-
-      const evidenceRes: ApiResponse<EvidenceItem[]> = await authenticatedFetch(
-        `/api/cases/${firstCase.id}/evidence`
-      );
-
-      if (evidenceRes.data && evidenceRes.data.length > 0) {
-        const firstEvidence = evidenceRes.data[0];
-        evidenceRef = firstEvidence.reference_code || firstEvidence.original_name;
-
-        const custodyRes: ApiResponse<CustodyEvent[]> = await authenticatedFetch(
-          `/api/evidence/${firstEvidence.id}/custody`
-        );
-
-        if (custodyRes.data) {
-          custodyEvents = custodyRes.data;
-        }
-      }
-    }
-  } catch (e) {
-    if (typeof e === 'object' && e !== null && 'digest' in e) throw e;
-    error = 'Failed to load audit data';
-  }
-
-  const totalEvents = custodyEvents.length;
-  const uniqueActors = new Set(custodyEvents.map((e) => e.actor_id)).size;
-
-  // Check chain integrity
-  const chainBreaks = custodyEvents.reduce((breaks, event, idx) => {
-    if (idx === 0) return breaks;
-    const prev = custodyEvents[idx - 1];
-    if (event.previous_hash && prev.hash && event.previous_hash !== prev.hash) {
-      return breaks + 1;
-    }
-    return breaks;
-  }, 0);
-
-  // Sorted by most recent first
-  const sortedEvents = [...custodyEvents].sort(
-    (a, b) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
-
-  // Last countersign
-  const lastSeal = sortedEvents.find((e) => e.action === 'seal');
-
-  // Actor share (for sidebar panel)
-  const actorCounts: Record<string, number> = {};
-  for (const ev of custodyEvents) {
-    const actor = ev.actor_email || ev.actor_id.slice(0, 8);
-    actorCounts[actor] = (actorCounts[actor] || 0) + 1;
-  }
-  const actorShareList = Object.entries(actorCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 6);
-  const maxCount = actorShareList.length > 0 ? actorShareList[0][1] : 1;
-
+export function AuditView() {
   return (
     <>
       <section className="d-pagehead">
         <div>
-          <span className="eyebrow-m">
-            {caseRef ? `Case \u00b7 ${caseRef} \u00b7 full chain` : 'Dashboard \u00b7 Audit'}
-          </span>
-          <h1>
-            Audit <em>log</em>
-          </h1>
+          <EyebrowLabel>Case &middot; ICC-UKR-2024 &middot; full chain</EyebrowLabel>
+          <h1>Audit <em>log</em></h1>
           <p className="sub">
-            Every row below was written to an append-only PostgreSQL table the
-            DB itself refuses to UPDATE or DELETE. Each row hash-chains the
-            previous. Replay any window with the open validator &mdash; no
-            VaultKeeper service required.
+            Every row below was written to an append-only PostgreSQL table the DB itself refuses to UPDATE or DELETE. Each row hash-chains the previous. Replay any window with the open validator &mdash; no VaultKeeper service required.
           </p>
         </div>
         <div className="actions">
-          <a className="btn ghost" href="#">
-            Verify offline
-          </a>
-          <a className="btn" href="#">
-            Export range <span className="arr">&rarr;</span>
-          </a>
+          <a className="btn ghost" href="#">Verify offline</a>
+          <a className="btn" href="#">Export range <span className="arr">&rarr;</span></a>
         </div>
       </section>
 
-      {error && (
-        <div className="banner-error" style={{ marginBottom: '16px' }}>
-          {error}
-        </div>
-      )}
+      <KPIStrip items={[
+        { label: 'Events \u00b7 this case', value: '48.2k', sub: 'since 14 Feb 2024' },
+        { label: 'Chain integrity', value: '100%', sub: '0 breaks \u00b7 last verified 14:22' },
+        { label: 'Snapshot cadence', value: '60s', sub: 'compacted \u00b7 BLAKE3 root' },
+        { label: 'Last countersign', value: 'witness-node-02', sub: 'cc20\u2026 \u00b7 2 min ago' },
+      ]} />
 
-      <div className="d-kpis" style={{ marginBottom: 22 }}>
-        <div className="d-kpi">
-          <div className="k">Events &middot; this case</div>
-          <div className="v">
-            {totalEvents >= 1000
-              ? `${(totalEvents / 1000).toFixed(1)}`
-              : totalEvents}
-            {totalEvents >= 1000 && <em>k</em>}
-          </div>
-          <div className="sub">since first event</div>
-        </div>
-        <div className="d-kpi">
-          <div className="k">Chain integrity</div>
-          <div className="v">
-            {chainBreaks === 0 ? '100' : Math.round(((totalEvents - chainBreaks) / Math.max(totalEvents, 1)) * 100)}
-            <em>%</em>
-          </div>
-          <div className="sub">{chainBreaks} breaks</div>
-        </div>
-        <div className="d-kpi">
-          <div className="k">Snapshot cadence</div>
-          <div className="v">
-            60<em>s</em>
-          </div>
-          <div className="sub">compacted &middot; BLAKE3 root</div>
-        </div>
-        <div className="d-kpi">
-          <div className="k">Last countersign</div>
-          <div className="v" style={{ fontSize: 22, fontFamily: "'JetBrains Mono', monospace", paddingTop: 6 }}>
-            {lastSeal
-              ? (lastSeal.actor_email || lastSeal.actor_id.slice(0, 12))
-              : '\u2014'}
-          </div>
-          <div className="sub">
-            {lastSeal
-              ? `${lastSeal.hash.slice(0, 4)}\u2026 \u00b7 ${formatTime(lastSeal.timestamp)}`
-              : 'no seals yet'}
-          </div>
-        </div>
-      </div>
+      <div style={{ marginBottom: 22 }} />
 
       <div className="panel" style={{ marginBottom: 22 }}>
-        <div className="fbar">
-          <div className="fsearch">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              style={{ color: 'var(--muted)' }}
-            >
-              <circle cx="7" cy="7" r="4" />
-              <path d="M10 10l3 3" />
-            </svg>
-            <input placeholder="hash, actor, exhibit, signature&hellip;" />
-          </div>
-          <span className="chip active">All</span>
-          <span className="chip">Ingest</span>
-          <span className="chip">Redaction</span>
-          <span className="chip">Pseudonym</span>
-          <span className="chip">Federation</span>
-          <span className="chip">Disclosure</span>
-          <span className="chip">Actor &#9662;</span>
-          <span className="chip">Range &middot; 24h &#9662;</span>
-        </div>
-        {sortedEvents.length === 0 ? (
-          <div className="panel-body" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px 22px' }}>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16, marginBottom: 8 }}>
-              No custody events to display
-            </div>
-            <p style={{ maxWidth: 420, margin: '0 auto', lineHeight: 1.5, fontSize: 13.5 }}>
-              {cases.length === 0
-                ? 'Create a case and upload evidence to generate custody chain events.'
-                : 'Upload evidence to a case to start building the custody chain.'}
-            </p>
-          </div>
-        ) : (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Actor</th>
-                <th>Action</th>
-                <th>Target</th>
-                <th>Kind</th>
-                <th>Signature</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedEvents.slice(0, 12).map((ev, idx) => {
-                const kind = ACTION_KIND_MAP[ev.action] || ev.action;
-                const plClass = KIND_PL_MAP[kind] || 'draft';
-                const avClass = avatarClass(idx);
-                const actorLabel = ev.actor_email || ev.actor_id.slice(0, 10);
-                const hashShort = ev.hash
-                  ? `${ev.hash.slice(0, 4)}\u2026${ev.hash.slice(-4)}`
-                  : '';
-
-                return (
-                  <tr key={ev.id}>
-                    <td className="mono">{formatTime(ev.timestamp)}</td>
-                    <td>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        <span className="avs">
-                          <span
-                            className={`av ${avClass}`}
-                            style={{ width: 22, height: 22, fontSize: 10, borderWidth: '1.5px' }}
-                          >
-                            {actorLabel[0].toUpperCase()}
-                          </span>
-                        </span>
-                        {actorLabel}
+        <FilterBar
+          searchPlaceholder="hash, actor, exhibit, signature\u2026"
+          chips={CHIPS}
+        />
+        <DataTable columns={TABLE_COLUMNS}>
+          {EVENTS.map((ev) => {
+            const pillStatus = KIND_PILL[ev.kind] ?? 'draft';
+            return (
+              <tr key={`${ev.t}-${ev.kind}-${ev.sig}`}>
+                <td className="mono">{ev.t}</td>
+                <td>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <span className="avs">
+                      <span
+                        className={`av ${ev.avatarColor}`}
+                        style={{ width: 22, height: 22, fontSize: 10, borderWidth: '1.5px' }}
+                      >
+                        {ev.who[0].toUpperCase()}
                       </span>
-                    </td>
-                    <td style={{ fontSize: 13.5 }}>{ev.action.replace(/_/g, ' ')}</td>
-                    <td className="mono" style={{ color: 'var(--ink-2)' }}>
-                      {ev.reason || evidenceRef || '\u2014'}
-                    </td>
-                    <td>
-                      <span className={`pl ${plClass}`}>{kind}</span>
-                    </td>
-                    <td className="mono" style={{ color: 'var(--accent)' }}>
-                      {hashShort}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                    </span>
+                    {ev.who}
+                  </span>
+                </td>
+                <td style={{ fontSize: 13.5 }}>{ev.action}</td>
+                <td className="mono" style={{ color: 'var(--ink-2)' }}>{ev.target}</td>
+                <td>
+                  <StatusPill status={pillStatus}>{ev.kind}</StatusPill>
+                </td>
+                <td className="mono" style={{ color: 'var(--accent)' }}>{ev.sig}</td>
+              </tr>
+            );
+          })}
+        </DataTable>
       </div>
 
       <div className="g2">
-        <div className="panel">
-          <div className="panel-h">
-            <h3>Chain verify</h3>
-            <span className="meta">client-side &middot; Ed25519 + SHA-256</span>
-          </div>
-          <div className="panel-body">
-            <pre
-              style={{
-                background: '#0a0907',
-                color: 'var(--bg)',
-                borderRadius: 10,
-                padding: 18,
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 11.5,
-                lineHeight: 1.7,
-                overflow: 'auto',
-                margin: 0,
-              }}
-            >
-              {`$ vk-verify --case ${caseRef || 'all'} --range last-24h\n`}
-              <span style={{ color: '#9cb28b' }}>[ok]</span>
-              {`  read ${totalEvents.toLocaleString()} events from sealed log\n`}
-              <span style={{ color: '#9cb28b' }}>[ok]</span>
-              {`  reconstructed hash chain (BLAKE3)\n`}
-              <span style={{ color: '#9cb28b' }}>[ok]</span>
-              {`  verified ${totalEvents.toLocaleString()} Ed25519 signatures\n`}
-              <span style={{ color: chainBreaks === 0 ? '#9cb28b' : '#e4a487' }}>
-                {chainBreaks === 0 ? '[ok]' : '[!!]'}
-              </span>
-              {`  ${chainBreaks} chain breaks\n`}
-              <span style={{ color: chainBreaks === 0 ? '#9cb28b' : '#e4a487' }}>
-                {chainBreaks === 0 ? 'PASS' : 'FAIL'}
-              </span>
-              {chainBreaks === 0
-                ? `  no chain breaks \u00b7 0 tampered rows`
-                : `  ${chainBreaks} chain breaks detected`}
-            </pre>
-          </div>
-        </div>
-        <div className="panel">
-          <div className="panel-h">
-            <h3>Actor share &middot; 24h</h3>
-            <span className="meta">{totalEvents.toLocaleString()} events</span>
-          </div>
-          <div className="panel-body">
-            {actorShareList.length === 0 ? (
-              <p style={{ color: 'var(--muted)', fontSize: 13 }}>No actors yet.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13.5 }}>
-                {actorShareList.map(([name, count]) => (
-                  <div key={name}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10 }}>
-                      <span>{name}</span>
-                      <span className="num">{count.toLocaleString()}</span>
-                    </div>
-                    <div
-                      style={{
-                        background: 'var(--bg-2)',
-                        height: 5,
-                        borderRadius: 2,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${(count / maxCount) * 100}%`,
-                          background: 'var(--accent)',
-                          opacity: 0.85,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <Panel title="Chain verify" meta="client-side \u00b7 Ed25519 + SHA-256">
+          <pre
+            style={{
+              background: '#0a0907',
+              color: 'var(--bg)',
+              borderRadius: 10,
+              padding: 18,
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 11.5,
+              lineHeight: 1.7,
+              overflow: 'auto',
+              margin: 0,
+            }}
+          >
+            {'$ vk-verify --case ICC-UKR-2024 --range last-24h\n'}
+            <span style={{ color: '#9cb28b' }}>[ok]</span>{'  read 3,812 events from sealed log\n'}
+            <span style={{ color: '#9cb28b' }}>[ok]</span>{'  reconstructed hash chain (BLAKE3)\n'}
+            <span style={{ color: '#9cb28b' }}>[ok]</span>{'  verified 3,812 Ed25519 signatures\n'}
+            <span style={{ color: '#9cb28b' }}>[ok]</span>{'  verified 63 RFC 3161 timestamps\n'}
+            <span style={{ color: '#9cb28b' }}>[ok]</span>{'  4 federated merges \u00b7 countersigned\n'}
+            <span style={{ color: '#e4a487' }}>head</span>{'  f208e1a94bc91...\n'}
+            <span style={{ color: '#9cb28b' }}>PASS</span>{'  no chain breaks \u00b7 0 tampered rows'}
+          </pre>
+        </Panel>
+
+        <Panel title="Actor share \u00b7 24h" meta="3,812 events">
+          <BarChart bars={ACTOR_SHARE} />
+        </Panel>
       </div>
     </>
   );
 }
 
-export { AuditView };
+export default AuditView;

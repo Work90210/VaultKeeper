@@ -1,7 +1,13 @@
+export { default as CasesView } from "./cases-view";
 export { default as OverviewView } from "./overview-view";
 export { default as EvidenceView } from "./evidence-view";
 export { default as InquiryView } from "./inquiry-view";
 export { default as AssessmentsView } from "./assessments-view";
+export { default as WitnessesView } from "./witnesses-view";
+export { default as CorroborationsView } from "./corroborations-view";
+export { default as AnalysisView } from "./analysis-view";
+export { default as RedactionView } from "./redaction-view";
 export { default as DisclosuresView } from "./disclosures-view";
 export { default as ReportsView } from "./reports-view";
 export { default as AuditView } from "./audit-view";
+export { default as FederationView } from "./federation-view";

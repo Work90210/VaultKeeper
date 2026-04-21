@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dashboard pages — VaultKeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=11">
+<style>
+.grp{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:48px 0 18px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.grp:first-of-type{margin-top:24px}
+.idx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+@media (max-width:860px){.idx-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.idx-grid{grid-template-columns:1fr}}
+.idx-card{display:flex;flex-direction:column;gap:10px;padding:24px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);transition:all .25s;color:inherit;min-height:160px}
+.idx-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+.idx-card .n{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.idx-card h4{font-family:"Fraunces",serif;font-weight:400;font-size:22px;letter-spacing:-.015em;line-height:1.15}
+.idx-card h4 em{color:var(--accent);font-style:italic}
+.idx-card p{color:var(--muted);font-size:13.5px;line-height:1.55;flex:1}
+.idx-card .go{margin-top:auto;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--accent);letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center}
+.idx-card .go span:last-child{font-family:"Fraunces",serif;font-style:italic;font-size:14px;letter-spacing:-.005em;color:var(--muted);text-transform:none}
+</style>
+</head><body>
+<header class="nav"><div class="nav-inner"><a class="brand" href="index.html"><span class="brand-mark"></span>Vault<em>Keeper</em></a><nav class="nav-links"><a href="index.html">Home</a><a href="platform.html">Platform</a><a href="dash-index.html" class="active">Dashboard</a><a href="manifesto.html">Manifesto</a></nav><div class="nav-cta"><a class="btn ghost sm" href="dash.html">Open workspace</a></div></div></header>
+
+<main class="wrap" style="padding-top:40px;padding-bottom:80px;max-width:1160px">
+
+  <section style="padding:40px 0 16px;display:grid;grid-template-columns:1fr auto;gap:40px;align-items:end">
+    <div>
+      <span class="eyebrow" style="margin-bottom:22px"><span class="eb-dot"></span>Dashboard · design surfaces · v0.5</span>
+      <h1 style="font-size:clamp(48px,5.6vw,80px);letter-spacing:-.03em;margin-top:22px">The <em class="a">workspace</em><br/>our operators live in.</h1>
+      <p class="lead" style="margin-top:22px;max-width:62ch">Fifteen screens plus five supporting surfaces. One spine. Every action a signed, sealed, countersigned event on an append-only chain. Editorial not because it's pretty — because prosecutors, judges, and defence clerks read from it under pressure, and clarity is a safety property.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.04em;text-align:right">
+      <span>15 screens · 5 supports · 5 clusters</span>
+      <span>Shell: sidebar + topbar</span>
+      <span>Chain: SHA-256 · Ed25519 · RFC 3161</span>
+    </div>
+  </section>
+
+  <div class="grp">① Workspace · the daily surfaces</div>
+  <div class="idx-grid">
+    <a class="idx-card" href="dash.html"><span class="n">01 · Overview</span><h4>Your <em>morning</em> brief</h4><p>Today's live activity across all cases — chain head, pending countersigns, upcoming disclosures, drift from targets. Where the day begins.</p><span class="go"><span>dash.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-cases.html"><span class="n">02 · Cases</span><h4>Cases <em>index</em></h4><p>Every live matter — jurisdiction, classification, custodian, federation status, exhibit counts, team, retention. Filter, search, open.</p><span class="go"><span>dash-cases.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-case.html"><span class="n">03 · Case detail</span><h4>A case, <em>inside</em></h4><p>ICC-UKR-2024: overview, chain of custody, team, evidence profile, upcoming. The landing for everyone who lives inside a single investigation.</p><span class="go"><span>dash-case.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-evidence.html"><span class="n">04 · Evidence</span><h4>The <em>locker</em></h4><p>Exhibits grid with kind, status, integrity and tags. Upload queue with client-side hashing + timestamping. Integrity summary, chain breaks, validator link.</p><span class="go"><span>dash-evidence.html</span><span>Open →</span></span></a>
+  </div>
+
+  <div class="grp">② Investigation · building the case</div>
+  <div class="idx-grid">
+    <a class="idx-card" href="dash-witnesses.html"><span class="n">05 · Witnesses</span><h4>Witness <em>register</em></h4><p>Pseudonym-first. Mapping vault sealed by 2-of-3 quorum. Duress-armed records, voice-masking, break-the-glass log, protection posture.</p><span class="go"><span>dash-witnesses.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-analysis.html"><span class="n">06 · Analysis notes</span><h4>Signed <em>notebook</em></h4><p>Hypotheses, dead-ends, counter-evidence — all sealed to the same chain as exhibits. Defence sees reasoning, not just conclusions.</p><span class="go"><span>dash-analysis.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-corroborations.html"><span class="n">07 · Corroborations</span><h4>Multi-source <em>scoring</em></h4><p>Every factual claim carries an independent-sources score. Single-source claims are shown, never hidden. Refuted claims preserved.</p><span class="go"><span>dash-corroborations.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-inquiry.html"><span class="n">08 · Inquiry log</span><h4>The <em>investigator's</em> journal</h4><p>Chronological signed entries — decisions, questions, actions, requests, federation events. How the case was built, not just what it found.</p><span class="go"><span>dash-inquiry.html</span><span>Open →</span></span></a>
+  </div>
+
+  <div class="grp">③ Disclosure · handing it over</div>
+  <div class="idx-grid">
+    <a class="idx-card" href="dash-redaction.html"><span class="n">09 · Redaction editor</span><h4>Collaborative <em>redaction</em></h4><p>Four analysts, one document. Every mark is a signed CRDT op. Keystroke-level replay works for defence. Marks panel, presence, live chain head.</p><span class="go"><span>dash-redaction.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-disclosures.html"><span class="n">10 · Disclosures</span><h4>Bundle <em>wizard</em></h4><p>One-click ZIP: exhibits, custody log, hash manifest, redaction maps, offline validator. Five-step sealed workflow with countersign gate.</p><span class="go"><span>dash-disclosures.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-reports.html"><span class="n">11 · Reports</span><h4>Sealed <em>snapshots</em></h4><p>Custody summaries, ceremony minutes, retention reports, counter-evidence filings, federation diffs. Verifiable offline even if VaultKeeper vanishes.</p><span class="go"><span>dash-reports.html</span><span>Open →</span></span></a>
+  </div>
+
+  <div class="grp">④ Platform · the load-bearing floor</div>
+  <div class="idx-grid">
+    <a class="idx-card" href="dash-search.html"><span class="n">12 · Search</span><h4>Semantic <em>recall</em></h4><p>Lexical + on-box embeddings. Queries never leave the instance and are themselves written to the audit log. ACL-respecting row-by-row.</p><span class="go"><span>dash-search.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-audit.html"><span class="n">13 · Audit log</span><h4>The <em>chain</em></h4><p>Append-only rows that the database itself refuses to UPDATE or DELETE. Each hash-chains the previous. Replay any window with the open validator.</p><span class="go"><span>dash-audit.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-federation.html"><span class="n">14 · Federation</span><h4>Cross-instance <em>custody</em></h4><p>CIJA, KSC, Bellingcat — peer instances exchange signed ops. No shared DB, no central ledger, no single trust anchor. Merges sealed on both sides.</p><span class="go"><span>dash-federation.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-settings.html"><span class="n">15 · Settings</span><h4>Instance <em>configuration</em></h4><p>Organisation, retention policy, keys & ceremonies, storage backends, SSO, legal holds, danger zone. Every change a sealed event.</p><span class="go"><span>dash-settings.html</span><span>Open →</span></span></a>
+  </div>
+
+  <div class="grp">⑤ Supporting surfaces · edges of the product</div>
+  <div class="idx-grid">
+    <a class="idx-card" href="dash-empty.html"><span class="n">16 · Empty states</span><h4>First-<em>run</em> walkthroughs</h4><p>Before there are cases, exhibits, or witnesses. A narrated empty for each cluster — and a five-step ceremony that seeds the instance's first keys and chain head.</p><span class="go"><span>dash-empty.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-keyboard.html"><span class="n">17 · Keyboard layer</span><h4>Hands <em>off</em> the mouse</h4><p>Command palette, global nav, table nav, break-the-glass combos. Every destructive action has a key-only path. Learnable in 20 minutes, reflex in a week.</p><span class="go"><span>dash-keyboard.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-print.html"><span class="n">18 · Print filing</span><h4>For the <em>chamber</em></h4><p>A4 dossier template for sealed disclosures. Cover, manifest, custody statement, redaction register, Rule 77 counter-evidence, verification instructions. Paginated.</p><span class="go"><span>dash-print.html</span><span>Open →</span></span></a>
+    <a class="idx-card" href="dash-night.html"><span class="n">19 · Night session</span><h4>Quiet <em>hours</em></h4><p>Warm off-black paper, dimmed accent, faster auto-lock, panic-lock always armed. Meant for a 3 a.m. disclosure review — not for looking good in a screenshot.</p><span class="go"><span>dash-night.html</span><span>Open →</span></span></a>
+  </div>
+
+  <section style="margin-top:72px;padding:40px 0 8px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px">
+    <div>
+      <div class="grp" style="margin:0 0 14px;border:none;padding:0">Shared shell</div>
+      <p style="font-size:14px;color:var(--muted);line-height:1.6">Sidebar with org switcher, signed-in operator and key icon, grouped navigation with live badges. Topbar carries breadcrumb, ⌘K search and notifications.</p>
+    </div>
+    <div>
+      <div class="grp" style="margin:0 0 14px;border:none;padding:0">Design vocabulary</div>
+      <p style="font-size:14px;color:var(--muted);line-height:1.6">Fraunces for headings, Inter for text, JetBrains Mono for hashes and timestamps. Warm paper background, single accent, soft shadows. Editorial pacing, not SaaS.</p>
+    </div>
+    <div>
+      <div class="grp" style="margin:0 0 14px;border:none;padding:0">Still open</div>
+      <p style="font-size:14px;color:var(--muted);line-height:1.6">Mobile-read mode for judges on the way to hearings. Touch-first ceremony screens for the HSM room. Accessibility audit. Internationalisation for at least FR, ES, UK.</p>
+    </div>
+  </section>
+
+</main>
+</body></html>

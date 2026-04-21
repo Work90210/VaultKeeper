@@ -1,6 +1,15 @@
 import type { EvidenceItem } from '@/types';
+import {
+  Panel,
+  KeyValueList,
+  LinkArrow,
+  EyebrowLabel,
+  StatusPill,
+  Tag,
+} from '@/components/ui/dashboard';
+import { EvidenceFilterBar } from './evidence-filter-bar';
 
-// --- Helpers to derive display values from real data ---
+// --- Helpers ---
 
 function mimeToKind(mime: string): { kind: string; glyph: string } {
   if (mime.startsWith('video/')) return { kind: 'VIDEO', glyph: '\u25B8' };
@@ -32,7 +41,6 @@ function classificationToStatus(
     case 'ex_parte':
       return 'hold';
     case 'restricted':
-      return 'sealed';
     case 'confidential':
       return 'sealed';
     case 'public':
@@ -42,7 +50,7 @@ function classificationToStatus(
   }
 }
 
-const statusLabel: Record<string, string> = {
+const STATUS_LABEL: Record<string, string> = {
   sealed: 'Sealed',
   hold: 'Legal hold',
   draft: 'Draft',
@@ -75,6 +83,49 @@ function mimeToExtension(mime: string, filename: string): string {
   return map[mime] ?? mime.split('/').pop()?.toUpperCase() ?? '';
 }
 
+// --- Upload queue stub data (matching design prototype) ---
+
+const UPLOAD_QUEUE = [
+  { name: 'Butcha_drone_05.mp4', size: '412 MB', pct: 78, status: 'sha256 + timestamp' },
+  { name: 'W-0212_statement_signed.pdf', size: '1.4 MB', pct: 100, status: 'sealing\u2026' },
+  { name: 'Intercept_14:08.flac', size: '19 MB', pct: 34, status: 'uploading \u00B7 4/12 chunks' },
+] as const;
+
+// --- Integrity summary stub data (matching design prototype) ---
+
+function integrityItems(totalCount: number): readonly {
+  readonly label: string;
+  readonly value: React.ReactNode;
+}[] {
+  return [
+    { label: 'Hash algorithm', value: 'SHA-256 primary \u00B7 BLAKE3 secondary' },
+    {
+      label: 'Timestamp authority',
+      value: (
+        <>
+          <code>ts-eu-west</code> &middot; RFC 3161
+        </>
+      ),
+    },
+    { label: 'Last verification', value: '14:22:04 \u00B7 0 mismatches' },
+    {
+      label: 'Chain breaks',
+      value: (
+        <>
+          <StatusPill status="broken">1</StatusPill> on E-0908 &mdash; isolated,
+          pending re-ingest
+        </>
+      ),
+    },
+    { label: 'Storage backend', value: 'MinIO \u00B7 EU-WEST-2 \u00B7 1.8 TB used' },
+    { label: 'Total items', value: formatNumber(totalCount) },
+    {
+      label: 'Validator',
+      value: <LinkArrow href="/validator">Offline verify (0.3 MB binary)</LinkArrow>,
+    },
+  ];
+}
+
 // --- Props ---
 
 export interface EvidenceViewProps {
@@ -84,13 +135,176 @@ export interface EvidenceViewProps {
   readonly error?: string | null;
 }
 
-export default function EvidenceView({
+// --- Evidence card (server-rendered, matches design prototype exactly) ---
+
+function EvidenceCardItem({ item }: { readonly item: EvidenceItem }) {
+  const { kind, glyph } = mimeToKind(item.mime_type);
+  const st = classificationToStatus(item.classification, item.destroyed_at);
+  const ext = mimeToExtension(item.mime_type, item.original_name);
+  const meta = `${formatBytes(item.size_bytes)} \u00B7 ${ext}`;
+  const phaseMax = item.bp_phase_max ?? BP_PHASE_MAX;
+  const phase = item.bp_phase ?? 0;
+  const color = bpColor(phase);
+
+  return (
+    <a
+      href={`/en/evidence/${item.id}`}
+      className="ev-card"
+      style={{ textDecoration: 'none', color: 'inherit' }}
+    >
+      <div className="ev-thumb">
+        <span className="chip-k">{kind}</span>
+        <span className="chip-s">
+          <StatusPill status={st as 'sealed' | 'hold' | 'draft' | 'broken'}>
+            {STATUS_LABEL[st]}
+          </StatusPill>
+        </span>
+        <span className="glyph">{glyph}</span>
+      </div>
+      <div className="ev-meta">
+        <div className="ref">{item.title || item.original_name}</div>
+        <div className="sm">
+          <span>{item.evidence_number}</span>
+          <span>{meta}</span>
+        </div>
+        <div className="tags">
+          {(item.tags ?? []).map((t) => (
+            <Tag key={t}>{t}</Tag>
+          ))}
+        </div>
+        {phase > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 4,
+              paddingTop: 8,
+              borderTop: '1px solid var(--line)',
+            }}
+          >
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+              {Array.from({ length: phaseMax }, (_, i) => (
+                <span
+                  key={i}
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: i < phase ? color : 'var(--bg-2)',
+                  }}
+                />
+              ))}
+            </div>
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '9.5px',
+                letterSpacing: '.04em',
+                color,
+              }}
+            >
+              {phase}/{phaseMax} phases
+            </span>
+          </div>
+        )}
+      </div>
+    </a>
+  );
+}
+
+// --- Upload queue item ---
+
+function UploadQueueItem({
+  item,
+}: {
+  readonly item: (typeof UPLOAD_QUEUE)[number];
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '28px 1fr auto',
+        gap: 12,
+        alignItems: 'center',
+      }}
+    >
+      <span
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 7,
+          background: 'var(--bg-2)',
+          display: 'grid',
+          placeItems: 'center',
+          fontFamily: "'Fraunces', serif",
+          fontSize: 14,
+          color: 'var(--accent)',
+        }}
+      >
+        &uarr;
+      </span>
+      <div>
+        <div
+          style={{
+            fontFamily: "'Fraunces', serif",
+            fontSize: '14.5px',
+            letterSpacing: '-.005em',
+          }}
+        >
+          {item.name}
+        </div>
+        <div
+          style={{
+            height: 4,
+            background: 'var(--bg-2)',
+            borderRadius: 2,
+            overflow: 'hidden',
+            marginTop: 8,
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${item.pct}%`,
+              background: item.pct === 100 ? 'var(--ok)' : 'var(--accent)',
+            }}
+          />
+        </div>
+        <div
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '10.5px',
+            color: 'var(--muted)',
+            marginTop: 4,
+            letterSpacing: '.04em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {item.size} &middot; {item.status}
+        </div>
+      </div>
+      <span
+        style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          color: 'var(--muted)',
+        }}
+      >
+        {item.pct}%
+      </span>
+    </div>
+  );
+}
+
+// --- Main view ---
+
+export function EvidenceView({
   evidenceItems,
   totalCount,
   facets,
   error,
 }: EvidenceViewProps) {
-  // Compute KPIs from real data
   const docCount = evidenceItems.filter(
     (e) => mimeToKind(e.mime_type).kind === 'DOC'
   ).length;
@@ -111,11 +325,21 @@ export default function EvidenceView({
   const pageSize = evidenceItems.length || 1;
   const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
+  const chipCounts = {
+    all: totalCount,
+    doc: facets?.mime_type ? undefined : docCount || undefined,
+    media: mediaCount || undefined,
+    audio: audioCount || undefined,
+    forensic: forensicCount || undefined,
+    hold: holdCount || undefined,
+  };
+
   return (
     <>
+      {/* Page header */}
       <section className="d-pagehead">
         <div>
-          <span className="eyebrow-m">Berkeley Protocol phases 2&ndash;4</span>
+          <EyebrowLabel>Berkeley Protocol phases 2&ndash;4</EyebrowLabel>
           <h1>
             Evidence <em>locker</em>
           </h1>
@@ -136,78 +360,18 @@ export default function EvidenceView({
         </div>
       </section>
 
+      {/* Error banner */}
       {error && (
-        <div className="banner-error" style={{ marginBottom: '16px' }}>
+        <div className="banner-error" style={{ marginBottom: 16 }}>
           {error}
         </div>
       )}
 
+      {/* Evidence grid panel */}
       <div className="panel" style={{ marginBottom: 22 }}>
-        <div className="fbar">
-          <div className="fsearch">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              style={{ color: 'var(--muted)' }}
-            >
-              <circle cx="7" cy="7" r="4" />
-              <path d="M10 10l3 3" />
-            </svg>
-            <input placeholder="hash, filename, tag, contributor\u2026" />
-          </div>
-          <span className="chip active">
-            All{' '}
-            <span className="x">&middot;{formatNumber(totalCount)}</span>
-          </span>
-          <span className="chip">
-            Document{' '}
-            <span className="chev">
-              {facets?.mime_type
-                ? '\u2014'
-                : docCount > 0
-                  ? formatNumber(docCount)
-                  : '\u2014'}
-            </span>
-          </span>
-          <span className="chip">
-            Image / video{' '}
-            <span className="chev">
-              {mediaCount > 0 ? formatNumber(mediaCount) : '\u2014'}
-            </span>
-          </span>
-          <span className="chip">
-            Audio{' '}
-            <span className="chev">
-              {audioCount > 0 ? formatNumber(audioCount) : '\u2014'}
-            </span>
-          </span>
-          <span className="chip">
-            Forensic{' '}
-            <span className="chev">
-              {forensicCount > 0 ? formatNumber(forensicCount) : '\u2014'}
-            </span>
-          </span>
-          <span className="chip">
-            Legal hold{' '}
-            <span className="chev">
-              {holdCount > 0 ? formatNumber(holdCount) : '\u2014'}
-            </span>
-          </span>
-          <span className="chip">
-            Has redactions <span className="chev">&#9662;</span>
-          </span>
-          <span className="chip">
-            Contributor <span className="chev">&#9662;</span>
-          </span>
-          <span className="chip" style={{ marginLeft: 'auto' }}>
-            &#8862; Grid
-          </span>
-          <span className="chip">&#9776; Table</span>
-        </div>
+        {/* Filter bar (client component for interactivity) */}
+        <EvidenceFilterBar chipCounts={chipCounts} />
+
         <div className="panel-body">
           {evidenceItems.length === 0 ? (
             <div
@@ -216,7 +380,7 @@ export default function EvidenceView({
                 textAlign: 'center',
                 color: 'var(--muted)',
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: '13px',
+                fontSize: 13,
               }}
             >
               No evidence items found.
@@ -229,96 +393,13 @@ export default function EvidenceView({
                 gap: 18,
               }}
             >
-              {evidenceItems.map((e) => {
-                const { kind, glyph } = mimeToKind(e.mime_type);
-                const st = classificationToStatus(
-                  e.classification,
-                  e.destroyed_at
-                );
-                const ext = mimeToExtension(e.mime_type, e.original_name);
-                const meta = `${formatBytes(e.size_bytes)} \u00B7 ${ext}`;
-
-                return (
-                  <a href={`/en/evidence/${e.id}`} className="ev-card" key={e.id} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="ev-thumb">
-                      <span className="chip-k">{kind}</span>
-                      <span className="chip-s">
-                        <span
-                          className={`pl ${st}`}
-                          style={{ fontSize: 10, padding: '2px 7px' }}
-                        >
-                          {statusLabel[st]}
-                        </span>
-                      </span>
-                      <span className="glyph">{glyph}</span>
-                    </div>
-                    <div className="ev-meta">
-                      <div className="ref">{e.title || e.original_name}</div>
-                      <div className="sm">
-                        <span>{e.evidence_number}</span>
-                        <span>{meta}</span>
-                      </div>
-                      <div className="tags">
-                        {(e.tags ?? []).map((t) => (
-                          <span className="tag" key={t}>
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                      {e.bp_phase != null && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            marginTop: 4,
-                            paddingTop: 8,
-                            borderTop: '1px solid var(--line)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              gap: 3,
-                              alignItems: 'center',
-                            }}
-                          >
-                            {Array.from(
-                              { length: e.bp_phase_max ?? BP_PHASE_MAX },
-                              (_, i) => (
-                                <span
-                                  key={i}
-                                  style={{
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: '50%',
-                                    background:
-                                      i < e.bp_phase!
-                                        ? bpColor(e.bp_phase!)
-                                        : 'var(--bg-2)',
-                                  }}
-                                />
-                              )
-                            )}
-                          </div>
-                          <span
-                            style={{
-                              fontFamily: "'JetBrains Mono', monospace",
-                              fontSize: '9.5px',
-                              letterSpacing: '.04em',
-                              color: bpColor(e.bp_phase),
-                            }}
-                          >
-                            {e.bp_phase}/{e.bp_phase_max ?? BP_PHASE_MAX} phases
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </a>
-                );
-              })}
+              {evidenceItems.map((item) => (
+                <EvidenceCardItem key={item.id} item={item} />
+              ))}
             </div>
           )}
+
+          {/* Pagination */}
           <div
             style={{
               marginTop: 22,
@@ -351,58 +432,24 @@ export default function EvidenceView({
         </div>
       </div>
 
+      {/* Bottom two-column panels */}
       <div className="g2-wide">
-        <div className="panel">
-          <div className="panel-h">
-            <h3>Upload queue</h3>
-            <span className="meta">&mdash;</span>
+        {/* Upload queue */}
+        <Panel title="Upload queue" meta="3 in flight">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {UPLOAD_QUEUE.map((u) => (
+              <UploadQueueItem key={u.name} item={u} />
+            ))}
           </div>
-          <div
-            className="panel-body"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-              padding: '24px 0',
-              textAlign: 'center',
-              color: 'var(--muted)',
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '12px',
-            }}
-          >
-            No uploads in progress.
-          </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
-          <div className="panel-h">
-            <h3>Integrity summary</h3>
-            <span className="meta">real-time</span>
-          </div>
-          <div className="panel-body">
-            <dl className="kvs">
-              <dt>Hash algorithm</dt>
-              <dd>SHA-256 primary &middot; BLAKE3 secondary</dd>
-              <dt>Timestamp authority</dt>
-              <dd>
-                <code>ts-eu-west</code> &middot; RFC 3161
-              </dd>
-              <dt>Total items</dt>
-              <dd>{formatNumber(totalCount)}</dd>
-              <dt>Displayed</dt>
-              <dd>{evidenceItems.length} items</dd>
-              <dt>Validator</dt>
-              <dd>
-                <a className="linkarrow" href="/validator">
-                  Offline verify (0.3 MB binary) &rarr;
-                </a>
-              </dd>
-            </dl>
-          </div>
-        </div>
+        {/* Integrity summary */}
+        <Panel title="Integrity summary" meta="real-time">
+          <KeyValueList items={[...integrityItems(totalCount)]} />
+        </Panel>
       </div>
     </>
   );
 }
 
-export { EvidenceView };
+export default EvidenceView;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -195,6 +196,19 @@ func (s *Service) CreateInquiryLog(ctx context.Context, caseID uuid.UUID, input 
 		return InquiryLog{}, &ValidationError{Field: "actor_id", Message: "invalid actor ID"}
 	}
 
+	var assignedTo *uuid.UUID
+	if input.AssignedTo != nil && *input.AssignedTo != "" {
+		parsed, parseErr := uuid.Parse(*input.AssignedTo)
+		if parseErr != nil {
+			return InquiryLog{}, &ValidationError{Field: "assigned_to", Message: "invalid UUID"}
+		}
+		assignedTo = &parsed
+	}
+	priority := "normal"
+	if input.Priority != nil && *input.Priority != "" {
+		priority = *input.Priority
+	}
+
 	log := InquiryLog{
 		CaseID:            caseID,
 		EvidenceID:        evidenceID,
@@ -211,6 +225,9 @@ func (s *Service) CreateInquiryLog(ctx context.Context, caseID uuid.UUID, input 
 		ResultsCollected:  input.ResultsCollected,
 		Objective:         input.Objective,
 		Notes:             input.Notes,
+		AssignedTo:        assignedTo,
+		Priority:          priority,
+		SealedStatus:      "active",
 		PerformedBy:       actorUUID,
 	}
 
@@ -279,6 +296,18 @@ func (s *Service) UpdateInquiryLog(ctx context.Context, id uuid.UUID, input Inqu
 	existing.ResultsCollected = input.ResultsCollected
 	existing.Objective = input.Objective
 	existing.Notes = input.Notes
+	if input.AssignedTo != nil && *input.AssignedTo != "" {
+		parsed, parseErr := uuid.Parse(*input.AssignedTo)
+		if parseErr != nil {
+			return InquiryLog{}, &ValidationError{Field: "assigned_to", Message: "invalid UUID"}
+		}
+		existing.AssignedTo = &parsed
+	} else if input.AssignedTo != nil {
+		existing.AssignedTo = nil
+	}
+	if input.Priority != nil && *input.Priority != "" {
+		existing.Priority = *input.Priority
+	}
 
 	updated, err := s.repo.UpdateInquiryLog(ctx, id, existing.CaseID, existing)
 	if err != nil {
@@ -300,6 +329,70 @@ func (s *Service) GetInquiryLog(ctx context.Context, id uuid.UUID, actorID strin
 		return InquiryLog{}, err
 	}
 	return log, nil
+}
+
+// LockInquiryLog sets sealed_status = "locked" on the given inquiry log.
+// A lock indicates the log is under review and should not be edited.
+// The reason is appended to the existing notes field.
+func (s *Service) LockInquiryLog(ctx context.Context, id uuid.UUID, reason, actorID string) (InquiryLog, error) {
+	log, err := s.repo.GetInquiryLog(ctx, id)
+	if err != nil {
+		return InquiryLog{}, err
+	}
+	if err := s.checkCaseMembership(ctx, log.CaseID, actorID); err != nil {
+		return InquiryLog{}, err
+	}
+	if log.SealedStatus == "complete" {
+		return InquiryLog{}, &ValidationError{Field: "sealed_status", Message: "cannot lock a completed inquiry log"}
+	}
+
+	var noteAppend *string
+	if strings.TrimSpace(reason) != "" {
+		s := "[LOCKED] " + strings.TrimSpace(reason)
+		noteAppend = &s
+	}
+
+	updated, err := s.repo.SetInquiryLogSealedStatus(ctx, id, "locked", nil, noteAppend)
+	if err != nil {
+		return InquiryLog{}, fmt.Errorf("lock inquiry log: %w", err)
+	}
+
+	s.recordCaseEvent(ctx, log.CaseID, "inquiry_log_locked", actorID, map[string]string{
+		"inquiry_log_id": id.String(),
+	})
+	return updated, nil
+}
+
+// SealInquiryLog sets sealed_status = "complete" and records sealed_at = now() on the given
+// inquiry log. A sealed log is considered final; the note is appended to the notes field.
+func (s *Service) SealInquiryLog(ctx context.Context, id uuid.UUID, note, actorID string) (InquiryLog, error) {
+	log, err := s.repo.GetInquiryLog(ctx, id)
+	if err != nil {
+		return InquiryLog{}, err
+	}
+	if err := s.checkCaseMembership(ctx, log.CaseID, actorID); err != nil {
+		return InquiryLog{}, err
+	}
+	if log.SealedStatus == "complete" {
+		return InquiryLog{}, &ValidationError{Field: "sealed_status", Message: "inquiry log is already sealed"}
+	}
+
+	now := time.Now().UTC()
+	var noteAppend *string
+	if strings.TrimSpace(note) != "" {
+		s := "[SEALED] " + strings.TrimSpace(note)
+		noteAppend = &s
+	}
+
+	updated, err := s.repo.SetInquiryLogSealedStatus(ctx, id, "complete", &now, noteAppend)
+	if err != nil {
+		return InquiryLog{}, fmt.Errorf("seal inquiry log: %w", err)
+	}
+
+	s.recordCaseEvent(ctx, log.CaseID, "inquiry_log_sealed", actorID, map[string]string{
+		"inquiry_log_id": id.String(),
+	})
+	return updated, nil
 }
 
 // --- Assessments (Phase 2) ---

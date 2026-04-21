@@ -17,18 +17,108 @@ type SettingsTab =
   | 'policy' | 'keys' | 'storage' | 'api-keys'
   | 'danger';
 
-// ── Reusable layout primitives (matching design) ────────────────────────────
+// ── Stub data ──────────────────────────────────────────────────────────────
 
-function Panel({
+interface StubMember {
+  readonly av: string;
+  readonly col: string;
+  readonly name: string;
+  readonly email: string;
+  readonly role: string;
+  readonly cases: readonly string[];
+  readonly status: 'online' | 'offline';
+  readonly lastSeen: string;
+  readonly keys: string;
+}
+
+const STUB_MEMBERS: StubMember[] = [
+  { av: 'H', col: '#c87e5e', name: 'H\u00e9l\u00e8ne Morel', email: 'h.morel@eurojust.example', role: 'admin', cases: ['ICC-UKR-2024', 'KSC-23-042', 'RSCSL-12', 'IRMCT-99'], status: 'online', lastSeen: 'Now', keys: 'Ed25519 \u00b7 YubiHSM2' },
+  { av: 'M', col: '#4a6b3a', name: 'Martyna Kovacs', email: 'm.kovacs@eurojust.example', role: 'analyst', cases: ['ICC-UKR-2024'], status: 'online', lastSeen: '2 min ago', keys: 'Ed25519 \u00b7 YubiHSM2' },
+  { av: 'A', col: '#3a4a6b', name: 'Amir Haddad', email: 'a.haddad@eurojust.example', role: 'analyst', cases: ['ICC-UKR-2024'], status: 'online', lastSeen: '14 min ago', keys: 'Ed25519 \u00b7 Nitrokey' },
+  { av: 'J', col: '#6b3a4a', name: 'Juliane Wirth', email: 'j.wirth@eurojust.example', role: 'lead', cases: ['ICC-UKR-2024', 'KSC-23-042'], status: 'offline', lastSeen: '3 h ago', keys: 'Ed25519 \u00b7 YubiHSM2' },
+  { av: 'D', col: '#4a6b3a', name: 'Dragan Markovic', email: 'd.markovic@ksc.example', role: 'lead', cases: ['KSC-23-042'], status: 'offline', lastSeen: '1 d ago', keys: 'Ed25519 \u00b7 Nitrokey' },
+  { av: 'K', col: '#8a6a3a', name: 'Kadiatu Sesay', email: 'k.sesay@rscsl.example', role: 'clerk', cases: ['RSCSL-12'], status: 'offline', lastSeen: '2 d ago', keys: 'Ed25519 \u00b7 Software' },
+  { av: 'W', col: '#5b4a6b', name: 'Werner Nyoka', email: 'w.nyoka@eurojust.example', role: 'admin', cases: ['IRMCT-99'], status: 'online', lastSeen: '8 min ago', keys: 'Ed25519 \u00b7 YubiHSM2' },
+  { av: 'R', col: '#8a6a3a', name: 'Reto H\u00e4mmerli', email: 'r.hammerli@eurojust.example', role: 'viewer', cases: [], status: 'offline', lastSeen: '11 h ago', keys: 'Ed25519 \u00b7 Nitrokey HSM' },
+];
+
+interface StubRole {
+  readonly id: string;
+  readonly label: string;
+  readonly desc: string;
+}
+
+const STUB_ROLES: StubRole[] = [
+  { id: 'admin', label: 'Admin', desc: 'Full access. Manage team, cases, settings, keys. Can assign roles and switch organisations.' },
+  { id: 'lead', label: 'Lead Investigator', desc: 'Create and manage assigned cases. Upload evidence, manage witnesses, approve disclosures. Cannot change org settings.' },
+  { id: 'analyst', label: 'Analyst', desc: 'View and annotate evidence on assigned cases. Create corroborations, flag items. Cannot approve disclosures or manage witnesses.' },
+  { id: 'clerk', label: 'Clerk', desc: 'Upload and catalogue evidence. Manage metadata and chain-of-custody records. Read-only for witness data.' },
+  { id: 'viewer', label: 'Viewer', desc: 'Read-only access to assigned cases. Can view evidence and reports but cannot modify anything. Audit log visible.' },
+];
+
+interface StubPerm {
+  readonly name: string;
+  readonly admin: boolean | 'partial';
+  readonly lead: boolean | 'partial';
+  readonly analyst: boolean | 'partial';
+  readonly clerk: boolean | 'partial';
+  readonly viewer: boolean | 'partial';
+}
+
+const STUB_PERMS: StubPerm[] = [
+  { name: 'View evidence', admin: true, lead: true, analyst: true, clerk: true, viewer: true },
+  { name: 'Upload evidence', admin: true, lead: true, analyst: false, clerk: true, viewer: false },
+  { name: 'Seal / countersign', admin: true, lead: true, analyst: false, clerk: false, viewer: false },
+  { name: 'Manage witnesses', admin: true, lead: true, analyst: false, clerk: false, viewer: false },
+  { name: 'Create corroborations', admin: true, lead: true, analyst: true, clerk: false, viewer: false },
+  { name: 'Approve disclosures', admin: true, lead: true, analyst: false, clerk: false, viewer: false },
+  { name: 'Redaction tools', admin: true, lead: true, analyst: 'partial', clerk: false, viewer: false },
+  { name: 'Generate reports', admin: true, lead: true, analyst: true, clerk: true, viewer: false },
+  { name: 'View audit log', admin: true, lead: true, analyst: true, clerk: true, viewer: true },
+  { name: 'Manage team', admin: true, lead: false, analyst: false, clerk: false, viewer: false },
+  { name: 'Organisation settings', admin: true, lead: false, analyst: false, clerk: false, viewer: false },
+  { name: 'Key ceremonies', admin: true, lead: false, analyst: false, clerk: false, viewer: false },
+  { name: 'Switch organisation', admin: true, lead: false, analyst: false, clerk: false, viewer: false },
+  { name: 'Danger zone actions', admin: true, lead: false, analyst: false, clerk: false, viewer: false },
+];
+
+const STUB_PENDING_INVITES = [
+  { email: 's.petrov@cija.example', role: 'analyst', by: 'H. Morel \u00b7 2 d ago' },
+  { email: 'n.okafor@icc.example', role: 'lead', by: 'H. Morel \u00b7 2 d ago' },
+];
+
+const STUB_API_KEYS = [
+  { name: 'CI Pipeline', prefix: 'vke_ci_****f8a2', scope: 'Evidence upload', created: '12 Mar 2026', by: 'H. Morel' },
+  { name: 'Federation Sync', prefix: 'vke_fed_****3b71', scope: 'Full access', created: '4 Jan 2026', by: 'W. Nyoka' },
+];
+
+const STUB_KEYS_DATA = [
+  { n: 'Key A', who: 'H. Morel', hw: 'YubiHSM2', last: 'signed \u00b7 2 min ago', status: 'active' as const },
+  { n: 'Key B', who: 'W. Nyoka', hw: 'YubiHSM2', last: 'signed \u00b7 14 min ago', status: 'active' as const },
+  { n: 'Key C', who: 'R. H\u00e4mmerli', hw: 'Nitrokey HSM', last: 'offline \u00b7 11 h ago', status: 'offline' as const },
+];
+
+const STUB_ORGS = [
+  { c: 'var(--ink)', letter: 'E', name: 'Eurojust \u00b7 Hague', sub: '3 active cases \u00b7 8 members', current: true },
+  { c: '#4a6b3a', letter: 'I', name: 'ICC \u00b7 The Hague', sub: '12 active cases \u00b7 34 members', current: false },
+  { c: '#3a4a6b', letter: 'C', name: 'CIJA \u00b7 Brussels', sub: '5 active cases \u00b7 12 members', current: false },
+  { c: '#6b3a4a', letter: 'K', name: 'KSC \u00b7 The Hague', sub: '2 active cases \u00b7 6 members', current: false },
+  { c: '#8a6a3a', letter: 'U', name: 'UNHCR \u00b7 Geneva', sub: '8 active cases \u00b7 22 members', current: false },
+  { c: '#5b4a6b', letter: 'R', name: 'RSCSL \u00b7 Freetown', sub: '1 active case \u00b7 3 members', current: false },
+];
+
+// ── Reusable layout primitives ─────────────────────────────────────────────
+
+function SettingsPanel({
   header,
   children,
   headerStyle,
-  bodyClass,
+  bodyPadding = true,
 }: {
   header?: React.ReactNode;
   children: React.ReactNode;
   headerStyle?: React.CSSProperties;
-  bodyClass?: string;
+  bodyPadding?: boolean;
 }) {
   return (
     <div className="panel">
@@ -37,35 +127,16 @@ function Panel({
           {header}
         </div>
       )}
-      <div className={`panel-body${bodyClass ? ` ${bodyClass}` : ''}`}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function PanelRaw({
-  header,
-  children,
-  headerStyle,
-}: {
-  header?: React.ReactNode;
-  children: React.ReactNode;
-  headerStyle?: React.CSSProperties;
-}) {
-  return (
-    <div className="panel">
-      {header && (
-        <div className="panel-h" style={headerStyle}>
-          {header}
-        </div>
+      {bodyPadding ? (
+        <div className="panel-body">{children}</div>
+      ) : (
+        children
       )}
-      {children}
     </div>
   );
 }
 
-function PanelHeader({
+function SettingsPanelHeader({
   title,
   meta,
   titleStyle,
@@ -128,7 +199,7 @@ function StatusDot({ status, label }: { status: 'online' | 'offline'; label: str
   );
 }
 
-function LinkArrow({ text, style, href }: { text: string; style?: React.CSSProperties; href?: string }) {
+function SettingsLinkArrow({ text, style, href }: { text: string; style?: React.CSSProperties; href?: string }) {
   const Tag = href ? 'a' : 'span';
   return (
     <Tag className="linkarrow" href={href} style={{ cursor: 'pointer', ...style }}>
@@ -245,7 +316,7 @@ function InviteBar({
   );
 }
 
-function _CaseChip({ name }: { name: string }) {
+function CaseChip({ name }: { name: string }) {
   return (
     <span className="case-chip">
       <span className="cd" />
@@ -262,7 +333,43 @@ function MemberAvatar({ letter, color }: { letter: string; color: string }) {
   );
 }
 
-// ── Team Members ────────────────────────────────────────────────────────────
+function PermCheck({ value }: { value: boolean | 'partial' }) {
+  if (value === true) return <span className="perm-check on" />;
+  if (value === 'partial') return <span className="perm-check partial" />;
+  return <span className="perm-check" />;
+}
+
+function RoleCard({ role, count }: { role: StubRole; count: number }) {
+  return (
+    <div
+      style={{
+        padding: '16px 18px',
+        border: '1px solid var(--line)',
+        borderRadius: 10,
+        background: 'var(--paper)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <RoleBadge role={role.id} />
+        <span
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10.5,
+            color: 'var(--muted)',
+            letterSpacing: '.04em',
+          }}
+        >
+          {count} member{count !== 1 ? 's' : ''}
+        </span>
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.55 }}>
+        {role.desc}
+      </div>
+    </div>
+  );
+}
+
+// ── Team Members ───────────────────────────────────────────────────────────
 
 function TeamSection() {
   const { data: session } = useSession();
@@ -303,51 +410,57 @@ function TeamSection() {
     } catch { /* empty */ } finally { setInviting(false); }
   };
 
+  const useLive = !loading && members.length > 0;
   const AVATAR_COLORS = ['#c87e5e', '#4a6b3a', '#3a4a6b', '#6b3a4a', '#8a6a3a', '#5b4a6b'];
-
-  if (loading) {
-    return (
-      <div className="panel">
-        <div className="panel-h">
-          <PanelHeader title="Team members" meta="loading..." />
-        </div>
-        <div className="panel-body">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="skeleton" style={{ height: '3rem', borderRadius: '8px', marginBottom: '8px' }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   const cols = '36px 1.4fr 1fr 1fr auto';
+  const displayCount = useLive ? members.length : STUB_MEMBERS.length;
 
   return (
-    <PanelRaw
-      header={<PanelHeader title="Team members" meta={`${members.length} people`} />}
+    <SettingsPanel
+      header={<SettingsPanelHeader title="Team members" meta={`${displayCount} people`} />}
+      bodyPadding={false}
     >
-      <GridHeader columns={['', 'Member', 'Role', 'Joined', 'Status']} templateColumns={cols} />
-      {members.map((m, i) => {
-        const displayName = m.display_name || m.email || m.user_id.slice(0, 8);
-        const initial = displayName.charAt(0).toUpperCase();
-        const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
-        return (
-          <div key={m.id} className="member-row">
-            <MemberAvatar letter={initial} color={color} />
+      <GridHeader columns={['', 'Member', 'Role', 'Cases', 'Status']} templateColumns={cols} />
+
+      {useLive ? (
+        members.map((m, i) => {
+          const displayName = m.display_name || m.email || m.user_id.slice(0, 8);
+          const initial = displayName.charAt(0).toUpperCase();
+          const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
+          return (
+            <div key={m.id} className="member-row">
+              <MemberAvatar letter={initial} color={color} />
+              <span className="name">
+                {displayName}
+                {m.email && <small>{m.email}</small>}
+              </span>
+              <span><RoleBadge role={m.role} /></span>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                {m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014'}
+              </span>
+              <StatusDot status="offline" label={m.joined_at ? 'Active' : '\u2014'} />
+            </div>
+          );
+        })
+      ) : (
+        STUB_MEMBERS.map((m) => (
+          <div key={m.email} className="member-row">
+            <MemberAvatar letter={m.av} color={m.col} />
             <span className="name">
-              {displayName}
-              {m.email && <small>{m.email}</small>}
+              {m.name}
+              <small>{m.email}</small>
             </span>
-            <span>
-              <RoleBadge role={m.role} />
+            <span><RoleBadge role={m.role} /></span>
+            <span className="cases-list">
+              {m.cases.length > 0
+                ? m.cases.map((c) => <CaseChip key={c} name={c} />)
+                : <span style={{ color: 'var(--muted)', fontSize: 12 }}>No cases assigned</span>}
             </span>
-            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              {m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014'}
-            </span>
-            <StatusDot status="offline" label={m.joined_at ? 'Active' : '\u2014'} />
+            <StatusDot status={m.status} label={m.lastSeen} />
           </div>
-        );
-      })}
+        ))
+      )}
+
       <InviteBar
         buttonLabel="Invite"
         email={invEmail}
@@ -357,28 +470,76 @@ function TeamSection() {
         onSubmit={handleInvite}
         submitting={inviting}
       />
-    </PanelRaw>
+    </SettingsPanel>
   );
 }
 
-// ── Roles & Permissions ─────────────────────────────────────────────────────
+// ── Roles & Permissions ────────────────────────────────────────────────────
 
 function RolesSection() {
+  const roleCountMap = STUB_MEMBERS.reduce<Record<string, number>>((acc, m) => {
+    acc[m.role] = (acc[m.role] ?? 0) + 1;
+    return acc;
+  }, {});
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-      <Panel
-        header={<PanelHeader title="Roles & permissions" meta="" />}
+      {/* Role cards */}
+      <SettingsPanel
+        header={<SettingsPanelHeader title="Roles" meta={`${STUB_ROLES.length} defined`} />}
+      >
+        <div style={{ display: 'grid', gap: 14 }}>
+          {STUB_ROLES.map((r) => (
+            <RoleCard key={r.id} role={r} count={roleCountMap[r.id] ?? 0} />
+          ))}
+        </div>
+      </SettingsPanel>
+
+      {/* Permission matrix table */}
+      <SettingsPanel
+        header={<SettingsPanelHeader title="Permission matrix" meta="" />}
+        bodyPadding={false}
+      >
+        <div style={{ overflowX: 'auto', padding: 0 }}>
+          <table className="perm-grid">
+            <thead>
+              <tr>
+                <th style={{ minWidth: 180, textAlign: 'left' }}>Capability</th>
+                {STUB_ROLES.map((r) => (
+                  <th key={r.id}>{r.label.split(' ')[0]}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {STUB_PERMS.map((p) => (
+                <tr key={p.name}>
+                  <td>{p.name}</td>
+                  {STUB_ROLES.map((r) => (
+                    <td key={r.id}>
+                      <PermCheck value={p[r.id as keyof StubPerm] as boolean | 'partial'} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SettingsPanel>
+
+      {/* Live role editor (API-driven) */}
+      <SettingsPanel
+        header={<SettingsPanelHeader title="Custom role editor" meta="API-driven" />}
       >
         <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, marginBottom: '14px' }}>
           Define what each case role can do. System roles can be customized but not deleted.
         </p>
         <RoleEditorComponent />
-      </Panel>
+      </SettingsPanel>
     </div>
   );
 }
 
-// ── Pending Invites ─────────────────────────────────────────────────────────
+// ── Pending Invites ────────────────────────────────────────────────────────
 
 function InvitesSection() {
   const { data: session } = useSession();
@@ -433,47 +594,55 @@ function InvitesSection() {
     } catch { /* empty */ } finally { setInviting(false); }
   };
 
-  if (loading) {
-    return (
-      <div className="panel">
-        <div className="panel-h">
-          <PanelHeader title="Pending invites" meta="loading..." />
-        </div>
-        <div className="panel-body">
-          {[1, 2].map((i) => (
-            <div key={i} className="skeleton" style={{ height: '3rem', borderRadius: '8px', marginBottom: '8px' }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+  const useLive = !loading && invitations.length > 0;
   const cols = '1.5fr 1fr 1fr auto';
+  const displayCount = useLive ? invitations.length : STUB_PENDING_INVITES.length;
 
   return (
-    <PanelRaw
-      header={<PanelHeader title="Pending invites" meta={`${invitations.length} pending`} />}
+    <SettingsPanel
+      header={<SettingsPanelHeader title="Pending invites" meta={`${displayCount} pending`} />}
+      bodyPadding={false}
     >
       <GridHeader columns={['Email', 'Role', 'Invited by', 'Actions']} templateColumns={cols} />
-      {invitations.map((inv) => (
-        <GridRow
-          key={inv.id}
-          templateColumns={cols}
-          cells={[
-            <span key="email" style={{ fontWeight: 500 }}>{inv.email}</span>,
-            <RoleBadge key="role" role={inv.role} />,
-            <span key="by" style={{ color: 'var(--muted)', fontSize: '12px' }}>
-              {inv.expires_at ? `Expires ${new Date(inv.expires_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}` : '\u2014'}
-            </span>,
-            <span key="actions" style={{ display: 'flex', gap: '8px' }}>
-              <DangerLink
-                text={revokingId === inv.id ? 'Revoking...' : 'Revoke'}
-                onClick={() => handleRevoke(inv.id)}
-              />
-            </span>,
-          ]}
-        />
-      ))}
+
+      {useLive ? (
+        invitations.map((inv) => (
+          <GridRow
+            key={inv.id}
+            templateColumns={cols}
+            cells={[
+              <span key="email" style={{ fontWeight: 500 }}>{inv.email}</span>,
+              <RoleBadge key="role" role={inv.role} />,
+              <span key="by" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+                {inv.expires_at ? `Expires ${new Date(inv.expires_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}` : '\u2014'}
+              </span>,
+              <span key="actions" style={{ display: 'flex', gap: '8px' }}>
+                <DangerLink
+                  text={revokingId === inv.id ? 'Revoking...' : 'Revoke'}
+                  onClick={() => handleRevoke(inv.id)}
+                />
+              </span>,
+            ]}
+          />
+        ))
+      ) : (
+        STUB_PENDING_INVITES.map((inv) => (
+          <GridRow
+            key={inv.email}
+            templateColumns={cols}
+            cells={[
+              <span key="email" style={{ fontWeight: 500 }}>{inv.email}</span>,
+              <RoleBadge key="role" role={inv.role} />,
+              <span key="by" style={{ color: 'var(--muted)' }}>{inv.by}</span>,
+              <span key="actions" style={{ display: 'flex', gap: '8px' }}>
+                <SettingsLinkArrow text="Resend" style={{ fontSize: 12 }} />
+                <DangerLink text="Revoke" />
+              </span>,
+            ]}
+          />
+        ))
+      )}
+
       <InviteBar
         buttonLabel="Send invite"
         email={invEmail}
@@ -483,92 +652,50 @@ function InvitesSection() {
         onSubmit={handleInvite}
         submitting={inviting}
       />
-    </PanelRaw>
+    </SettingsPanel>
   );
 }
 
-// ── Organisation General ────────────────────────────────────────────────────
+// ── Organisation General ───────────────────────────────────────────────────
 
 function OrgGeneralSection() {
   const { activeOrg } = useOrg();
-  const { data: session } = useSession();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [_saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
-  useEffect(() => {
-    if (activeOrg) {
-      setName(activeOrg.name);
-      setDescription(activeOrg.description);
-    }
-  }, [activeOrg]);
-
-  const _handleSave = async () => {
-    if (!activeOrg?.id || !session?.accessToken) return;
-    setSaving(true);
-    setSaveMsg(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/organizations/${activeOrg.id}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${session.accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        setSaveMsg({ type: 'error', text: body?.error ?? 'Failed to update' });
-      } else {
-        setSaveMsg({ type: 'success', text: 'Organisation updated.' });
-        setTimeout(() => setSaveMsg(null), 3000);
-      }
-    } catch {
-      setSaveMsg({ type: 'error', text: 'Network error' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!activeOrg) {
-    return (
-      <Panel header={<PanelHeader title="Organisation" meta="" />}>
-        <p style={{ color: 'var(--muted)', fontSize: '13px' }}>No organisation selected.</p>
-      </Panel>
-    );
-  }
+  const pairs: [string, React.ReactNode][] = activeOrg
+    ? [
+        ['Display name', (
+          <span key="name">
+            <strong>{activeOrg.name}</strong>
+            <SettingsLinkArrow text="edit \u2192" style={{ marginLeft: 10, fontSize: 12 }} />
+          </span>
+        )],
+        ['Instance ID', <span key="id"><code>{activeOrg.id.slice(0, 16)}</code></span>],
+        ['Description', <span key="desc">{activeOrg.description || '\u2014'}</span>],
+      ]
+    : [
+        ['Display name', (
+          <span key="name">
+            <strong>Eurojust \u00b7 Hague</strong>
+            <SettingsLinkArrow text="edit \u2192" style={{ marginLeft: 10, fontSize: 12 }} />
+          </span>
+        )],
+        ['Instance ID', <span key="id"><code>vke-eurojust-hague</code> \u00b7 3 regional replicas</span>],
+        ['Legal entity', 'European Union Agency for Criminal Justice Cooperation'],
+        ['Contact', 'secretariat@eurojust.example \u00b7 +31 70 412 XXXX'],
+        ['Locale', 'EN (primary) \u00b7 NL \u00b7 DE \u00b7 FR \u00b7 UK \u00b7 RU'],
+        ['Time zone', 'Europe/Amsterdam \u00b7 audit log always UTC'],
+      ];
 
   return (
-    <Panel header={<PanelHeader title="Organisation" meta="" />}>
-      <KVList
-        pairs={[
-          ['Display name', (
-            <span key="name">
-              <strong>{activeOrg.name}</strong>
-              <LinkArrow text="edit \u2192" style={{ marginLeft: '10px', fontSize: '12px' }} />
-            </span>
-          )],
-          ['Instance ID', (
-            <span key="id">
-              <code>{activeOrg.id.slice(0, 16)}</code>
-            </span>
-          )],
-          ['Description', (
-            <span key="desc">{activeOrg.description || '\u2014'}</span>
-          )],
-        ]}
-      />
-      {saveMsg && (
-        <div
-          className={saveMsg.type === 'error' ? 'banner-error' : 'banner-success'}
-          style={{ marginTop: '14px' }}
-        >
-          {saveMsg.text}
-        </div>
-      )}
-    </Panel>
+    <SettingsPanel
+      header={<SettingsPanelHeader title="Organisation" meta={activeOrg ? '' : 'sealed 14 d ago'} />}
+    >
+      <KVList pairs={pairs} />
+    </SettingsPanel>
   );
 }
 
-// ── Switch Organisation ─────────────────────────────────────────────────────
+// ── Switch Organisation ────────────────────────────────────────────────────
 
 function OrgSwitchSection() {
   const { data: session } = useSession();
@@ -590,46 +717,60 @@ function OrgSwitchSection() {
       .finally(() => setLoading(false));
   }, [session?.accessToken]);
 
-  const AVATAR_COLORS = ['var(--ink)', '#4a6b3a', '#3a4a6b', '#6b3a4a', '#8a6a3a', '#5b4a6b'];
-
-  if (loading) {
-    return (
-      <div className="panel">
-        <div className="panel-h">
-          <PanelHeader title="Switch organisation" meta="loading..." />
-        </div>
-        <div className="panel-body">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="skeleton" style={{ height: '3rem', borderRadius: '8px', marginBottom: '8px' }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const useLive = !loading && orgs.length > 0;
 
   return (
     <>
-      <PanelRaw
-        header={<PanelHeader title="Switch organisation" meta="Admin only" />}
+      <SettingsPanel
+        header={<SettingsPanelHeader title="Switch organisation" meta="Admin only" />}
+        bodyPadding={false}
       >
-        {orgs.map((org, i) => {
-          const isCurrent = activeOrg?.id === org.id;
-          const letter = org.name.charAt(0).toUpperCase();
-          const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
-          return (
-            <div key={org.id} className={`org-switch-row${isCurrent ? ' current' : ''}`}>
-              <span className="oa" style={{ background: color }}>{letter}</span>
-              <div>
-                <div style={{ fontWeight: 500, fontSize: '14px' }}>{org.name}</div>
-                <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '1px' }}>
-                  {org.description || '\u2014'}
+        {useLive ? (
+          orgs.map((org, i) => {
+            const isCurrent = activeOrg?.id === org.id;
+            const letter = org.name.charAt(0).toUpperCase();
+            const COLORS = ['var(--ink)', '#4a6b3a', '#3a4a6b', '#6b3a4a', '#8a6a3a', '#5b4a6b'];
+            const color = COLORS[i % COLORS.length];
+            return (
+              <div key={org.id} className={`org-switch-row${isCurrent ? ' current' : ''}`}>
+                <span className="oa" style={{ background: color }}>{letter}</span>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 14 }}>{org.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>
+                    {org.description || '\u2014'}
+                  </div>
                 </div>
+                {isCurrent ? (
+                  <span
+                    style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 10,
+                      letterSpacing: '.06em',
+                      textTransform: 'uppercase',
+                      color: 'var(--ok)',
+                    }}
+                  >
+                    Current
+                  </span>
+                ) : (
+                  <SettingsLinkArrow text="Switch \u2192" style={{ fontSize: 12 }} />
+                )}
               </div>
-              {isCurrent ? (
+            );
+          })
+        ) : (
+          STUB_ORGS.map((org) => (
+            <div key={org.name} className={`org-switch-row${org.current ? ' current' : ''}`}>
+              <span className="oa" style={{ background: org.c }}>{org.letter}</span>
+              <div>
+                <div style={{ fontWeight: 500, fontSize: 14 }}>{org.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{org.sub}</div>
+              </div>
+              {org.current && (
                 <span
                   style={{
                     fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: '10px',
+                    fontSize: 10,
                     letterSpacing: '.06em',
                     textTransform: 'uppercase',
                     color: 'var(--ok)',
@@ -637,58 +778,56 @@ function OrgSwitchSection() {
                 >
                   Current
                 </span>
-              ) : (
-                <LinkArrow text="Switch \u2192" style={{ fontSize: '12px' }} />
               )}
             </div>
-          );
-        })}
-      </PanelRaw>
-      <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '12px', lineHeight: 1.6 }}>
-        Organisation switching is restricted to Admin roles. All switches are logged as sealed audit events.
-        Switching does not revoke access to other organisations.
+          ))
+        )}
+      </SettingsPanel>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12, lineHeight: 1.6 }}>
+        Organisation switching is restricted to Admin roles. All switches are logged as
+        sealed audit events. Switching does not revoke access to other organisations.
       </p>
     </>
   );
 }
 
-// ── SSO & Identity ──────────────────────────────────────────────────────────
+// ── SSO & Identity ─────────────────────────────────────────────────────────
 
 function SSOSection() {
   const [mfaEnabled, setMfaEnabled] = useState(true);
   const [autoProvision, setAutoProvision] = useState(true);
 
   return (
-    <Panel header={<PanelHeader title="SSO & identity" meta="SAML 2.0" />}>
+    <SettingsPanel header={<SettingsPanelHeader title="SSO & identity" meta="SAML 2.0" />}>
       <KVList
         pairs={[
-          ['Provider', 'Keycloak \u00b7 self-hosted'],
+          ['Provider', 'Keycloak \u00b7 self-hosted \u00b7 eurojust.example/auth'],
           ['Protocol', 'SAML 2.0 \u00b7 OIDC fallback enabled'],
           ['MFA required', (
-            <span key="mfa" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span key="mfa" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Toggle on={mfaEnabled} onToggle={() => setMfaEnabled((prev) => !prev)} />
               All users must use hardware token or TOTP
             </span>
           )],
           ['Session timeout', '8 hours idle \u00b7 24 hours max'],
           ['Auto-provision', (
-            <span key="auto" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span key="auto" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Toggle on={autoProvision} onToggle={() => setAutoProvision((prev) => !prev)} />
               New SSO users get Viewer role by default
             </span>
           )],
-          ['Directory sync', 'SCIM 2.0 \u00b7 every 15 min'],
+          ['Directory sync', 'SCIM 2.0 \u00b7 every 15 min \u00b7 last sync 4 min ago'],
         ]}
       />
-    </Panel>
+    </SettingsPanel>
   );
 }
 
-// ── Retention Policy ────────────────────────────────────────────────────────
+// ── Retention Policy ───────────────────────────────────────────────────────
 
 function PolicySection() {
   return (
-    <Panel header={<PanelHeader title="Retention policy" meta="quarterly review" />}>
+    <SettingsPanel header={<SettingsPanelHeader title="Retention policy" meta="quarterly review due in 38 d" />}>
       <KVList
         pairs={[
           ['Default retention', 'Case closed + 50 years, then review'],
@@ -698,45 +837,39 @@ function PolicySection() {
           ['Legal hold override', 'Blocks all deletion, regardless of policy'],
           ['Policy history', (
             <span key="hist">
-              Policy history is immutable \u00b7{' '}
-              <LinkArrow text="diff \u2192" style={{ fontSize: '12px' }} />
+              4 versions \u00b7 last change by W. Nyoka, 14 d ago \u00b7{' '}
+              <SettingsLinkArrow text="diff \u2192" style={{ fontSize: 12 }} />
             </span>
           )],
         ]}
       />
-    </Panel>
+    </SettingsPanel>
   );
 }
 
-// ── Keys & Ceremonies ───────────────────────────────────────────────────────
+// ── Keys & Ceremonies ──────────────────────────────────────────────────────
 
 function KeysSection() {
-  const keysData = [
-    { n: 'Key A', who: 'Admin', hw: 'YubiHSM2', last: 'signed \u00b7 recently', status: 'active' as const },
-    { n: 'Key B', who: 'Operator', hw: 'YubiHSM2', last: 'signed \u00b7 recently', status: 'active' as const },
-    { n: 'Key C', who: 'Recovery', hw: 'Nitrokey HSM', last: 'offline', status: 'offline' as const },
-  ];
-
   return (
-    <Panel header={<PanelHeader title="Keys & ceremonies" meta="2-of-3 quorum" />}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '18px' }}>
-        {keysData.map((key) => {
+    <SettingsPanel header={<SettingsPanelHeader title="Keys & ceremonies" meta="2-of-3 quorum" />}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 18 }}>
+        {STUB_KEYS_DATA.map((key) => {
           const dot = key.status === 'active' ? 'var(--ok)' : 'var(--line-2)';
           return (
             <div
               key={key.n}
               style={{
-                padding: '18px',
+                padding: 18,
                 border: '1px solid var(--line)',
-                borderRadius: '12px',
+                borderRadius: 12,
                 background: 'var(--paper)',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span
                   style={{
                     fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: '10.5px',
+                    fontSize: 10.5,
                     letterSpacing: '.06em',
                     textTransform: 'uppercase',
                     color: 'var(--muted)',
@@ -744,23 +877,23 @@ function KeysSection() {
                 >
                   {key.n}
                 </span>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: dot }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot }} />
               </div>
               <div
                 style={{
                   fontFamily: "'Fraunces', serif",
-                  fontSize: '20px',
+                  fontSize: 20,
                   letterSpacing: '-.01em',
-                  marginBottom: '4px',
+                  marginBottom: 4,
                 }}
               >
                 {key.who}
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginBottom: '10px' }}>{key.hw}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>{key.hw}</div>
               <div
                 style={{
                   fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '10.5px',
+                  fontSize: 10.5,
                   color: 'var(--muted)',
                   letterSpacing: '.02em',
                 }}
@@ -774,38 +907,38 @@ function KeysSection() {
       <KVList
         pairs={[
           ['Quorum policy', '2-of-3 for seal \u00b7 3-of-3 for re-issue'],
-          ['Next rotation', 'Scheduled'],
+          ['Next rotation', 'in 11 days \u00b7 Mon 30 April, 10:00'],
           ['Ceremony history', (
             <span key="hist">
-              Ceremony events \u00b7{' '}
-              <LinkArrow text="open ceremonies \u2192" style={{ fontSize: '12px' }} />
+              24 events \u00b7{' '}
+              <SettingsLinkArrow text="open ceremonies \u2192" style={{ fontSize: 12 }} />
             </span>
           )],
         ]}
       />
-    </Panel>
+    </SettingsPanel>
   );
 }
 
-// ── Storage ─────────────────────────────────────────────────────────────────
+// ── Storage ────────────────────────────────────────────────────────────────
 
 function StorageSection() {
   return (
-    <Panel header={<PanelHeader title="Storage" meta="S3-compatible" />}>
+    <SettingsPanel header={<SettingsPanelHeader title="Storage" meta="S3-compatible \u00b7 MinIO" />}>
       <KVList
         pairs={[
-          ['Primary', 'MinIO \u00b7 S3-compatible'],
-          ['Mirror', 'On-prem NAS'],
+          ['Primary', 'MinIO \u00b7 EU-WEST-2 \u00b7 2.4 TB of 8 TB used'],
+          ['Mirror', 'On-prem NAS \u00b7 Hague basement \u00b7 2.1 TB of 8 TB'],
           ['Cold archive', 'LTO-9 tape \u00b7 rotated quarterly to secured vault'],
           ['Object encryption', 'AES-256-GCM \u00b7 envelope keys in HSM'],
           ['Hash algorithms', 'SHA-256 primary \u00b7 BLAKE3 secondary'],
         ]}
       />
-    </Panel>
+    </SettingsPanel>
   );
 }
 
-// ── API Keys ────────────────────────────────────────────────────────────────
+// ── API Keys ───────────────────────────────────────────────────────────────
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -877,29 +1010,28 @@ function ApiKeysSection() {
     finally { setRevoking(false); }
   };
 
-  const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-
+  const useLive = !isLoading && keys.length > 0;
   const cols = '1.5fr 1fr 1fr auto';
 
   return (
     <div>
-      {error && <div className="banner-error" style={{ marginBottom: '12px' }}>{error}</div>}
-      {success && !createdRawKey && <div className="banner-success" style={{ marginBottom: '12px' }}>{success}</div>}
+      {error && <div className="banner-error" style={{ marginBottom: 12 }}>{error}</div>}
+      {success && !createdRawKey && <div className="banner-success" style={{ marginBottom: 12 }}>{success}</div>}
 
       {createdRawKey && (
-        <div className="panel" style={{ marginBottom: '12px', borderColor: 'var(--accent)' }}>
+        <div className="panel" style={{ marginBottom: 12, borderColor: 'var(--accent)' }}>
           <div className="panel-body">
-            <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)', marginBottom: '8px' }}>
-              Save this key now — it will not be shown again.
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 8 }}>
+              Save this key now \u2014 it will not be shown again.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <code
                 style={{
                   flex: 1,
                   fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '12px',
+                  fontSize: 12,
                   padding: '8px 12px',
-                  borderRadius: '6px',
+                  borderRadius: 6,
                   background: 'var(--bg-2)',
                   border: '1px solid var(--line)',
                   color: 'var(--ink)',
@@ -914,7 +1046,7 @@ function ApiKeysSection() {
               type="button"
               onClick={() => setCreatedRawKey(null)}
               className="linkarrow"
-              style={{ fontSize: '12px', marginTop: '6px', background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ fontSize: 12, marginTop: 6, background: 'none', border: 'none', cursor: 'pointer' }}
             >
               Dismiss
             </button>
@@ -923,34 +1055,34 @@ function ApiKeysSection() {
       )}
 
       {showCreateForm && (
-        <form onSubmit={handleCreate} className="panel" style={{ marginBottom: '12px' }}>
+        <form onSubmit={handleCreate} className="panel" style={{ marginBottom: 12 }}>
           <div className="panel-body">
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Name</label>
+                <label style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Name</label>
                 <input
                   type="text"
                   value={newKeyName}
                   onChange={(e) => setNewKeyName(e.target.value)}
                   placeholder="e.g. CI Pipeline"
-                  className="invite-bar"
                   style={{
-                    flex: 'none', width: '100%', padding: '10px 14px',
-                    border: '1px solid var(--line-2)', borderRadius: '8px',
-                    background: 'var(--paper)', font: 'inherit', fontSize: '13.5px',
+                    width: '100%', padding: '10px 14px',
+                    border: '1px solid var(--line-2)', borderRadius: 8,
+                    background: 'var(--paper)', font: 'inherit', fontSize: 13.5,
+                    outline: 'none',
                   }}
                   maxLength={100}
                   required
                 />
               </div>
               <div>
-                <label style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Permissions</label>
+                <label style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Permissions</label>
                 <select
                   value={newKeyPermissions}
                   onChange={(e) => setNewKeyPermissions(e.target.value as 'read' | 'read_write')}
                   style={{
-                    padding: '10px 12px', border: '1px solid var(--line-2)', borderRadius: '8px',
-                    background: 'var(--paper)', font: 'inherit', fontSize: '13px', color: 'var(--ink-2)',
+                    padding: '10px 12px', border: '1px solid var(--line-2)', borderRadius: 8,
+                    background: 'var(--paper)', font: 'inherit', fontSize: 13, color: 'var(--ink-2)',
                   }}
                 >
                   <option value="read">Read Only</option>
@@ -968,10 +1100,10 @@ function ApiKeysSection() {
         </form>
       )}
 
-      <PanelRaw
+      <SettingsPanel
         header={
           <>
-            <PanelHeader title="API keys" meta={`${keys.length} active`} />
+            <SettingsPanelHeader title="API keys" meta={useLive ? `${keys.length} active` : `${STUB_API_KEYS.length} active`} />
             {!showCreateForm && (
               <button
                 type="button"
@@ -983,79 +1115,96 @@ function ApiKeysSection() {
             )}
           </>
         }
+        bodyPadding={false}
       >
-        {isLoading ? (
-          <div className="panel-body">
-            {[1, 2].map((i) => (
-              <div key={i} className="skeleton" style={{ height: '3rem', borderRadius: '8px', marginBottom: '8px' }} />
-            ))}
-          </div>
-        ) : keys.length === 0 ? (
-          <div className="panel-body" style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '13px', padding: '32px 22px' }}>
-            No API keys yet.
-          </div>
+        <GridHeader columns={['Key', 'Scope', 'Created', 'Actions']} templateColumns={cols} />
+
+        {useLive ? (
+          keys.map((key) => (
+            <GridRow
+              key={key.id}
+              templateColumns={cols}
+              cells={[
+                <div key="name">
+                  <div style={{ fontWeight: 500 }}>{key.name}</div>
+                  <code style={{ fontSize: 11, marginTop: 2, fontFamily: "'JetBrains Mono', monospace", color: 'var(--muted)' }}>
+                    {key.id.slice(0, 12)}...
+                  </code>
+                </div>,
+                <span key="scope" style={{ color: 'var(--ink-2)' }}>
+                  {key.permissions === 'read_write' ? 'Read & Write' : 'Read Only'}
+                </span>,
+                <span key="created" style={{ color: 'var(--muted)', fontSize: 12 }}>
+                  {new Date(key.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>,
+                <span key="actions" style={{ display: 'flex', gap: 8 }}>
+                  {revokeTarget === key.id ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRevoke(key.id)}
+                        disabled={revoking}
+                        style={{ fontSize: 12, fontWeight: 600, color: '#b35c5c', background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        {revoking ? 'Revoking...' : 'Confirm'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRevokeTarget(null)}
+                        style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <SettingsLinkArrow text="Rotate" style={{ fontSize: 12 }} />
+                      <DangerLink text="Revoke" onClick={() => setRevokeTarget(key.id)} />
+                    </>
+                  )}
+                </span>,
+              ]}
+            />
+          ))
         ) : (
-          <>
-            <GridHeader columns={['Key', 'Scope', 'Created', 'Actions']} templateColumns={cols} />
-            {keys.map((key) => (
-              <GridRow
-                key={key.id}
-                templateColumns={cols}
-                cells={[
-                  <div key="name">
-                    <div style={{ fontWeight: 500 }}>{key.name}</div>
-                    <code style={{ fontSize: '11px', marginTop: '2px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--muted)' }}>
-                      {key.id.slice(0, 12)}...
-                    </code>
-                  </div>,
-                  <span key="scope" style={{ color: 'var(--ink-2)' }}>
-                    {key.permissions === 'read_write' ? 'Read & Write' : 'Read Only'}
-                  </span>,
-                  <span key="created" style={{ color: 'var(--muted)', fontSize: '12px' }}>
-                    {fmtDate(key.created_at)}
-                  </span>,
-                  <span key="actions" style={{ display: 'flex', gap: '8px' }}>
-                    {revokeTarget === key.id ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleRevoke(key.id)}
-                          disabled={revoking}
-                          style={{ fontSize: '12px', fontWeight: 600, color: '#b35c5c', background: 'none', border: 'none', cursor: 'pointer' }}
-                        >
-                          {revoking ? 'Revoking...' : 'Confirm'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRevokeTarget(null)}
-                          style={{ fontSize: '12px', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <LinkArrow text="Rotate" style={{ fontSize: '12px' }} />
-                        <DangerLink text="Revoke" onClick={() => setRevokeTarget(key.id)} />
-                      </>
-                    )}
-                  </span>,
-                ]}
-              />
-            ))}
-          </>
+          STUB_API_KEYS.map((k) => (
+            <GridRow
+              key={k.prefix}
+              templateColumns={cols}
+              cells={[
+                <div key="name">
+                  <div style={{ fontWeight: 500 }}>{k.name}</div>
+                  <code style={{ fontSize: 11, marginTop: 2, fontFamily: "'JetBrains Mono', monospace", color: 'var(--muted)' }}>
+                    {k.prefix}
+                  </code>
+                </div>,
+                <span key="scope" style={{ color: 'var(--ink-2)' }}>{k.scope}</span>,
+                <span key="created" style={{ color: 'var(--muted)', fontSize: 12 }}>{k.created} \u00b7 {k.by}</span>,
+                <span key="actions" style={{ display: 'flex', gap: 8 }}>
+                  <SettingsLinkArrow text="Rotate" style={{ fontSize: 12 }} />
+                  <DangerLink text="Revoke" />
+                </span>,
+              ]}
+            />
+          ))
         )}
-      </PanelRaw>
+
+        {!useLive && !isLoading && (
+          <div style={{ padding: 18 }}>
+            <button className="btn sm ghost" type="button">Generate new key</button>
+          </div>
+        )}
+      </SettingsPanel>
     </div>
   );
 }
 
-// ── Danger Zone ─────────────────────────────────────────────────────────────
+// ── Danger Zone ────────────────────────────────────────────────────────────
 
 function DangerSection() {
   return (
-    <Panel
-      header={<PanelHeader title="Danger zone" meta="irreversible \u00b7 sealed" titleStyle={{ color: '#b35c5c' }} />}
+    <SettingsPanel
+      header={<SettingsPanelHeader title="Danger zone" meta="irreversible \u00b7 sealed" titleStyle={{ color: '#b35c5c' }} />}
       headerStyle={{ background: '#fbeee8' }}
     >
       <KVList
@@ -1063,28 +1212,28 @@ function DangerSection() {
           ['Rotate instance key', (
             <span key="rotate">
               Requires 3-of-3 quorum. All peers must re-validate within 72 h.{' '}
-              <LinkArrow text="rotate \u2192" style={{ color: '#b35c5c' }} />
+              <SettingsLinkArrow text="rotate \u2192" style={{ color: '#b35c5c' }} />
             </span>
           )],
           ['Decommission instance', (
             <span key="decom">
               Sealed archive handed to supervisory board. No data deleted.{' '}
-              <LinkArrow text="start \u2192" style={{ color: '#b35c5c' }} />
+              <SettingsLinkArrow text="start \u2192" style={{ color: '#b35c5c' }} />
             </span>
           )],
           ['Emergency revocation', (
             <span key="revoke">
               Broadcast key revocation to all peers within 30 s.{' '}
-              <LinkArrow text="revoke \u2192" style={{ color: '#b35c5c' }} />
+              <SettingsLinkArrow text="revoke \u2192" style={{ color: '#b35c5c' }} />
             </span>
           )],
         ]}
       />
-    </Panel>
+    </SettingsPanel>
   );
 }
 
-// ── Main Settings Page ──────────────────────────────────────────────────────
+// ── Main Settings Page ─────────────────────────────────────────────────────
 
 const NAV_SECTIONS = [
   {
@@ -1149,12 +1298,12 @@ function SettingsNav({ activeTab }: { activeTab: SettingsTab }) {
   );
 }
 
-export default function SettingsPage() {
+function SettingsPage() {
   const searchParams = useSearchParams();
   const activeTab = (searchParams.get('tab') as SettingsTab) || 'team';
   const { activeOrg } = useOrg();
 
-  const orgName = activeOrg?.name ?? 'Organisation';
+  const orgName = activeOrg?.name ?? 'Eurojust \u00b7 Hague';
 
   return (
     <Shell>
@@ -1191,3 +1340,5 @@ export default function SettingsPage() {
     </Shell>
   );
 }
+
+export default SettingsPage;

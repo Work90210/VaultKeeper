@@ -2,6 +2,7 @@ package investigation
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -14,6 +15,7 @@ type Repository interface {
 	GetInquiryLog(ctx context.Context, id uuid.UUID) (InquiryLog, error)
 	UpdateInquiryLog(ctx context.Context, id, caseID uuid.UUID, log InquiryLog) (InquiryLog, error)
 	DeleteInquiryLog(ctx context.Context, id, caseID uuid.UUID) error
+	SetInquiryLogSealedStatus(ctx context.Context, id uuid.UUID, status string, sealedAt *time.Time, notes *string) (InquiryLog, error)
 
 	// Assessments (Phase 2)
 	CreateAssessment(ctx context.Context, assessment EvidenceAssessment) (EvidenceAssessment, error)
